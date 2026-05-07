@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as figlet from 'figlet';
+import * as express from 'express';
 import { LoadEnvironmentVariables } from './config/env';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { setupSwagger } from './config/swagger';
@@ -10,7 +11,70 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  LoadEnvironmentVariables();
+  console.log('\n========== PROJECT ENV ==========');
+
+  const projectEnvs = [
+    'NODE_ENV',
+
+    // Database
+    'DATABASE_URL',
+    'DIRECT_URL',
+    'SUPABASE_DB_PASSWORD',
+
+    // Google
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+
+    // Cloudinary
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+
+    // Better Auth
+    'BETTER_AUTH_URL',
+    'BETTER_AUTH_SECRET',
+
+    // App
+    'APP_NAME',
+    'WEB_APP_URL',
+    'PORT',
+
+    // Front URLs
+    'FRONTEND_EMAIL_VERIFIED_URL',
+    'FRONTEND_RESET_PASSWORD_URL',
+    'FRONTEND_VERIFY_INVITATION_URL',
+    'FRONTEND_UPDATE_VERIFIED_URL',
+
+    // Resend
+    'RESEND_TEMPLATE_TEAM_INVITE_ID',
+    'RESEND_TEMPLATE_EMAIL_VERIFY_ID',
+    'RESEND_TEMPLATE_RESET_PASSWORD_ID',
+    'RESEND_TEMPLATE_UPDATE_EMAIL_ID',
+    'RESEND_CLIENT_EMAIL',
+    'RESEND_API_KEY',
+
+    // Invitation
+    'INVITATION_ENCRYPTION_KEY',
+
+    // Cookies
+    'COOKIE_DOMAIN',
+  ];
+
+  projectEnvs.forEach((key) => {
+    const value = process.env[key];
+
+    const shouldHide =
+      key.includes('SECRET') ||
+      key.includes('PASSWORD') ||
+      key.includes('TOKEN') ||
+      key.includes('KEY') ||
+      key.includes('DATABASE_URL') ||
+      key.includes('DIRECT_URL');
+
+    console.log(`${key}=${shouldHide ? '********' : (value ?? 'undefined')}`);
+  });
+
+  console.log('=================================\n');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
@@ -32,12 +96,18 @@ async function bootstrap() {
       'exp://**',
       'exp://192.168.*.*:*/**',
       'http://localhost:8081',
+      'https://keurezy.onrender.com',
     ];
 
     const origin = req.headers.origin;
 
-    if (origin && (origin.startsWith('http://localhost') || origin.includes('.devtunnels.ms'))) {
-      console.log('Origin:', origin);
+    const isAllowed =
+      !!origin &&
+      (allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost') ||
+        origin.includes('.devtunnels.ms'));
+
+    if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
     }
 
@@ -59,7 +129,7 @@ async function bootstrap() {
   expressApp.all(/^\/api\/auth\/.*/, toNodeHandler(authService.instance.handler));
 
   // Re-enable Nest's JSON body parser AFTER mounting BetterAuth
-  expressApp.use(require('express').json());
+  expressApp.use(express.json());
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));

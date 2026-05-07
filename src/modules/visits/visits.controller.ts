@@ -17,7 +17,6 @@ import { API_URL } from '_root/config/api';
 @ApiBearerAuth()
 @Controller()
 @UseGuards(AuthGuard, MiddlewareGuard)
-@AllowAnonymous() //  TEMPORAIRE
 export class VisitsController {
   constructor(private readonly visitsService: VisitsService) {}
 
