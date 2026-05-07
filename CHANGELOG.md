@@ -1,3 +1,19 @@
+# [1.7.0](https://github.com/victory-aime/my-immo-backend/compare/v1.6.0...v1.7.0) (2026-05-07)
+
+
+### Features
+
+* **annonce module:** fonctionaliter creud ([ab93c04](https://github.com/victory-aime/my-immo-backend/commit/ab93c04110b6c101ea727ddbad6ff0c26df3f3e2))
+* **annonce:** improve API URLs and error handling ([eb73d4c](https://github.com/victory-aime/my-immo-backend/commit/eb73d4ccdb551fa178a7a30de7d77b7bd9e05a74))
+* **auth:** implement full RBAC system with plan-based access control and invitation flow ([2495f05](https://github.com/victory-aime/my-immo-backend/commit/2495f05b291653a2ee0cc6d336c3cffcfa84762c))
+* **feat(visits): add visits module with full crud operations:** add full visits module ([86720bc](https://github.com/victory-aime/my-immo-backend/commit/86720bca89a6ba53d4fb8b0a7196e265fb9aa331))
+* **leads): feat(leads:** add leads module with full CRM pipeline ([f95722e](https://github.com/victory-aime/my-immo-backend/commit/f95722e90fc86d839b68daad9b4f83dc8b41b8e0))
+* **notifications:** add notifications2 module with generic send notification system ([73aecae](https://github.com/victory-aime/my-immo-backend/commit/73aecae2dc3b03098134b0022a08e00c548d12aa))
+* **payment module:** integrate payment module and Naboo provider ([def49b1](https://github.com/victory-aime/my-immo-backend/commit/def49b14e4530e4ddd0e2e697db4fca4a13fa883))
+* **profile:** enhance user profile management with email integration ([ef2cb22](https://github.com/victory-aime/my-immo-backend/commit/ef2cb22a72d02202e8b77f3e6dee97d3b6e5666d))
+* **profile:** enhance user profile management with email integration ([3cd3c3a](https://github.com/victory-aime/my-immo-backend/commit/3cd3c3a60cfe90965162ddc4219a69336bc6e94e))
+* **team module:** team module and update db ([efc9758](https://github.com/victory-aime/my-immo-backend/commit/efc9758fdeb8723e79bf20eb1f537d719693bf96))
+
 # [1.6.0](https://github.com/victory-aime/my-immo-backend/compare/v1.5.0...v1.6.0) (2026-04-13)
 
 ### Features
