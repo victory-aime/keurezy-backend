@@ -76,10 +76,51 @@ export class AnnonceService {
 
   // 2. LIST ALL
   async findAllAnnonces(): Promise<Annonce[]> {
-    return this.prisma.annonce.findMany({
-      include: { property: true },
+    const annonces = await this.prisma.annonce.findMany({
+      where: {
+        status: 'ACTIVE',
+      },
+      include: {
+        property: {
+          include: { batiment: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    return annonces.map((annonce) => ({
+      id: annonce.id,
+      title: annonce.title,
+      propertyId: annonce.propertyId,
+      description: annonce.description,
+      galleryImages: annonce.galleryImages,
+      status: annonce.status,
+      publishedAt: annonce.publishedAt,
+      createdAt: annonce.createdAt,
+      updatedAt: annonce.updatedAt,
+      property: {
+        id: annonce.property.id,
+        title: annonce.property.title,
+        type: annonce.property.type,
+        price: annonce.property.price,
+        propertyOwner: annonce.property.propertyOwner,
+        address: annonce.property.address,
+        city: annonce.property.city,
+        district: annonce.property.district,
+        caution: annonce.property.caution,
+        rooms: annonce.property.rooms,
+        bathrooms: annonce.property.bathrooms,
+        area: annonce.property.area,
+        status: annonce.property.status,
+      },
+      batiment: {
+        id: annonce.property.batiment?.id,
+        name: annonce.property.batiment?.name,
+        address: annonce.property.batiment?.address,
+        city: annonce.property.batiment?.city,
+        district: annonce.property.batiment?.district,
+      },
+    }));
   }
 
   // 3. LIST BY AGENCY

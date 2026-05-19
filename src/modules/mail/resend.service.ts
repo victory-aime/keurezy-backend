@@ -164,4 +164,19 @@ export class ResendService {
       },
     });
   }
+
+  async sendVerificationOTP(to: string, otp: string): Promise<EmailResult> {
+    return this.sendTemplateEmail({
+      to,
+      subject: 'Verification Email',
+      template: EMAIL_TEMPLATE_ID.OTP_VERIFY,
+      variables: {
+        FROM_CLIENT_EMAIL: this.fromAddress,
+        SUBJECT: 'Verification Email',
+        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._5_MINUTES),
+        OTP: otp,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
 }

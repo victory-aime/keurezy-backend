@@ -38,5 +38,12 @@ export class AuthMailInitializer implements OnModuleInit {
         link: url,
       });
     });
+
+    authEmailBridge.sendVerificationOTPHandler(async ({ email, otp }) => {
+      await this.emailService.sendVerificationOTP({
+        sendTo: email,
+        otp,
+      });
+    });
   }
 }

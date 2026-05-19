@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EmailTemplatePayload } from './types/mail-template.type';
+import { EmailTemplatePayload, OTPTemplatePayload } from './types/mail-template.type';
 import { ResendService } from './resend.service';
 
 @Injectable()
@@ -32,6 +32,16 @@ export class EmailService {
     const { sendTo, link, username, newEmail } = data;
     try {
       await this.resendService.sendUpdateEmailVerification(sendTo, username, link, newEmail);
+    } catch (error) {
+      throw new Error(`Error sending email: ${error}`);
+    }
+  }
+
+  async sendVerificationOTP(data: OTPTemplatePayload): Promise<void> {
+    const { sendTo, otp } = data;
+    console.log('otp send', sendTo, 'otp', otp);
+    try {
+      await this.resendService.sendVerificationOTP(sendTo, otp);
     } catch (error) {
       throw new Error(`Error sending email: ${error}`);
     }

@@ -68,6 +68,20 @@ export class AuthController {
     return this.authService.sendVerificationEmail(body);
   }
 
+  @Post(API_URL.AUTH.RESEND_VERIFICATION_OTP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Renvoyer l'email OTP de vérification" })
+  async resendVerificationOtpEmail(@Body() body: ResendVerificationDto) {
+    return this.authService.resendVerificationOtpEmail(body);
+  }
+
+  @Post(API_URL.AUTH.VERIFY_OTP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Verifier l'email OTP" })
+  async verifyOtpEmail(@Body() body: ResendVerificationDto & { otp: string }) {
+    return this.authService.verifyMobileEmail(body);
+  }
+
   // ─────────────────────────────────────────
   // POST v1/unsecured/auth/reset-password
   // ─────────────────────────────────────────

@@ -105,6 +105,9 @@ async function bootstrap() {
       !!origin &&
       (allowedOrigins.includes(origin) ||
         origin.startsWith('http://localhost') ||
+        origin.startsWith('http://10.20.') || // ← ajouter
+        origin.startsWith('exp://') || // ← ajouter
+        origin.startsWith('keureazy://') ||
         origin.includes('.devtunnels.ms'));
 
     if (isAllowed) {

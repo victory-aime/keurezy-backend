@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { EXPIRE_TIME } from '../config/enum';
-import { twoFactor } from 'better-auth/plugins';
+import { twoFactor, emailOTP } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
 import { expo } from '@better-auth/expo';
 import { authEmailBridge } from '../modules/auth/auth-email.bridge';
@@ -13,11 +13,10 @@ import { customSession } from 'better-auth/plugins/custom-session';
 // ─────────────────────────────────────────
 // INSTANCE SINGLETON
 // ─────────────────────────────────────────
-type AuthInstance = ReturnType<typeof betterAuth>;
 
-let authInstance: AuthInstance | null = null;
+let authInstance: ReturnType<typeof createAuth> | null = null;
 
-export const getAuthInstance = (): AuthInstance => {
+export const getAuthInstance = () => {
   if (!authInstance) {
     authInstance = createAuth();
   }
@@ -35,21 +34,21 @@ export const getAuthInstance = (): AuthInstance => {
 //   ✅ 2FA, Passkey, Expo
 //   ✅ Google OAuth
 //
-export const createAuth = (): ReturnType<typeof betterAuth> => {
+export const createAuth = (): any => {
+  const isDev = process.env.NODE_ENV !== 'production';
   return betterAuth({
     advanced: {
-      // crossSubDomainCookies: {
-      //   enabled: !!cookieDomain,
-      //   domain: cookieDomain,
-      // },
-      defaultCookieAttributes: {
-        secure: true,
-        sameSite: 'none',
-        httponly: true,
-      },
-    },
-    session: {
-      cookieCache: { enabled: false },
+      defaultCookieAttributes: isDev
+        ? {
+            secure: false,
+            sameSite: 'lax',
+            httpOnly: true,
+          }
+        : {
+            secure: true,
+            sameSite: 'none',
+            httpOnly: true,
+          },
     },
     appName: process.env.APP_NAME,
     baseURL: process.env.BETTER_AUTH_URL,
@@ -63,19 +62,6 @@ export const createAuth = (): ReturnType<typeof betterAuth> => {
       },
       changeEmail: {
         enabled: true,
-        // sendChangeEmailConfirmation: async ({ user, token, newEmail }) => {
-        //   console.log(
-        //     'update email link',
-        //     `${process.env.FRONTEND_EMAIL_VERIFIED_URL}/?token=${token}`,
-        //   );
-        //   await authEmailBridge.changeUserEmail({
-        //     name: user.name,
-        //     email: user.email,
-        //     newEmail,
-        //     url: `${process.env.FRONTEND_UPDATE_VERIFIED_URL}/?token=${token}`,
-        //     expireTime: formatExpiresIn(EXPIRE_TIME._15_MINUTES),
-        //   });
-        // },
       },
       additionalFields: {
         role: {
@@ -90,7 +76,7 @@ export const createAuth = (): ReturnType<typeof betterAuth> => {
     },
 
     emailVerification: {
-      sendOnSignUp: true,
+      sendOnSignUp: false,
       autoSignInAfterVerification: true,
       expiresIn: EXPIRE_TIME._30_MINUTES,
       sendVerificationEmail: async ({ user, token }) => {
@@ -169,6 +155,23 @@ export const createAuth = (): ReturnType<typeof betterAuth> => {
       }),
       passkey(),
       expo(),
+      emailOTP({
+        expiresIn: EXPIRE_TIME._60_MINUTES,
+        disableSignUp: true,
+        allowedAttempts: 5,
+        async sendVerificationOTP({ email, otp, type }) {
+          if (type === 'email-verification') {
+            await authEmailBridge.sendOTP({
+              email,
+              otp,
+            });
+          } else if (type === 'forget-password') {
+            // Send the OTP for password reset
+          } else {
+            return;
+          }
+        },
+      }),
     ],
 
     trustedOrigins: [
@@ -179,9 +182,12 @@ export const createAuth = (): ReturnType<typeof betterAuth> => {
       'https://vlpgtcwk-5080.euw.devtunnels.ms',
       'https://vlpgtcwk-3000.euw.devtunnels.ms',
       'https://keurezy.onrender.com',
+      'http://10.20.*.*:*/**',
       'exp://',
       'exp://**',
       'exp://192.168.*.*:*/**',
+      'keurezy://192.168.*.*:*/**',
+      'keurezy://*',
     ],
   });
 };

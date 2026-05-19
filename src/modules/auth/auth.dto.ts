@@ -15,9 +15,6 @@ export class CreateUserDto {
 export class ResendVerificationDto {
   @IsEmail()
   email: string;
-
-  @IsString()
-  callbackURL: string;
 }
 
 export class ForgotPasswordDto {

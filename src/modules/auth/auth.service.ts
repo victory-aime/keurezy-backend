@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { getAuthInstance } from '_root/lib/auth';
 import { HttpError } from '_root/config/http.error';
 import { UsersService } from '_root/modules/users/users.service';
@@ -9,10 +9,15 @@ import {
   ResendVerificationDto,
   ResetPasswordDto,
 } from '_root/modules/auth/auth.dto';
+import { PrismaService } from '_root/database/prisma.service';
+import { EXPIRE_TIME } from '_root/config/enum';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ─────────────────────────────────────────
   // CONNEXION — retourne le token JWT
@@ -58,14 +63,14 @@ export class AuthService {
 
   async registerUser(data: CreateUserDto) {
     try {
-      // 1. Vérifier si l'email est déjà pris
       const existing = await this.usersService.findUser({ email: data.email });
       if (existing) {
-        throw new ConflictException('Un compte avec cet email existe déjà.');
+        throw new HttpError(
+          'Impossible de créer un compte avec ses informations veuillez changer svp !.',
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+        );
       }
-
-      // 2. Créer le user via l'API interne Better-Auth
-      //    → gère le hash du password, la création Account, etc.
       const auth = getAuthInstance();
 
       const response = await auth.api.signUpEmail({
@@ -80,16 +85,25 @@ export class AuthService {
         throw new HttpError('Erreur lors de la création du compte.');
       }
 
+      await auth.api.sendVerificationOTP({
+        body: {
+          email: response.user.email,
+          type: 'email-verification',
+        },
+      });
+
       return {
-        message: 'Compte créé. Vérifiez votre email pour activer votre compte.',
+        message: 'Bienvenue ! Votre compte a été créé avec succès.',
         email: response.user.email,
-        userId: response.user.id,
+        otp: {
+          expireOtp: EXPIRE_TIME._5_MINUTES,
+          retryIn: EXPIRE_TIME._2_MINUTES,
+        },
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof HttpError) {
         throw error;
       }
-      console.error('Erreur createUser:', error);
       throw new HttpError('Une erreur interne est survenue. Veuillez réessayer plus tard.');
     }
   }
@@ -108,13 +122,90 @@ export class AuthService {
     await auth.api.sendVerificationEmail({
       body: {
         email: data?.email,
-        callbackURL: data?.callbackURL,
       },
     });
 
     return { message: 'Email de vérification renvoyé.' };
   }
 
+  async resendVerificationOtpEmail(data: ResendVerificationDto) {
+    const verification = await this.prisma.verification.findFirst({
+      where: {
+        identifier: `email-verification-otp-${data.email}`,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    if (verification) {
+      const COOLDOWN_MS = 120_000;
+      const elapsed = Date.now() - verification.createdAt.getTime();
+      const remainingMs = COOLDOWN_MS - elapsed;
+
+      if (remainingMs > 0) {
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
+        return {
+          success: false,
+          cooldown: {
+            active: true,
+            remainingSeconds: Math.ceil(remainingSeconds / 1000),
+            retryAt: new Date(Date.now() + remainingSeconds),
+          },
+        };
+      }
+    }
+
+    await getAuthInstance().api.sendVerificationOTP({
+      body: {
+        email: data.email,
+        type: 'email-verification',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Code renvoyé',
+      cooldown: {
+        active: false,
+      },
+    };
+  }
+
+  async verifyMobileEmail(data: ResendVerificationDto & { otp: string }) {
+    if (!data.email || !data.otp) {
+      throw new HttpError('Service indisponible', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const response = await getAuthInstance().api.verifyEmailOTP({
+      body: {
+        email: data.email,
+        otp: data.otp,
+      },
+    });
+
+    if (!response?.user) {
+      throw new HttpError(
+        'Un problème est survenu lors de la vérification',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    if (response.user.email !== data.email) {
+      throw new HttpError('Email invalide', HttpStatus.BAD_REQUEST);
+    }
+
+    await this.prisma.user.update({
+      where: { id: response.user.id },
+      data: {
+        emailVerified: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Verification success.',
+    };
+  }
   // ─────────────────────────────────────────
   // FORGOT PASSWORD
   // ─────────────────────────────────────────

@@ -13,10 +13,13 @@ type EmailHandler = (payload: {
   expireTime: string;
 }) => Promise<void>;
 
+type SendOTPEmailHandler = (payload: { email: string; otp: string }) => Promise<void>;
+
 class AuthEmailBridge {
   private verificationHandler: EmailHandler | null = null;
   private resetPasswordHandler: EmailHandler | null = null;
   private changeEmailHandler: EmailHandler | null = null;
+  private sendVerificationOTP: SendOTPEmailHandler | null = null;
 
   registerVerificationHandler(handler: EmailHandler) {
     this.verificationHandler = handler;
@@ -27,6 +30,10 @@ class AuthEmailBridge {
   }
   updateUserEmailHandler(handler: EmailHandler) {
     this.changeEmailHandler = handler;
+  }
+
+  sendVerificationOTPHandler(handler: SendOTPEmailHandler) {
+    this.sendVerificationOTP = handler;
   }
 
   async sendVerification(payload: Parameters<EmailHandler>[0]) {
@@ -42,11 +49,19 @@ class AuthEmailBridge {
     }
     return this.resetPasswordHandler(payload);
   }
+
   async changeUserEmail(payload: Parameters<EmailHandler>[0]) {
     if (!this.changeEmailHandler) {
       throw new Error('AuthEmailBridge: changeEmailHandler non enregistré');
     }
     return this.changeEmailHandler(payload);
+  }
+
+  async sendOTP(payload: Parameters<SendOTPEmailHandler>[0]) {
+    if (!this.sendVerificationOTP) {
+      throw new Error('AuthEmailBridge: sendVerificationOTP non enregistré');
+    }
+    return this.sendVerificationOTP(payload);
   }
 }
 

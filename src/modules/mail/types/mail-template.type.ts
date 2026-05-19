@@ -41,6 +41,13 @@ export type TemplateVariables = {
     NEW_EMAIL?: string;
     APP_NAME?: string;
   };
+  [EMAIL_TEMPLATE_ID.OTP_VERIFY]: {
+    FROM_CLIENT_EMAIL?: string;
+    SUBJECT?: string;
+    EXPIRE_TIME: string;
+    OTP: string;
+    APP_NAME?: string;
+  };
 };
 
 export class SendTemplateEmailOptions<T extends EMAIL_TEMPLATE_ID> {
@@ -66,6 +73,11 @@ export class EmailTemplatePayload {
   username: string;
   link: string;
   newEmail?: string;
+}
+
+export class OTPTemplatePayload {
+  sendTo: string;
+  otp: string;
 }
 
 export class SendInviteEmailPayload {
