@@ -1,10 +1,10 @@
 module.exports = {
-  branches: ['main'],
+  branches: ['main', { name: 'uat', prerelease: 'uat' }, { name: 'develop', prerelease: 'dev' }],
   plugins: [
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
-    '@semantic-release/npm',
+    ['@semantic-release/npm', { npmPublish: false }],
     [
       '@semantic-release/git',
       {
