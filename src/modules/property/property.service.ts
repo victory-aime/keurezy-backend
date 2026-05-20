@@ -5,16 +5,24 @@ import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { convertToInteger } from '_root/config/convert';
 import { Prisma } from '../../../prisma/generated/client';
+import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service'; //  ajouter
 
 @Injectable()
 export class PropertyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly subscriptionLimitService: SubscriptionLimitService, //  ajouter
   ) {}
 
   async getAllPropertyByAgency(query: PropertyFilterDto) {
-    await this.agencyService.agencyAccessControl(query?.agencyId, query?.userId);
+    if (!query.agencyId) {
+      throw new HttpError(
+        "L'identifiant de l'agence est requis",
+        HttpStatus.BAD_REQUEST,
+        'AGENCY_ID_REQUIRED',
+      );
+    }
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
@@ -74,8 +82,13 @@ export class PropertyService {
     });
   }
 
-  async createProperty(data: propertyDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data?.userId);
+  async createProperty(ownerId: string, data: propertyDto): Promise<{ message: string }> {
+    // ✅ Vérifier la limite du plan avant de créer
+    await this.subscriptionLimitService.checkPropertyLimit(data.agencyId);
+
+    await this.agencyService.checkAgencyOwnership(data.agencyId);
+  // ... reste du code inchangé
+    await this.agencyService.checkAgencyOwnership(data.agencyId);
 
     const uniqueName = await this.prisma.property.findUnique({
       where: {
@@ -125,12 +138,8 @@ export class PropertyService {
       }
     }
 
-    const { userId, ...values } = data;
-
     await this.prisma.property.create({
-      data: {
-        ...values,
-      },
+      data,
     });
 
     return {
@@ -138,9 +147,11 @@ export class PropertyService {
     };
   }
 
-  async updateProperty(propertyId: string, data: propertyDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
-
+  async updateProperty(
+    ownerId: string,
+    propertyId: string,
+    data: propertyDto,
+  ): Promise<{ message: string }> {
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId },
     });
@@ -148,6 +159,8 @@ export class PropertyService {
     if (!property) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
+
+    await this.agencyService.checkAgencyOwnership(property.agencyId);
 
     // 🧠 Cas où on change le bâtiment
     if (data.batimentId) {
@@ -203,7 +216,7 @@ export class PropertyService {
       }
     }
 
-    const { agencyId, userId, batimentId, ...safeValues } = data;
+    const { agencyId, batimentId, ...safeValues } = data;
 
     await this.prisma.property.update({
       where: { id: propertyId },
@@ -231,8 +244,8 @@ export class PropertyService {
     };
   }
 
-  async getOccupationRateByType1(userId: string, agencyId: string) {
-    await this.agencyService.agencyAccessControl(agencyId, userId);
+  async getOccupationRateByType1(ownerId: string, agencyId: string) {
+    await this.agencyService.checkAgencyOwnership(agencyId);
 
     const properties = await this.prisma.property.findMany({
       where: {
@@ -274,8 +287,8 @@ export class PropertyService {
   /**
    * Stats: Taux d'occupation par type de propriété
    */
-  async getOccupationRateByType(userId: string, agencyId: string) {
-    await this.agencyService.agencyAccessControl(agencyId, userId);
+  async getOccupationRateByType(ownerId: string, agencyId: string) {
+    await this.agencyService.checkAgencyOwnership(agencyId);
 
     const properties = await this.prisma.property.findMany({
       where: { agencyId },
@@ -303,7 +316,7 @@ export class PropertyService {
   //  * Stats: Revenus mensuels par maison occupée (fake API pour dev)
   //  */
   // async getMonthlyRevenue(ownerId: string, agencyId: string) {
-  //   await this.agencyService.agencyAccessControl(ownerId, agencyId);
+  //   await this.agencyService.checkAgencyOwnership(ownerId, agencyId);
   //
   //   const properties = await this.prisma.property.findMany({
   //     where: {

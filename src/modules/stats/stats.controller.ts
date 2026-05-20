@@ -1,10 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
-  ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { StatsService } from './stats.service';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
@@ -20,9 +21,9 @@ export class StatsController {
 
   // GET v1/secure/stats/agency?agencyId=
   // Stats globales de l'agence pour le Owner
-
   @Get('v1/secure/stats/agency')
   @ApiOperation({ summary: "Statistiques globales de l'agence" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Statistiques recuperees avec succes' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
   async getAgencyStats(@Query('agencyId') agencyId: string) {

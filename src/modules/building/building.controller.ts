@@ -19,7 +19,19 @@ import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { UploadsService } from '_root/modules/cloudinary/uploads.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 
+@ApiTags('Building')
+@ApiBearerAuth()
 @Controller()
 export class BuildingController {
   constructor(
@@ -29,12 +41,21 @@ export class BuildingController {
   ) {}
 
   @Get(API_URL.BUILDING.ALL_BUILDING_BY_AGENCY)
+  @ApiOperation({ summary: "Récupérer tous les bâtiments d'une agence" })
+  @ApiOkResponse({ description: 'Liste des bâtiments récupérée avec succès' })
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getBuildingByAgency(@Query() data: BuildingFilterDto) {
     return this.buildingService.getAllBuildingByAgency(data);
   }
 
-  @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   @Post(API_URL.BUILDING.CREATE_BUILDING)
+  @ApiOperation({ summary: 'Créer un nouveau bâtiment' })
+  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ type: CreateBuildingDto })
+  @ApiOkResponse({ description: 'Bâtiment créé avec succès' })
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async createBuilding(
     @Body('data') rawData: string,
     @UploadedFiles()
@@ -64,6 +85,12 @@ export class BuildingController {
   }
 
   @Post(API_URL.BUILDING.UPDATE)
+  @ApiOperation({ summary: 'Mettre à jour un bâtiment existant' })
+  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ type: UpdateBuildingDto })
+  @ApiOkResponse({ description: 'Bâtiment mis à jour avec succès' })
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async updateBuilding(
     @Body('data') rawData: string,
@@ -94,6 +121,12 @@ export class BuildingController {
   }
 
   @Delete(API_URL.BUILDING.DELETE)
+  @ApiOperation({ summary: 'Supprimer un bâtiment' })
+  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bâtiment à supprimer' })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: 'Bâtiment supprimé avec succès' })
+  @ApiBadRequestResponse({ description: 'Bâtiment introuvable ou erreur serveur' })
   async deleteBuilding(
     @Query('userId') userId: string,
     @Query('id') id: string,
@@ -102,3 +135,4 @@ export class BuildingController {
     return this.buildingService.deleteBuilding(id, agencyId, userId);
   }
 }
+

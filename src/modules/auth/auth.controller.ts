@@ -44,6 +44,9 @@ export class AuthController {
   @Post(API_URL.AUTH.REGISTER)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Créer un compte utilisateur' })
+  @ApiBody({ type: CreateUserDto })
+  @ApiOkResponse({ description: 'Compte créé avec succès' })
+  @ApiBadRequestResponse({ description: 'Email déjà utilisé ou données invalides' })
   async registerUser(@Body() body: CreateUserDto) {
     return this.authService.registerUser(body);
   }
@@ -54,6 +57,9 @@ export class AuthController {
   @Post(API_URL.AUTH.FORGOT_PASSWORD)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Demande de réinitialisation de mot de passe' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOkResponse({ description: 'Email de réinitialisation envoyé' })
+  @ApiBadRequestResponse({ description: 'Aucun compte associé à cet email' })
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body);
   }
@@ -64,6 +70,9 @@ export class AuthController {
   @Post(API_URL.AUTH.SEND_VERIFICATION)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Renvoyer l'email de vérification" })
+  @ApiBody({ type: ResendVerificationDto })
+  @ApiOkResponse({ description: 'Email de vérification renvoyé avec succès' })
+  @ApiBadRequestResponse({ description: 'Email introuvable ou déjà vérifié' })
   async sendVerificationEmail(@Body() body: ResendVerificationDto) {
     return this.authService.sendVerificationEmail(body);
   }
@@ -88,6 +97,9 @@ export class AuthController {
   @Post(API_URL.AUTH.RESET_PASSWORD)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Réinitialiser le mot de passe' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiOkResponse({ description: 'Mot de passe réinitialisé avec succès' })
+  @ApiBadRequestResponse({ description: 'Token invalide ou expiré' })
   async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body);
   }
@@ -97,6 +109,15 @@ export class AuthController {
   // ─────────────────────────────────────────
   @Post(API_URL.AUTH.CHECK_EMAIL)
   @ApiOperation({ summary: 'Vérifier si un email existe' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
   @ApiOkResponse({ description: 'Retourne un boolean' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
   async checkUserEmail(@Body() data: { email: string }) {
