@@ -30,7 +30,10 @@ export class LeadsController {
   @ApiBody({ type: CreateLeadDto })
   @ApiOkResponse({ description: 'Demande de contact créée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async createLead(@Body() dto: CreateLeadDto, @Query('userId') userId: string) {
+  async createLead(
+    @Body() dto: CreateLeadDto,
+    @Query('userId') userId: string, // ⚠️ TEMPORAIRE
+  ) {
     return this.leadsService.createLead(dto, userId);
   }
 
@@ -42,7 +45,9 @@ export class LeadsController {
   @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" })
   @ApiOkResponse({ description: 'Liste de mes leads récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getMyLeads(@Query('userId') userId: string) {
+  async getMyLeads(
+    @Query('userId') userId: string, // ⚠️ TEMPORAIRE
+  ) {
     return this.leadsService.getMyLeads(userId);
   }
 
@@ -74,7 +79,7 @@ export class LeadsController {
     @Query('agencyId') agencyId: string,
     @Query('userId') userId: string,
   ) {
-    return this.leadsService.getLeadById(leadId, agencyId, userId);
+    return this.leadsService.getLeadById(leadId, userId, userRole as Role);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -109,6 +114,25 @@ export class LeadsController {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // POST v1/secure/leads/convert-tenant?leadId=xxx
+  // ─────────────────────────────────────────────────────────────────
+  @Post(API_URL.LEADS.CONVERT_TENANT)
+  @ApiOperation({ summary: 'Convertir un lead en locataire (Owner + Admin agence)' })
+  @ApiQuery({ name: 'leadId', required: true, description: 'Identifiant du lead à convertir' })
+  @ApiBody({ type: ConvertToTenantDto })
+  @ApiOkResponse({ description: 'Lead converti en locataire avec succès' })
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
+  /* async convertToTenant(
+    @Query('leadId') leadId: string,
+    @Body() dto: ConvertToTenantDto,
+    @Query('userId') userId: string, // ⚠️ TEMPORAIRE
+    @Query('userRole') userRole: string, // ⚠️ TEMPORAIRE
+  ) {
+    return this.leadsService.convertToTenant(leadId, dto, userId, userRole as Role);
+  }
+     */
+
+  // ─────────────────────────────────────────────────────────────────
   // DELETE v1/secure/leads/delete?leadId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Delete(API_URL.LEADS.DELETE)
@@ -120,9 +144,9 @@ export class LeadsController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
   async deleteLead(
     @Query('leadId') leadId: string,
-    @Query('userId') userId: string,
-    @Query('agencyId') agencyId: string,
+    @Query('userId') userId: string, // ⚠️ TEMPORAIRE
+    @Query('userRole') userRole: string, // ⚠️ TEMPORAIRE
   ) {
-    return this.leadsService.deleteLead(leadId, userId, agencyId);
+    return this.leadsService.deleteLead(leadId, userId, userRole as Role);
   }
 }

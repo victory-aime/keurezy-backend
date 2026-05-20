@@ -88,9 +88,21 @@ export class AgencyController {
     },
   ) {
     const data: createAgencyOwnerDto = JSON.parse(rawData);
+
+    let cloudinaryDocumentsFileUrl: string[] = [];
+
+    if (files?.documents?.length) {
+      const uploads = await Promise.all(
+        files.documents.map((document) =>
+          this.uploadFileService.uploadFiles(document, data.name, CLOUDINARY_FOLDER_NAME.DOC),
+        ),
+      );
+
+      cloudinaryDocumentsFileUrl = uploads.map((file) => file.secure_url);
+    }
     return this.agencyService.createAgency({
       ...data,
-      documents: files?.documents,
+      documents: cloudinaryDocumentsFileUrl,
     });
   }
 

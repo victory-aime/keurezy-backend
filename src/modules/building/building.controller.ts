@@ -135,3 +135,4 @@ export class BuildingController {
     return this.buildingService.deleteBuilding(id, agencyId, userId);
   }
 }
+

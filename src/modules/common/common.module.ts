@@ -10,11 +10,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
 
 @Module({
-  imports: [
-    HttpModule.register({ timeout: 15_000, maxRedirects: 3 }),
-    ConfigModule,
-    CloudinaryModule,
-  ],
+  imports: [],
   controllers: [CommonController],
   providers: [
     PermissionsService,
