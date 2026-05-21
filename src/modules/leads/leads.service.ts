@@ -5,7 +5,6 @@ import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 import { LeadStatus, NotificationType } from '../../../prisma/generated/enums';
 import { AgencyService } from '../agency/agency.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationScope } from '_root/modules/notifications/notifications.dto';
 
 @Injectable()
 export class LeadsService {
@@ -19,51 +18,60 @@ export class LeadsService {
   // CRÉER UN LEAD
   // ─────────────────────────────────────────────────────────────────
   async createLead(dto: CreateLeadDto, userId: string) {
-    try {
-      const client = await this.prisma.client.findUnique({ where: { userId } });
-      if (!client) {
-        throw new HttpError('Profil client introuvable', HttpStatus.NOT_FOUND, 'CLIENT_NOT_FOUND');
-      }
+    const { message, propertyId } = dto;
 
-      const property = await this.prisma.property.findUnique({
-        where: { id: dto.propertyId },
-      });
-      if (!property) {
-        throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
-      }
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new HttpError('Profil client introuvable', HttpStatus.NOT_FOUND, 'CLIENT_NOT_FOUND');
+    }
 
-      const existingLead = await this.prisma.lead.findFirst({
-        where: {
-          clientId: client.id,
-          propertyId: dto.propertyId,
-          status: { not: LeadStatus.CONVERTED },
-        },
-      });
-      if (existingLead) {
-        throw new HttpError(
-          'Vous avez déjà une demande de contact en cours pour ce bien',
-          HttpStatus.CONFLICT,
-          'LEAD_ALREADY_EXISTS',
-        );
-      }
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+      include: { agency: true },
+    });
 
-      await this.prisma.lead.create({
-        data: {
-          propertyId: dto.propertyId,
-          agencyId: property.agencyId,
-          message: dto.message,
-          clientId: client.id,
-          status: LeadStatus.NEW,
-        },
-      });
-      return { message: 'Votre demande de contact a été soumise avec succès' };
-    } catch (error) {
-      if (error instanceof HttpError) throw error;
-      console.error('Erreur createLead:', error);
-      throw new InternalServerErrorException(
-        'Une erreur interne est survenue. Veuillez réessayer plus tard.',
+    if (!property) {
+      throw new HttpError('Propriété introuvable.', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
+    }
+
+    if (!property.agencyId) {
+      throw new HttpError(
+        'Agence liée à la propriété introuvable.',
+        HttpStatus.BAD_REQUEST,
+        'AGENCY_NOT_FOUND',
       );
     }
+
+    const existingByUser = await this.prisma.lead.findFirst({
+      where: {
+        propertyId,
+        clientId: client.id,
+        status: { not: LeadStatus.CONVERTED },
+      },
+    });
+
+    if (existingByUser) {
+      throw new HttpError(
+        'Vous avez déjà soumis une demande pour ce bien.',
+        HttpStatus.CONFLICT,
+        'LEAD_ALREADY_EXISTS',
+      );
+    }
+
+    await this.prisma.lead.create({
+      data: {
+        propertyId: propertyId,
+        agencyId: property.agencyId,
+        message: message,
+        clientId: client.id,
+        status: LeadStatus.NEW,
+      },
+    });
+
+    return {
+      message:
+        'Votre message a été envoyé avec succès. Un agent de l’agence vous contactera bientôt pour discuter de votre demande.',
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────

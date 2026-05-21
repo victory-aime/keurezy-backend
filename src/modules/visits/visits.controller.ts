@@ -8,7 +8,7 @@ import {
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { VisitsService } from './visits.service';
-import { AssignAgentDto, CreateVisitDto, UpdateVisitStatusDto } from './visits.dto';
+import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
 import { MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '_root/config/api';
@@ -66,13 +66,17 @@ export class VisitsController {
 
   // PATCH v1/secure/visits/update-status?visitId=
   // Accessible : Owner + AGENCY_ADMIN + AGENT
-  @Patch(API_URL.VISITS.UPDATE_STATUS)
-  @ApiOperation({ summary: "Mettre à jour le statut d'une visite" })
-  @ApiBody({ type: UpdateVisitStatusDto })
-  @ApiOkResponse({ description: 'Statut mis à jour avec succès' })
+  @Patch(API_URL.VISITS.UPDATE)
+  @ApiOperation({ summary: 'Mettre à jour une visite' })
+  @ApiBody({ type: UpdateVisitDto })
+  @ApiOkResponse({ description: 'Mis à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async updateVisitStatus(@Query('visitId') visitId: string, @Body() dto: UpdateVisitStatusDto) {
-    return this.visitsService.updateVisitStatus(visitId, dto);
+  async updateVisitStatus(
+    @Query('agencyId') agencyId: string,
+    @Query('userId') userId: string,
+    @Body() dto: UpdateVisitDto,
+  ) {
+    return this.visitsService.updateVisit(userId, agencyId, dto);
   }
 
   // PATCH v1/secure/visits/assign-agent?visitId=xxx
@@ -88,11 +92,15 @@ export class VisitsController {
 
   // DELETE v1/secure/visits/delete?visitId=
   // Accessible : Owner + AGENCY_ADMIN
-  @Delete(API_URL.VISITS.DELETE)
+  @Patch(API_URL.VISITS.CANCEL_VISIT)
   @ApiOperation({ summary: 'Supprimer une visite' })
   @ApiOkResponse({ description: 'Visite supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async deleteVisit(@Query('visitId') visitId: string) {
-    return this.visitsService.deleteVisit(visitId);
+  async deleteVisit(
+    @Query('visitId') visitId: string,
+    @Query('agencyId') agencyId: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.visitsService.cancelVisit(visitId, agencyId, userId);
   }
 }

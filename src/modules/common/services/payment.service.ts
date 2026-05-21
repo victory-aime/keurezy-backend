@@ -260,6 +260,11 @@ export class PaymentService {
           password: meta.password,
         },
       });
+      await getAuthInstance().api.sendVerificationEmail({
+        body: {
+          email: meta.userEmail,
+        },
+      });
       createdUser = user;
     } catch (err) {
       this.logger.error(`[Webhook] Échec signUpEmail — order_id: ${order_id}`, err);

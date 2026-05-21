@@ -9,11 +9,17 @@ export class NotificationsService {
 
   async createNotification(params: NotificationsDto) {
     const { recipients, ...data } = params;
+
+    const cleanRecipients = (recipients ?? []).filter((id): id is string => !!id);
+
+    if (!cleanRecipients.length) {
+      return;
+    }
     return this.prisma.notification.create({
       data: {
         ...data,
         deliveries: {
-          create: recipients.map((userId) => ({
+          create: recipients?.map((userId) => ({
             userId,
           })),
         },

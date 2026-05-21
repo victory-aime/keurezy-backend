@@ -1,11 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsEnum, IsString, IsOptional } from 'class-validator';
-import { NotificationType } from '../../../prisma/generated/enums';
-
-export enum NotificationScope {
-  USER = 'USER',
-  AGENCY = 'AGENCY',
-}
+import { NotificationScope, NotificationType } from '../../../prisma/generated/enums';
 
 export class NotificationsDto {
   @ApiProperty({
@@ -38,5 +33,5 @@ export class NotificationsDto {
   @IsString()
   content: string;
 
-  recipients: string[]; // users ciblés
+  recipients?: string[] | undefined;
 }

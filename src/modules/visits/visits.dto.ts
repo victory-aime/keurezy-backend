@@ -11,6 +11,21 @@ export class CreateVisitDto {
   @IsNotEmpty()
   @IsDateString()
   scheduledAt: string;
+  @ApiProperty({
+    example: '2024-06-15T10:00:00.000Z',
+    description: 'Heure de début de la visite',
+  })
+  @IsNotEmpty()
+  @IsDateString()
+  startTime: string;
+
+  @ApiProperty({
+    example: '2024-06-15T10:00:00.000Z',
+    description: 'Heure de fin de la visite',
+  })
+  @IsNotEmpty()
+  @IsDateString()
+  endTime: string;
 
   @ApiProperty({
     example: 'uuid-property-id',
@@ -37,16 +52,21 @@ export class CreateVisitDto {
   agentId?: string;
 
   @ApiPropertyOptional({
+    example: 'Visite de la maison',
+    description: 'Titre du rendez-vous',
+  })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({
     example: 'Apporter les clés du local B',
     description: 'Notes supplémentaires pour la visite',
   })
   @IsOptional()
   @IsString()
   notes?: string;
-}
 
-// DTO : METTRE À JOUR LE STATUT D'UNE VISITE
-export class UpdateVisitStatusDto {
   @ApiProperty({
     enum: VisitStatus,
     example: VisitStatus.CONFIRMED,
@@ -54,6 +74,24 @@ export class UpdateVisitStatusDto {
   })
   @IsNotEmpty()
   status: VisitStatus;
+}
+
+// DTO : METTRE À JOUR LE STATUT D'UNE VISITE
+export class UpdateVisitDto {
+  @ApiProperty({
+    enum: VisitStatus,
+    example: VisitStatus.CONFIRMED,
+    description: 'Nouveau statut de la visite',
+  })
+  @IsNotEmpty()
+  status: VisitStatus;
+  scheduledAt: string;
+  startTime: string;
+  endTime: string;
+  visitId: string;
+  agentId?: string | null;
+  title?: string;
+  notes?: string;
 }
 
 // DTO : RÉASSIGNER UN AGENT À UNE VISITE

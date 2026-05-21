@@ -172,7 +172,11 @@ export class AgencyService {
             password: data?.password,
           },
         });
-
+        await getAuthInstance().api.sendVerificationEmail({
+          body: {
+            email: data.userEmail,
+          },
+        });
         // 5a. OWNER
         const owner = await tx.owner.create({
           data: { userId: user.id },
@@ -312,11 +316,11 @@ export class AgencyService {
     const [owner, staff] = await Promise.all([
       this.prismaService.owner.findUnique({
         where: { id: userId },
-        select: { agency: true },
+        select: { agency: true, userId: true },
       }),
       this.prismaService.staff.findFirst({
         where: { id: userId, agencyId, isActive: true },
-        select: { id: true },
+        select: { id: true, agency: true, userId: true },
       }),
     ]);
 
@@ -330,5 +334,19 @@ export class AgencyService {
         'AGENCY_ACCESS_DENIED',
       );
     }
+
+    if (isOwner) {
+      return {
+        type: 'OWNER',
+        userOwnerId: owner?.userId,
+        agencyId,
+      };
+    }
+
+    return {
+      type: 'STAFF',
+      userStaffId: staff?.userId,
+      agencyId,
+    };
   }
 }

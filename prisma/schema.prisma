@@ -388,7 +388,10 @@ model Lead {
 
 model Visit {
   id          String      @id @default(uuid())
+  title       String?
   scheduledAt DateTime
+  startTime   DateTime?
+  endTime     DateTime?
   status      VisitStatus @default(PLANNED)
   notes       String?
 

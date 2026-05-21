@@ -4,7 +4,7 @@ on:
     types: [opened, synchronize, reopened, edited]
   push:
     branches:
-      - "*"
+      - '*'
 jobs:
   commitlint:
     runs-on: ubuntu-latest

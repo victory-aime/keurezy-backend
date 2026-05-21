@@ -9,6 +9,7 @@ import { AuthService } from '@thallesp/nestjs-better-auth';
 import { toNodeHandler } from 'better-auth/node';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import * as process from 'node:process';
 
 async function bootstrap() {
   console.log('\n========== PROJECT ENV ==========');
@@ -139,7 +140,7 @@ async function bootstrap() {
   setupSwagger(app);
 
   await app.listen(process.env.PORT!, async () => {
-    figlet(`${new Date().getFullYear()}- MyImmo`, (_, data) => {
+    figlet(`${new Date().getFullYear()}- ${process.env.APP_NAME}`, (_, data) => {
       console.log('\x1b[1m\x1b[32m%s\x1b[0m', data);
       figlet('Powered By VICTORY', { font: 'Small' }, (a, res) =>
         console.log('\x1b[35m%s\x1b[0m', res),
