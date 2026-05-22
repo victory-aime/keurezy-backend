@@ -26,6 +26,7 @@ model User {
   role             Role       @default(USER)
   emailVerified    Boolean    @default(false)
   twoFactorEnabled Boolean?
+  lastLoginMethod  String?
   status           UserStatus @default(ACTIVE)
   theme_color      String?    @default("#673ab6")
   theme_mode       String?    @default("system")
@@ -100,6 +101,7 @@ model TwoFactor {
   userId      String
   secret      String?
   backupCodes String?
+  verified    Boolean
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -294,21 +296,22 @@ model Villa {
 }
 
 model Property {
-  id             String         @id @default(uuid())
+  id             String            @id @default(uuid())
   title          String
   type           PropertyType
-  price          Decimal        @default(0) @db.Decimal(10, 2)
-  caution        Decimal        @default(0) @db.Decimal(10, 2)
+  price          Decimal           @default(0) @db.Decimal(10, 2)
+  caution        Decimal           @default(0) @db.Decimal(10, 2)
   propertyNumber String?
   propertyOwner  String?
   address        String?
   city           String?
   district       String?
   rooms          Int
-  bathrooms      Int            @default(0)
+  bathrooms      Int               @default(0)
   area           Float?
-  status         PropertyStatus @default(AVAILABLE)
+  status         PropertyStatus    @default(AVAILABLE)
   documents      String[]
+  features       PropertyFeature[]
 
   agencyId   String
   batimentId String?
@@ -919,6 +922,62 @@ enum PropertyType {
 enum PropertyStatus {
   AVAILABLE
   RENTED
+}
+
+enum PropertyFeature {
+  // Pièces & espaces
+  KITCHEN
+  LIVING_ROOM
+  DINING_ROOM
+  OFFICE
+  BASEMENT
+  ATTIC
+  STORAGE_ROOM
+
+  // Extérieur
+  GARDEN
+  TERRACE
+  BALCONY
+  COURTYARD
+  POOL
+  GARAGE
+  PARKING
+
+  // Équipement
+  FURNISHED
+  PARTIALLY_FURNISHED
+  AIR_CONDITIONING
+  HEATING
+  FIREPLACE
+  ELEVATOR
+  INTERCOM
+  ALARM_SYSTEM
+  DIGICODE
+
+  // Services inclus
+  BILLS_INCLUDED
+  WATER_INCLUDED
+  ELECTRICITY_INCLUDED
+  GAS_INCLUDED
+  INTERNET_INCLUDED
+  CABLE_TV_INCLUDED
+  CLEANING_INCLUDED
+
+  // Règles & accès
+  PETS_ALLOWED
+  SMOKING_ALLOWED
+  WHEELCHAIR_ACCESSIBLE
+  CONCIERGE
+
+  // Équipements spécifiques
+  WASHING_MACHINE
+  DRYER
+  DISHWASHER
+  REFRIGERATOR
+  OVEN
+  MICROWAVE
+  TV
+  BBQGRILL
 }
 
 enum AnnonceStatus {

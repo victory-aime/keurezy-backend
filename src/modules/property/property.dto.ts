@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsArray, IsNumber, IsOptional } from 'class-validator';
-import { PropertyStatus, PropertyType } from '../../../prisma/generated/enums';
+import { PropertyStatus, PropertyType, PropertyFeature } from '../../../prisma/generated/enums';
 import { IPaginationDto } from '_root/config/pagination.dto';
 
 export class propertyDto {
@@ -44,6 +44,13 @@ export class propertyDto {
     enum: PropertyType,
   })
   type: PropertyType;
+
+  @ApiProperty({
+    description: 'Caractéristique de la propriété',
+    example: 'KITCHEN',
+    enum: PropertyFeature,
+  })
+  features: PropertyFeature[];
 
   @ApiProperty({
     description: 'Nombre de salle de bain',
