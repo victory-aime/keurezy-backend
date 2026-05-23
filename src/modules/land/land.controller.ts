@@ -63,7 +63,7 @@ export class LandController {
     const data: CreateLandDto = JSON.parse(rawData);
 
     let cloudinaryDocumentsFilesUrl: string[] = [];
-    const getAgencyName = await this.agencyService.findAgency(data?.agencyId);
+    const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data.userId);
     if (files?.documents?.length) {
       const uploads = await Promise.all(
         files.documents.map((document) =>

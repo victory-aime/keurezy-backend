@@ -31,8 +31,8 @@ export class AgencyController {
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Info récupérer avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async agencyInfo(@Query('agencyId') agencyId: string) {
-    return this.agencyService.findAgency(agencyId);
+  async agencyInfo(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+    return this.agencyService.findAgency(agencyId, userId);
   }
 
   @Get(API_URL.AGENCY.AGENCY_SUBSCRIPTION_INFO)
@@ -60,21 +60,9 @@ export class AgencyController {
     },
   ) {
     const data: createAgencyOwnerDto = JSON.parse(rawData);
-
-    let cloudinaryDocumentsFileUrl: string[] = [];
-
-    if (files?.documents?.length) {
-      const uploads = await Promise.all(
-        files.documents.map((document) =>
-          this.uploadFileService.uploadFiles(document, data.name, CLOUDINARY_FOLDER_NAME.DOC),
-        ),
-      );
-
-      cloudinaryDocumentsFileUrl = uploads.map((file) => file.secure_url);
-    }
     return this.agencyService.createAgency({
       ...data,
-      documents: cloudinaryDocumentsFileUrl,
+      documents: files?.documents,
     });
   }
 
@@ -112,11 +100,15 @@ export class AgencyController {
   @Post(API_URL.AGENCY.CLOSE_AGENCY)
   @ApiOperation({ summary: 'Fermée votre agence' })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence à fermer" })
-  @ApiQuery({ name: 'ownerId', required: true, description: "Identifiant du propriétaire de l'agence" })
+  @ApiQuery({
+    name: 'ownerId',
+    required: true,
+    description: "Identifiant du propriétaire de l'agence",
+  })
   @ApiOkResponse({ description: 'Agence fermée avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async closeAgency(@Query('agencyId') agencyId: string, @Query('ownerId') ownerId: string) {
-    return this.agencyService.closeAgency({ agencyId, ownerId });
+  async closeAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+    return this.agencyService.closeAgency({ agencyId, userId });
   }
 
   @AllowAnonymous()

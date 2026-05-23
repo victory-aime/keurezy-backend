@@ -21,10 +21,18 @@ export class LandDto {
   @ApiPropertyOptional({ example: 'Mamadou Diallo', description: 'Propriétaire du terrain' })
   landOwner?: string;
 
-  @ApiProperty({ enum: LandStatus, example: LandStatus.AVAILABLE, description: 'Statut du terrain' })
+  @ApiProperty({
+    enum: LandStatus,
+    example: LandStatus.AVAILABLE,
+    description: 'Statut du terrain',
+  })
   status: LandStatus;
 
-  @ApiProperty({ enum: LandPaymentType, example: LandPaymentType.CASH, description: 'Type de paiement' })
+  @ApiProperty({
+    enum: LandPaymentType,
+    example: LandPaymentType.CASH,
+    description: 'Type de paiement',
+  })
   paymentType: LandPaymentType;
 
   @ApiProperty({
@@ -36,6 +44,9 @@ export class LandDto {
 
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
   agencyId: string;
+
+  @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
+  userId: string;
 }
 
 export class CreateLandDto extends LandDto {
@@ -44,7 +55,10 @@ export class CreateLandDto extends LandDto {
 }
 
 export class UpdateLandDto extends LandDto {
-  @ApiProperty({ example: 'uuid-du-terrain', description: 'Identifiant du terrain à mettre à jour' })
+  @ApiProperty({
+    example: 'uuid-du-terrain',
+    description: 'Identifiant du terrain à mettre à jour',
+  })
   id: string;
 
   @ApiProperty({ example: 'uuid-du-proprietaire', description: 'Identifiant du propriétaire' })
