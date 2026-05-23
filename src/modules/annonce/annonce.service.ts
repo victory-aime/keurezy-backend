@@ -112,6 +112,7 @@ export class AnnonceService {
         bathrooms: annonce.property.bathrooms,
         area: annonce.property.area,
         status: annonce.property.status,
+        features: annonce.property.features,
       },
       batiment: {
         id: annonce.property.batiment?.id,
