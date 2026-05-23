@@ -92,6 +92,14 @@ export class AuthService {
         },
       });
 
+      await this.prisma.client.create({
+        data: {
+          user: {
+            connect: { id: response?.user?.id },
+          },
+        },
+      });
+
       return {
         message: 'Bienvenue ! Votre compte a été créé avec succès.',
         email: response.user.email,
