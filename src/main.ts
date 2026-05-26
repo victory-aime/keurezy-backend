@@ -1,8 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as figlet from 'figlet';
+import figlet from 'figlet';
 import * as express from 'express';
-import { LoadEnvironmentVariables } from './config/env';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { setupSwagger } from './config/swagger';
 import { AuthService } from '@thallesp/nestjs-better-auth';

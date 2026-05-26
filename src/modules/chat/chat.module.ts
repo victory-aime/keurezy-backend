@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
-import { MessageService } from './message.service';
-import { ChatController } from './chat.controller';
-import { ConversationService } from './conversation.service';
+import { ChatGateway } from './chat.gateway';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ChatService } from '_root/modules/chat/chat.service';
+import { PresenceService } from '_root/modules/chat/presence.service';
+import { ChatController } from '_root/modules/chat/chat.controller';
 
 @Module({
-  providers: [ConversationService, MessageService],
+  imports: [NotificationsModule],
   controllers: [ChatController],
+  providers: [ChatGateway, ChatService, PresenceService],
 })
 export class ChatModule {}

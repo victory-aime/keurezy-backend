@@ -45,6 +45,11 @@ model User {
   paymentTransaction   PaymentTransaction[]
   notificationDelivery NotificationDelivery[]
 
+  sentMessages             Message[]                 @relation("SentMessages")
+  receivedReceipts         MessageReceipt[]          @relation("ReceivedReceipts")
+  conversationParticipants ConversationParticipant[]
+  pushSubscriptions        PushSubscription[]
+
   @@map("user")
 }
 
@@ -801,9 +806,134 @@ model PaymentTransaction {
   @@map("payment_transaction")
 }
 
+// ─────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────
+
+model Conversation {
+  id            String           @id @default(uuid())
+  type          ConversationType @default(DIRECT)
+  title         String? // optionnel pour SUPPORT (ex: "Ticket #123")
+  lastMessageAt DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversation")
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime? // pour calculer les unread count côté client
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participant")
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  type           MessageType @default(TEXT)
+  metadata       Json? // { url, filename, size, mimeType } pour IMAGE/FILE
+  editedAt       DateTime?
+  deletedAt      DateTime? // soft delete
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("SentMessages", fields: [senderId], references: [id])
+  receipts     MessageReceipt[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@map("message")
+}
+
+// Statut de livraison par destinataire (sent → delivered → read)
+model MessageReceipt {
+  id          String        @id @default(uuid())
+  messageId   String
+  userId      String // destinataire (pas l'expéditeur)
+  status      MessageStatus @default(SENT)
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation("ReceivedReceipts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, status])
+  @@map("message_receipt")
+}
+
+// ─────────────────────────────────────────────
+// PUSH SUBSCRIPTIONS
+// ─────────────────────────────────────────────
+
+model PushSubscription {
+  id       String       @id @default(uuid())
+  userId   String
+  platform PushPlatform
+
+  // Mobile Expo
+  expoToken String? // "ExponentPushToken[...]"
+
+  // Web VAPID
+  endpoint String? // URL du service worker push
+  p256dh   String? // clé publique DH
+  authKey  String? // clé d'authentification
+
+  deviceId  String? // identifiant unique de l'appareil (évite doublons)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId]) // 1 subscription par appareil par user
+  @@index([userId, isActive])
+  @@map("push_subscription")
+}
+
 // ─────────────────────────────────────────
 // ENUMS
 // ─────────────────────────────────────────
+
+enum ConversationType {
+  DIRECT // staff ↔ client (1-to-1)
+  SUPPORT // lié à un ticket
+  GROUP // extensible si besoin
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM // messages automatiques (ex: "ticket ouvert")
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum PushPlatform {
+  MOBILE_EXPO // token Expo → FCM / APNs
+  WEB // endpoint VAPID / Service Worker
+}
+
 enum PaymentStatus {
   PENDING // Transaction créée, client pas encore payé
   PAID // Confirmé par webhook + double-check API NabooPay
