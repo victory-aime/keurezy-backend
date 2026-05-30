@@ -30,6 +30,11 @@ export class UsersService {
             },
           },
         },
+        client: {
+          select: {
+            id: true,
+          },
+        },
         staff: {
           include: {
             agency: {
@@ -71,6 +76,7 @@ export class UsersService {
       accounts: user.accounts,
       ownerId: user.owner?.id ?? null,
       staffId: user.staff?.id ?? null,
+      clientId: user?.client?.id ?? null,
       agencyId: user.owner?.agency?.id ?? user.staff?.agency?.id ?? null,
     };
   }

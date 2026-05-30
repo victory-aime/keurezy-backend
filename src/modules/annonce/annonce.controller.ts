@@ -24,7 +24,11 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from '_root/modules/cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import { CreateAnnonceDto, UpdateAnnonceDto } from '_root/modules/annonce/annonce.dto';
+import {
+  CreateAnnonceDto,
+  FilterAnnonceDto,
+  UpdateAnnonceDto,
+} from '_root/modules/annonce/annonce.dto';
 import { AgencyService } from '_root/modules/agency/agency.service';
 
 @ApiTags('Annonces')
@@ -83,8 +87,9 @@ export class AnnonceController {
   @Get(API_URL.ANNONCE.FIND_ALL)
   @ApiOperation({ summary: 'Récupérer toutes les annonces actives' })
   @ApiOkResponse({ description: 'Liste des annonces récupérée' })
-  async findAll() {
-    return this.annonceService.findAllAnnonces();
+  async findAll(@Query() data: FilterAnnonceDto) {
+    console.warn(data);
+    return this.annonceService.findAllAnnonces(data);
   }
 
   // 3. LISTE PAR AGENCE

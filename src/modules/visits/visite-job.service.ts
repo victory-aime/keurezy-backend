@@ -46,7 +46,7 @@ export class VisiteJobService {
       });
 
       const recipients = [
-        visit.lead?.client?.user?.id,
+        visit.lead?.client?.userId,
         visit.agentId ?? undefined,
         visit?.agency?.owner?.userId,
       ].filter((id): id is string => Boolean(id));

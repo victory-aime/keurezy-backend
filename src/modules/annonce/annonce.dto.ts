@@ -1,4 +1,4 @@
-import { AnnonceStatus } from '../../../prisma/generated/enums';
+import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
 
 export class CreateAnnonceDto {
   title: string;
@@ -12,4 +12,16 @@ export class CreateAnnonceDto {
 
 export class UpdateAnnonceDto extends CreateAnnonceDto {
   id: string;
+}
+
+export class FilterAnnonceDto {
+  initialPage: number;
+  limitPerPage: number;
+  city?: string;
+  district?: string;
+  type?: PropertyType;
+  minPrice?: number;
+  maxPrice?: number;
+  rooms?: number;
+  features?: PropertyFeature[];
 }

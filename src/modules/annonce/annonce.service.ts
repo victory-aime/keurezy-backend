@@ -1,10 +1,15 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '_root/config/http.error';
-import { CreateAnnonceDto, UpdateAnnonceDto } from '_root/modules/annonce/annonce.dto';
-import { AnnonceStatus } from '../../../prisma/generated/enums';
-import { Annonce } from '../../../prisma/generated/client';
+import {
+  CreateAnnonceDto,
+  FilterAnnonceDto,
+  UpdateAnnonceDto,
+} from '_root/modules/annonce/annonce.dto';
+import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
+import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
+import { convertToInteger } from '_root/config/convert';
 
 @Injectable()
 export class AnnonceService {
@@ -75,53 +80,121 @@ export class AnnonceService {
   }
 
   // 2. LIST ALL
-  async findAllAnnonces(): Promise<Annonce[]> {
-    const annonces = await this.prisma.annonce.findMany({
-      where: {
-        status: 'ACTIVE',
-      },
-      include: {
-        property: {
-          include: { batiment: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAllAnnonces(query: FilterAnnonceDto) {
+    const pageInitial = convertToInteger(query?.initialPage) || 1;
+    const limitPage = convertToInteger(query?.limitPerPage) || 10;
+    const minPrice = convertToInteger(query?.minPrice!);
+    const maxPrice = convertToInteger(query?.maxPrice!);
 
-    return annonces.map((annonce) => ({
-      id: annonce.id,
-      title: annonce.title,
-      propertyId: annonce.propertyId,
-      description: annonce.description,
-      galleryImages: annonce.galleryImages,
-      status: annonce.status,
-      publishedAt: annonce.publishedAt,
-      createdAt: annonce.createdAt,
-      updatedAt: annonce.updatedAt,
+    const skip = (pageInitial - 1) * limitPage;
+
+    const filterOptions: Prisma.AnnonceWhereInput = {
+      status: 'ACTIVE',
       property: {
-        id: annonce.property.id,
-        title: annonce.property.title,
-        type: annonce.property.type,
-        price: annonce.property.price,
-        propertyOwner: annonce.property.propertyOwner,
-        address: annonce.property.address,
-        city: annonce.property.city,
-        district: annonce.property.district,
-        caution: annonce.property.caution,
-        rooms: annonce.property.rooms,
-        bathrooms: annonce.property.bathrooms,
-        area: annonce.property.area,
-        status: annonce.property.status,
-        features: annonce.property.features,
+        ...(query.city && {
+          city: {
+            contains: query.city,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        }),
+
+        ...(query.district && {
+          district: {
+            contains: query.district,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        }),
+
+        ...(query.type && {
+          type: query.type,
+        }),
+
+        ...((minPrice || maxPrice) && {
+          price: {
+            ...(query.minPrice && {
+              gte: minPrice,
+            }),
+
+            ...(query.maxPrice && {
+              lte: maxPrice,
+            }),
+          },
+        }),
+
+        ...(query.rooms && {
+          rooms: {
+            gte: query.rooms,
+          },
+        }),
+
+        ...(query.features?.length && {
+          features: {
+            hasSome: query.features,
+          },
+        }),
       },
-      batiment: {
-        id: annonce.property.batiment?.id,
-        name: annonce.property.batiment?.name,
-        address: annonce.property.batiment?.address,
-        city: annonce.property.batiment?.city,
-        district: annonce.property.batiment?.district,
-      },
-    }));
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.annonce.findMany({
+        where: filterOptions,
+        include: {
+          property: {
+            include: { batiment: true },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limitPage,
+      }),
+
+      this.prisma.annonce.count({
+        where: filterOptions,
+      }),
+    ]);
+
+    return {
+      content: data.map((annonce) => ({
+        id: annonce.id,
+        title: annonce.title,
+        propertyId: annonce.propertyId,
+        description: annonce.description,
+        galleryImages: annonce.galleryImages,
+        status: annonce.status,
+        publishedAt: annonce.publishedAt,
+        createdAt: annonce.createdAt,
+        updatedAt: annonce.updatedAt,
+        property: {
+          id: annonce.property.id,
+          title: annonce.property.title,
+          type: annonce.property.type,
+          price: annonce.property.price,
+          propertyOwner: annonce.property.propertyOwner,
+          address: annonce.property.address,
+          city: annonce.property.city,
+          district: annonce.property.district,
+          caution: annonce.property.caution,
+          rooms: annonce.property.rooms,
+          bathrooms: annonce.property.bathrooms,
+          area: annonce.property.area,
+          status: annonce.property.status,
+          features: annonce.property.features,
+        },
+        batiment: {
+          id: annonce.property.batiment?.id,
+          name: annonce.property.batiment?.name,
+          address: annonce.property.batiment?.address,
+          city: annonce.property.batiment?.city,
+          district: annonce.property.batiment?.district,
+        },
+      })),
+      totalDataPerPages: limitPage,
+      totalItems: total,
+      currentPage: pageInitial,
+      totalPages: Math.ceil(total / limitPage),
+    };
   }
 
   // 3. LIST BY AGENCY
