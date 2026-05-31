@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import * as winston from 'winston';
 import { utilities as nestWinstonModuleUtilities, WinstonModule } from 'nest-winston';
 import { UsersModule } from './modules/users/users.module';
@@ -15,7 +15,7 @@ import { BuildingModule } from '_root/modules/building/building.module';
 import { LandModule } from '_root/modules/land/land.module';
 import { CommonModule } from '_root/modules/common/common.module';
 import { InvitationModule } from '_root/modules/invitations/invitation.module';
-import { AnnonceModule } from '_root/modules/annonce/annonce.module';
+import { AnnounceModule } from '_root/modules/annonce/annonce.module';
 import { TeamModule } from '_root/modules/team/team.module';
 import { LeadsModule } from '_root/modules/leads/leads.module';
 import { VisitsModule } from '_root/modules/visits/visits.module';
@@ -53,7 +53,7 @@ import { PushSubscriptionModule } from '_root/modules/push-subscription/push-sub
       throttlers: [
         {
           ttl: 10,
-          limit: 10,
+          limit: 100,
         },
       ],
     }),
@@ -66,7 +66,7 @@ import { PushSubscriptionModule } from '_root/modules/push-subscription/push-sub
     PackModule,
     LandModule,
     CommonModule,
-    AnnonceModule,
+    AnnounceModule,
     InvitationModule,
     TeamModule,
     LeadsModule,

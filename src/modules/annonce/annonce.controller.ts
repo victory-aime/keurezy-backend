@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
-import { AnnonceService } from './annonce.service';
+import { AnnounceService } from './annonce.service';
 import { API_URL } from '_root/config/api';
 import {
   ApiBadRequestResponse,
@@ -35,7 +35,7 @@ import { AgencyService } from '_root/modules/agency/agency.service';
 @Controller()
 export class AnnonceController {
   constructor(
-    private readonly annonceService: AnnonceService,
+    private readonly announceService: AnnounceService,
     private readonly agencyService: AgencyService,
     private readonly uploadFileService: UploadsService,
   ) {}
@@ -76,7 +76,7 @@ export class AnnonceController {
       cloudinaryImagesUrls = uploads.map((res) => res.secure_url);
     }
 
-    return this.annonceService.createAnnonce({
+    return this.announceService.createAnnounce({
       ...data,
       galleryImages: cloudinaryImagesUrls,
     });
@@ -84,19 +84,18 @@ export class AnnonceController {
 
   // 2. LISTE GLOBALE
   @AllowAnonymous()
-  @Get(API_URL.ANNONCE.FIND_ALL)
+  @Post(API_URL.ANNONCE.FIND_ALL)
   @ApiOperation({ summary: 'Récupérer toutes les annonces actives' })
   @ApiOkResponse({ description: 'Liste des annonces récupérée' })
-  async findAll(@Query() data: FilterAnnonceDto) {
-    console.warn(data);
-    return this.annonceService.findAllAnnonces(data);
+  async findAll(@Body() data: FilterAnnonceDto) {
+    return this.announceService.findAllAnnounces(data);
   }
 
   // 3. LISTE PAR AGENCE
   @Get(API_URL.ANNONCE.FIND_BY_AGENCY)
   @ApiOperation({ summary: 'Récupérer les annonces d’une agence spécifique' })
   async findByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
-    return this.annonceService.findAnnoncesByAgency(agencyId, userId);
+    return this.announceService.findAnnoncesByAgency(agencyId, userId);
   }
 
   // 4. MODIFIER
@@ -126,7 +125,7 @@ export class AnnonceController {
       cloudinaryImagesUrls = uploads.map((res) => res.secure_url);
     }
 
-    return this.annonceService.updateAnnonce({
+    return this.announceService.updateAnnonce({
       ...data,
       galleryImages: cloudinaryImagesUrls,
     });
@@ -137,6 +136,6 @@ export class AnnonceController {
   @Delete(API_URL.ANNONCE.DELETE)
   @ApiOperation({ summary: 'Supprimer une annonce' })
   async remove(@Query('id') id: string) {
-    return this.annonceService.deleteAnnonce(id);
+    return this.announceService.deleteAnnonce(id);
   }
 }

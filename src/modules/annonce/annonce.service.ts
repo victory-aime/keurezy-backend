@@ -9,17 +9,16 @@ import {
 import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
-import { convertToInteger } from '_root/config/convert';
 
 @Injectable()
-export class AnnonceService {
+export class AnnounceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
   ) {}
 
   // Vérification centralisée
-  private async ensureNoActiveAnnonce(propertyId: string, excludeId?: string) {
+  private async ensureNoActiveAnnounce(propertyId: string, excludeId?: string) {
     const existing = await this.prisma.annonce.findFirst({
       where: {
         propertyId,
@@ -38,7 +37,7 @@ export class AnnonceService {
   }
 
   // 1. CREATE
-  async createAnnonce(dto: CreateAnnonceDto): Promise<{ message: string }> {
+  async createAnnounce(dto: CreateAnnonceDto): Promise<{ message: string }> {
     await this.agencyService.agencyAccessControl(dto.agencyId!, dto.userId!);
     if (!dto.galleryImages?.length) {
       throw new HttpError(
@@ -60,7 +59,7 @@ export class AnnonceService {
 
     // règle métier
     if (status === AnnonceStatus.ACTIVE) {
-      await this.ensureNoActiveAnnonce(dto.propertyId);
+      await this.ensureNoActiveAnnounce(dto.propertyId);
     }
 
     await this.prisma.annonce.create({
@@ -80,59 +79,61 @@ export class AnnonceService {
   }
 
   // 2. LIST ALL
-  async findAllAnnonces(query: FilterAnnonceDto) {
-    const pageInitial = convertToInteger(query?.initialPage) || 1;
-    const limitPage = convertToInteger(query?.limitPerPage) || 10;
-    const minPrice = convertToInteger(query?.minPrice!);
-    const maxPrice = convertToInteger(query?.maxPrice!);
+  async findAllAnnounces(payload: FilterAnnonceDto) {
+    const pageInitial = payload.initialPage ?? 1;
+    const limitPage = payload.limitPerPage ?? 10;
 
     const skip = (pageInitial - 1) * limitPage;
 
+    const propertyFilter: Prisma.PropertyWhereInput = {};
+
+    if (payload.city) {
+      propertyFilter.city = {
+        contains: payload.city,
+        mode: Prisma.QueryMode.insensitive,
+      };
+    }
+
+    if (payload.district) {
+      propertyFilter.district = {
+        contains: payload.district,
+        mode: Prisma.QueryMode.insensitive,
+      };
+    }
+
+    if (payload.type) {
+      propertyFilter.type = payload.type;
+    }
+
+    if (payload.minPrice !== undefined || payload.maxPrice !== undefined) {
+      propertyFilter.price = {
+        ...(payload.minPrice !== undefined && {
+          gte: new Prisma.Decimal(payload.minPrice),
+        }),
+
+        ...(payload.maxPrice !== undefined && {
+          lte: new Prisma.Decimal(payload.maxPrice),
+        }),
+      };
+    }
+
+    if (payload.rooms !== undefined) {
+      propertyFilter.rooms = {
+        gte: payload.rooms,
+      };
+    }
+
+    if (payload.features?.length) {
+      propertyFilter.features = {
+        hasSome: payload.features,
+      };
+    }
+
     const filterOptions: Prisma.AnnonceWhereInput = {
       status: 'ACTIVE',
-      property: {
-        ...(query.city && {
-          city: {
-            contains: query.city,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        }),
-
-        ...(query.district && {
-          district: {
-            contains: query.district,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        }),
-
-        ...(query.type && {
-          type: query.type,
-        }),
-
-        ...((minPrice || maxPrice) && {
-          price: {
-            ...(query.minPrice && {
-              gte: minPrice,
-            }),
-
-            ...(query.maxPrice && {
-              lte: maxPrice,
-            }),
-          },
-        }),
-
-        ...(query.rooms && {
-          rooms: {
-            gte: query.rooms,
-          },
-        }),
-
-        ...(query.features?.length && {
-          features: {
-            hasSome: query.features,
-          },
-        }),
-      },
+      ...(Object.keys(propertyFilter).length > 0 && {
+        property: propertyFilter,
+      }),
     };
 
     const [data, total] = await this.prisma.$transaction([
@@ -140,7 +141,9 @@ export class AnnonceService {
         where: filterOptions,
         include: {
           property: {
-            include: { batiment: true },
+            include: {
+              batiment: true,
+            },
           },
         },
         orderBy: {
@@ -154,7 +157,6 @@ export class AnnonceService {
         where: filterOptions,
       }),
     ]);
-
     return {
       content: data.map((annonce) => ({
         id: annonce.id,
@@ -166,6 +168,7 @@ export class AnnonceService {
         publishedAt: annonce.publishedAt,
         createdAt: annonce.createdAt,
         updatedAt: annonce.updatedAt,
+
         property: {
           id: annonce.property.id,
           title: annonce.property.title,
@@ -182,13 +185,16 @@ export class AnnonceService {
           status: annonce.property.status,
           features: annonce.property.features,
         },
-        batiment: {
-          id: annonce.property.batiment?.id,
-          name: annonce.property.batiment?.name,
-          address: annonce.property.batiment?.address,
-          city: annonce.property.batiment?.city,
-          district: annonce.property.batiment?.district,
-        },
+
+        batiment: annonce.property.batiment
+          ? {
+              id: annonce.property.batiment.id,
+              name: annonce.property.batiment.name,
+              address: annonce.property.batiment.address,
+              city: annonce.property.batiment.city,
+              district: annonce.property.batiment.district,
+            }
+          : null,
       })),
       totalDataPerPages: limitPage,
       totalItems: total,
@@ -196,7 +202,6 @@ export class AnnonceService {
       totalPages: Math.ceil(total / limitPage),
     };
   }
-
   // 3. LIST BY AGENCY
   async findAnnoncesByAgency(agencyId: string, userId: string): Promise<Annonce[]> {
     await this.agencyService.agencyAccessControl(agencyId, userId);
@@ -226,7 +231,7 @@ export class AnnonceService {
 
     // vérification si passage en ACTIVE
     if (nextStatus === AnnonceStatus.ACTIVE) {
-      await this.ensureNoActiveAnnonce(annonce.propertyId, dto.id);
+      await this.ensureNoActiveAnnounce(annonce.propertyId, dto.id);
     }
 
     await this.prisma.annonce.update({
