@@ -9,7 +9,6 @@ import {
 import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
-import { convertToInteger } from '_root/config/convert';
 
 @Injectable()
 export class AnnounceService {
