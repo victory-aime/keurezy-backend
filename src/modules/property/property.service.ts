@@ -87,7 +87,7 @@ export class PropertyService {
     await this.subscriptionLimitService.checkPropertyLimit(data.agencyId);
 
     await this.agencyService.checkAgencyOwnership(data.agencyId);
-  // ... reste du code inchangé
+    // ... reste du code inchangé
     await this.agencyService.checkAgencyOwnership(data.agencyId);
 
     const uniqueName = await this.prisma.property.findUnique({

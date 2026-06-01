@@ -23,10 +23,11 @@ export class TeamController {
 
   @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
   @AuthorizeRoles(Role.OWNER)
-<<<<<<< HEAD
- @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
+  @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
   @AuthorizeRoles(Role.OWNER)
-  @ApiOperation({ summary: "Récupérer la liste des membres de l'équipe d'une agence (Owner uniquement)" })
+  @ApiOperation({
+    summary: "Récupérer la liste des membres de l'équipe d'une agence (Owner uniquement)",
+  })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" })
   @ApiOkResponse({ description: "Liste de l'équipe récupérée avec succès" })
@@ -38,12 +39,20 @@ export class TeamController {
   @AuthorizeRoles(Role.OWNER)
   @ApiOperation({ summary: "Activer ou désactiver le compte d'un membre (Owner uniquement)" })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant du membre de l'équipe" })
-  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur effectuant l'action" })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: "Identifiant de l'utilisateur effectuant l'action",
+  })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        status: { type: 'boolean', example: true, description: 'true pour activer, false pour désactiver' },
+        status: {
+          type: 'boolean',
+          example: true,
+          description: 'true pour activer, false pour désactiver',
+        },
       },
       required: ['status'],
     },

@@ -47,7 +47,9 @@ export class CommonController {
 
   @Get('v1/secure/common/usage')
   @AllowAnonymous() // ⚠️ TEMPORAIRE
-  @ApiOperation({ summary: "Récupérer le résumé d'utilisation des limites d'abonnement d'une agence" })
+  @ApiOperation({
+    summary: "Récupérer le résumé d'utilisation des limites d'abonnement d'une agence",
+  })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: "Résumé d'utilisation récupéré avec succès" })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })

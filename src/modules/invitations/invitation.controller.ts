@@ -46,7 +46,7 @@ export class InvitationController {
 
   @Post(API_URL.INVITATION.ACCEPT_INVITE)
   @AllowAnonymous()
-  @ApiOperation({ summary: "Accepter une invitation via le token reçu par email" })
+  @ApiOperation({ summary: 'Accepter une invitation via le token reçu par email' })
   @ApiQuery({ name: 'token', required: true, description: "Token d'invitation reçu par email" })
   @ApiOkResponse({ description: 'Invitation acceptée avec succès' })
   @ApiBadRequestResponse({ description: 'Token invalide ou expiré' })
@@ -56,8 +56,12 @@ export class InvitationController {
 
   @Post(API_URL.INVITATION.CANCEL_INVITE)
   @AuthorizeRoles(Role.OWNER, Role.AGENCY_ADMIN)
-  @ApiOperation({ summary: "Annuler une invitation (Owner + Admin)" })
-  @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation à annuler" })
+  @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })
+  @ApiQuery({
+    name: 'inviteId',
+    required: true,
+    description: "Identifiant de l'invitation à annuler",
+  })
   @ApiOkResponse({ description: 'Invitation annulée avec succès' })
   @ApiBadRequestResponse({ description: 'Invitation introuvable ou déjà acceptée' })
   async cancelInvitation(@Query('inviteId') inviteId: string) {

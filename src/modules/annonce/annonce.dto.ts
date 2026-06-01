@@ -2,13 +2,19 @@ import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/ge
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAnnonceDto {
-  @ApiProperty({ example: 'Appartement F3 Almadies', description: 'Titre de l\'annonce' })
+  @ApiProperty({ example: 'Appartement F3 Almadies', description: "Titre de l'annonce" })
   title: string;
 
-  @ApiProperty({ example: 'uuid-de-la-propriete', description: 'Identifiant de la propriété concernée' })
+  @ApiProperty({
+    example: 'uuid-de-la-propriete',
+    description: 'Identifiant de la propriété concernée',
+  })
   propertyId: string;
 
-  @ApiProperty({ example: 'Bel appartement lumineux avec vue sur mer...', description: 'Description détaillée de l\'annonce' })
+  @ApiProperty({
+    example: 'Bel appartement lumineux avec vue sur mer...',
+    description: "Description détaillée de l'annonce",
+  })
   description: string;
 
   @ApiProperty({
@@ -18,18 +24,28 @@ export class CreateAnnonceDto {
   })
   galleryImages: string[];
 
-  @ApiPropertyOptional({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence publiant l'annonce" })
+  @ApiPropertyOptional({
+    example: 'uuid-de-l-agence',
+    description: "Identifiant de l'agence publiant l'annonce",
+  })
   agencyId?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-de-l-user', description: "Identifiant d'un membre de l'agence publiant l'annonce" })
+  @ApiPropertyOptional({
+    example: 'uuid-de-l-user',
+    description: "Identifiant d'un membre de l'agence publiant l'annonce",
+  })
   userId?: string;
 
-  @ApiPropertyOptional({ enum: AnnonceStatus, example: 'ACTIVE', description: 'Statut de l\'annonce' })
+  @ApiPropertyOptional({
+    enum: AnnonceStatus,
+    example: 'ACTIVE',
+    description: "Statut de l'annonce",
+  })
   status?: AnnonceStatus;
 }
 
 export class UpdateAnnonceDto extends CreateAnnonceDto {
-  @ApiProperty({ example: 'uuid-de-l-annonce', description: 'Identifiant de l\'annonce à modifier' })
+  @ApiProperty({ example: 'uuid-de-l-annonce', description: "Identifiant de l'annonce à modifier" })
   id: string;
 }
 

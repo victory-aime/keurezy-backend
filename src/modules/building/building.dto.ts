@@ -6,7 +6,13 @@ export class CreateBuildingDto {
   @ApiProperty({ example: 'Résidence Les Almadies', description: 'Nom du bâtiment' })
   name: string;
 
-  @ApiProperty({ example: '12 Rue des Almadies, Dakar', description: 'Adresse complète du bâtiment' })
+  @ApiProperty({ example: 'uuid-user', description: "Identifiant de l'utilisateur" })
+  userId: string; // id
+
+  @ApiProperty({
+    example: '12 Rue des Almadies, Dakar',
+    description: 'Adresse complète du bâtiment',
+  })
   address: string;
 
   @ApiProperty({ example: 'Dakar', description: 'Ville où se situe le bâtiment' })
@@ -15,7 +21,10 @@ export class CreateBuildingDto {
   @ApiPropertyOptional({ example: 'Almadies', description: 'Quartier ou district du bâtiment' })
   district?: string;
 
-  @ApiPropertyOptional({ example: 'Immeuble R+5 avec gardiennage 24h/24', description: 'Description du bâtiment' })
+  @ApiPropertyOptional({
+    example: 'Immeuble R+5 avec gardiennage 24h/24',
+    description: 'Description du bâtiment',
+  })
   description?: string;
 
   @ApiPropertyOptional({ example: 5, description: "Nombre d'étages du bâtiment" })
@@ -24,7 +33,11 @@ export class CreateBuildingDto {
   @ApiProperty({ example: 'Mamadou Diallo', description: 'Nom du propriétaire du bâtiment' })
   buildingOwner: string;
 
-  @ApiProperty({ enum: BatimentStatus, example: BatimentStatus.AVAILABLE, description: 'Statut du bâtiment' })
+  @ApiProperty({
+    enum: BatimentStatus,
+    example: BatimentStatus.AVAILABLE,
+    description: 'Statut du bâtiment',
+  })
   status: BatimentStatus;
 
   @ApiProperty({
@@ -37,12 +50,18 @@ export class CreateBuildingDto {
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
   agencyId: string;
 
-  @ApiPropertyOptional({ example: 'uuid-du-terrain', description: 'Identifiant du terrain associé' })
+  @ApiPropertyOptional({
+    example: 'uuid-du-terrain',
+    description: 'Identifiant du terrain associé',
+  })
   landId?: string;
 }
 
 export class UpdateBuildingDto extends CreateBuildingDto {
-  @ApiProperty({ example: 'uuid-du-batiment', description: 'Identifiant du bâtiment à mettre à jour' })
+  @ApiProperty({
+    example: 'uuid-du-batiment',
+    description: 'Identifiant du bâtiment à mettre à jour',
+  })
   id: string;
 }
 

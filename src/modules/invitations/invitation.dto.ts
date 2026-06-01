@@ -8,10 +8,17 @@ export class InvitationPayloadDto {
   @ApiProperty({ example: 'agent@example.com', description: "Email de l'invité" })
   email: string;
 
-  @ApiProperty({ enum: AgencyRole, example: AgencyRole.AGENT, description: "Rôle attribué à l'invité dans l'agence" })
+  @ApiProperty({
+    enum: AgencyRole,
+    example: AgencyRole.AGENT,
+    description: "Rôle attribué à l'invité dans l'agence",
+  })
   role: AgencyRole;
 
-  @ApiProperty({ example: 'TempPass123!', description: 'Mot de passe temporaire généré pour l\'invité' })
+  @ApiProperty({
+    example: 'TempPass123!',
+    description: "Mot de passe temporaire généré pour l'invité",
+  })
   temporaryPassword: string;
 
   @ApiProperty({
@@ -30,8 +37,14 @@ export class InvitationPayloadDto {
 }
 
 export class CreateInvitationDto {
-  @ApiProperty({ example: 'uuid-de-l-admin', description: "Identifiant de l'administrateur qui envoie l'invitation" })
+  @ApiProperty({
+    example: 'uuid-de-l-admin',
+    description: "Identifiant de l'administrateur qui envoie l'invitation",
+  })
   adminId: string;
+
+  @ApiProperty({ example: 'uuid-user', description: "Identifiant de l'utilisateur connecté" })
+  userId: string; // id de l'utilisateur
 
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
   agencyId: string;

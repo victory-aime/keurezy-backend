@@ -93,7 +93,8 @@ export class AnnonceController {
   @ApiOperation({ summary: "Récupérer les annonces d'une agence spécifique" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: "Annonces de l'agence récupérées avec succès" })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue' })  async findByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
+  async findByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
     return this.announceService.findAnnoncesByAgency(agencyId, userId);
   }
 
