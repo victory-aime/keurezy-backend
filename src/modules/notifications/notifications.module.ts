@@ -8,9 +8,10 @@ import { PushProcessor } from '_root/modules/notifications/push.processor';
 import { PUSH_QUEUE } from '_root/modules/notifications/dto/push-job';
 import { PushSubscriptionModule } from '_root/modules/push-subscription/push-subscription.module';
 import { NotificationsTestController } from '_root/modules/notifications/TestPush.controller';
+import { CommonModule } from '_root/modules/common/common.module';
 
 @Module({
-  imports: [],
+  imports: [CommonModule],
   controllers: [NotificationsController, NotificationsTestController],
   providers: [NotificationsService],
   exports: [NotificationsService],
