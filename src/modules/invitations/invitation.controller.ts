@@ -25,10 +25,15 @@ export class InvitationController {
   @Get(API_URL.INVITATION.AGENCY_INVITE_LIST)
   @ApiOperation({ summary: "Lister toutes les invitations d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" }) // Ajouté pour Swagger
   @ApiOkResponse({ description: 'Liste des invitations récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async AllAgencyInviteList(@Query('agencyId') agencyId: string) {
-    return this.invitationService.getAllInviteByAgencyId(agencyId);
+  async AllAgencyInviteList(
+    @Query('agencyId') agencyId: string,
+    @Query('userId') userId: string, // On récupère le userId depuis la Query
+  ) {
+    // Correction de l'erreur TS2554 (On passe bien les 2 arguments)
+    return this.invitationService.getAllInviteByAgencyId(agencyId, userId);
   }
 
   @Post(API_URL.INVITATION.CREATE_INVITE)
@@ -57,14 +62,17 @@ export class InvitationController {
   @Post(API_URL.INVITATION.CANCEL_INVITE)
   @AuthorizeRoles(Role.OWNER, Role.AGENCY_ADMIN)
   @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })
-  @ApiQuery({
-    name: 'inviteId',
-    required: true,
-    description: "Identifiant de l'invitation à annuler",
-  })
+  @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" }) // Ajouté
+  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" }) // Ajouté
   @ApiOkResponse({ description: 'Invitation annulée avec succès' })
   @ApiBadRequestResponse({ description: 'Invitation introuvable ou déjà acceptée' })
-  async cancelInvitation(@Query('inviteId') inviteId: string) {
-    return this.invitationService.cancelledInvitation(inviteId);
+  async cancelInvitation(
+    @Query('inviteId') inviteId: string,
+    @Query('agencyId') agencyId: string, // Récupération
+    @Query('userId') userId: string, // Récupération
+  ) {
+    // Correction de l'erreur TS2554 (On passe les 3 arguments attendus)
+    return this.invitationService.cancelledInvitation(inviteId, agencyId, userId);
   }
 }

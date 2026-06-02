@@ -5,6 +5,7 @@ import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 import { LeadStatus, NotificationType } from '../../../prisma/generated/enums';
 import { AgencyService } from '../agency/agency.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Role } from '../../../prisma/generated/enums';
 
 @Injectable()
 export class LeadsService {

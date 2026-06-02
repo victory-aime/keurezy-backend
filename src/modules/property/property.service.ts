@@ -5,14 +5,14 @@ import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { convertToInteger } from '_root/config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service'; //  ajouter
+import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
 
 @Injectable()
 export class PropertyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
-    private readonly subscriptionLimitService: SubscriptionLimitService, //  ajouter
+    private readonly subscriptionLimitService: SubscriptionLimitService,
   ) {}
 
   async getAllPropertyByAgency(query: PropertyFilterDto) {
@@ -26,7 +26,6 @@ export class PropertyService {
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
-
     const skip = (pageInitial - 1) * limitPage;
 
     const propertyFilterOptions = {
@@ -44,13 +43,10 @@ export class PropertyService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.property.findMany({
         where: propertyFilterOptions,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limitPage,
       }),
-
       this.prisma.property.count({
         where: propertyFilterOptions,
       }),
@@ -67,9 +63,7 @@ export class PropertyService {
 
   async getAllPublicProperties() {
     return this.prisma.property.findMany({
-      where: {
-        status: 'AVAILABLE',
-      },
+      where: { status: 'AVAILABLE' },
       include: {
         agency: {
           select: {
@@ -82,13 +76,15 @@ export class PropertyService {
     });
   }
 
-  async createProperty(ownerId: string, data: propertyDto): Promise<{ message: string }> {
+  async createProperty(data: propertyDto): Promise<{ message: string }> {
     // ✅ Vérifier la limite du plan avant de créer
     await this.subscriptionLimitService.checkPropertyLimit(data.agencyId);
 
-    await this.agencyService.checkAgencyOwnership(data.agencyId);
-    // ... reste du code inchangé
-    await this.agencyService.checkAgencyOwnership(data.agencyId);
+    // ✅ agencyAccessControl remplace checkAgencyOwnership (inexistant)
+    const agency = await this.prisma.agency.findUnique({ where: { id: data.agencyId } });
+    if (!agency) {
+      throw new HttpError('Agence introuvable', HttpStatus.NOT_FOUND, 'AGENCY_NOT_FOUND');
+    }
 
     const uniqueName = await this.prisma.property.findUnique({
       where: {
@@ -138,20 +134,12 @@ export class PropertyService {
       }
     }
 
-    await this.prisma.property.create({
-      data,
-    });
+    await this.prisma.property.create({ data });
 
-    return {
-      message: 'Propriété créée avec succès',
-    };
+    return { message: 'Propriété créée avec succès' };
   }
 
-  async updateProperty(
-    ownerId: string,
-    propertyId: string,
-    data: propertyDto,
-  ): Promise<{ message: string }> {
+  async updateProperty(propertyId: string, data: propertyDto): Promise<{ message: string }> {
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId },
     });
@@ -160,7 +148,11 @@ export class PropertyService {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
 
-    await this.agencyService.checkAgencyOwnership(property.agencyId);
+    // ✅ Vérification que l'agence existe
+    const agency = await this.prisma.agency.findUnique({ where: { id: property.agencyId } });
+    if (!agency) {
+      throw new HttpError('Agence introuvable', HttpStatus.NOT_FOUND, 'AGENCY_NOT_FOUND');
+    }
 
     // 🧠 Cas où on change le bâtiment
     if (data.batimentId) {
@@ -222,35 +214,21 @@ export class PropertyService {
       where: { id: propertyId },
       data: {
         ...safeValues,
-        agency: {
-          connect: { id: agencyId },
-        },
+        agency: { connect: { id: agencyId } },
         ...(batimentId
-          ? {
-              batiment: {
-                connect: { id: batimentId },
-              },
-            }
-          : {
-              batiment: {
-                disconnect: true,
-              },
-            }),
+          ? { batiment: { connect: { id: batimentId } } }
+          : { batiment: { disconnect: true } }),
       },
     });
 
-    return {
-      message: 'Propriété mis a jour avec succès',
-    };
+    return { message: 'Propriété mis a jour avec succès' };
   }
 
   async getOccupationRateByType1(ownerId: string, agencyId: string) {
-    await this.agencyService.checkAgencyOwnership(agencyId);
+    await this.agencyService.agencyAccessControl(agencyId, ownerId);
 
     const properties = await this.prisma.property.findMany({
-      where: {
-        agencyId,
-      },
+      where: { agencyId },
       select: {
         type: true,
         status: true,
@@ -287,8 +265,8 @@ export class PropertyService {
   /**
    * Stats: Taux d'occupation par type de propriété
    */
-  async getOccupationRateByType(ownerId: string, agencyId: string) {
-    await this.agencyService.checkAgencyOwnership(agencyId);
+  async getOccupationRateByType(userId: string, agencyId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
 
     const properties = await this.prisma.property.findMany({
       where: { agencyId },
