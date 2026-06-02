@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { InvitationService } from '_root/modules/invitations/invitation.service';
-import { AgencyRole, Role } from '../../../prisma/generated/enums';
+import { Role } from '../../../prisma/generated/enums';
 import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '_root/config/api';
