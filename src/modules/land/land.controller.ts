@@ -9,7 +9,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { LandService } from '_root/modules/land/land.service';
-import { IPaginationDto } from '_root/config/pagination.dto';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from '_root/modules/land/land.dto';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { UploadsService } from '_root/modules/cloudinary/uploads.service';
@@ -17,7 +16,6 @@ import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
 import { convertToInteger } from '_root/config/convert';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { API_URL } from '_root/config/api';
-import { UpdateBuildingDto } from '_root/modules/building/building.dto';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -103,7 +101,6 @@ export class LandController {
 
     let cloudinaryDocumentsFilesUrl: string[] = [];
 
-    // CORRECTION ICI : Ajout du second paramètre data.userId attendu par findAgency
     const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
 
     if (files?.documents?.length) {

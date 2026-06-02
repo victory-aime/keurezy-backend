@@ -44,7 +44,7 @@ export class CreateInvitationDto {
   adminId: string;
 
   @ApiProperty({ example: 'uuid-user', description: "Identifiant de l'utilisateur connecté" })
-  userId: string; // id de l'utilisateur
+  userId: string;
 
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
   agencyId: string;

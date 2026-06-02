@@ -59,7 +59,7 @@ export class PropertyController {
   @ApiOkResponse({ description: 'Propriété mise a jour avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async updateProperty(@Body() data: propertyDto, @Query('appartId') appartId: string) {
-    return this.propertyService.updateProperty(appartId, { ...data }); // ✅ ownerId supprimé
+    return this.propertyService.updateProperty(appartId, { ...data });
   }
 
   @Get(API_URL.PROPERTY.OCCUPATION_RATE_BY_PROPERTY_TYPE)

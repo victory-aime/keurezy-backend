@@ -41,7 +41,6 @@ export class AnnonceController {
     private readonly uploadFileService: UploadsService,
   ) {}
 
-  // 1. CRÉER UNE ANNONCE (Avec Upload d'images)
   @ApiBearerAuth()
   @Post(API_URL.ANNONCE.CREATE)
   @ApiConsumes('multipart/form-data')
@@ -78,7 +77,6 @@ export class AnnonceController {
     });
   }
 
-  // 2. LISTE GLOBALE
   @AllowAnonymous()
   @Post(API_URL.ANNONCE.FIND_ALL)
   @ApiOperation({ summary: 'Récupérer toutes les annonces actives' })
@@ -87,7 +85,6 @@ export class AnnonceController {
     return this.announceService.findAllAnnounces(data);
   }
 
-  // 3. LISTE PAR AGENCE
   @ApiBearerAuth()
   @Get(API_URL.ANNONCE.FIND_BY_AGENCY)
   @ApiOperation({ summary: "Récupérer les annonces d'une agence spécifique" })
@@ -98,7 +95,6 @@ export class AnnonceController {
     return this.announceService.findAnnoncesByAgency(agencyId, userId);
   }
 
-  // 4. MODIFIER
   @ApiBearerAuth()
   @Put(API_URL.ANNONCE.UPDATE)
   @ApiOperation({ summary: 'Mettre à jour une annonce' })
