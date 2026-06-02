@@ -265,8 +265,8 @@ export class PropertyService {
   /**
    * Stats: Taux d'occupation par type de propriété
    */
-  async getOccupationRateByType(ownerId: string, agencyId: string) {
-    await this.agencyService.checkAgencyOwnership(agencyId);
+  async getOccupationRateByType(userId: string, agencyId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
 
     const properties = await this.prisma.property.findMany({
       where: { agencyId },
