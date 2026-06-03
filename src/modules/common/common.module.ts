@@ -23,6 +23,6 @@ import { SubscriptionLimitService } from '_root/modules/common/services/subscrip
     NabooService,
     SubscriptionLimitService,
   ],
-  exports: [PermissionsService, PaymentService, NabooService,SubscriptionLimitService],
+  exports: [PermissionsService, PaymentService, NabooService, SubscriptionLimitService],
 })
 export class CommonModule {}

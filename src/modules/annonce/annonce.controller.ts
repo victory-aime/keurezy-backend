@@ -20,6 +20,7 @@ import {
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -45,16 +46,36 @@ export class AnnonceController {
   @Post(API_URL.ANNONCE.CREATE)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Publier une nouvelle annonce immobilière avec images' })
-  @ApiBody({ type: CreateAnnonceDto })
+  @ApiBody({
+    description:
+      "Payload Multipart comprenant les données JSON de l'annonce et les images physiques",
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'string',
+          description: 'JSON sérialisé (CreateAnnonceDto)',
+          example:
+            '{"title": "Appartement F3 Almadies", "propertyId": "uuid-bien", "description": "Superbe F3...", "agencyId": "uuid-agence", "userId": "uuid-user"}',
+        },
+        galleryImages: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: "Images de l'annonce à uploader (Max. 5)",
+        },
+      },
+      required: ['data'],
+    },
+  })
   @ApiOkResponse({ description: 'Annonce créée avec succès' })
   @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async create(
     @Body('data') rawData: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
     const data: CreateAnnonceDto = JSON.parse(rawData);
-
     let cloudinaryImagesUrls: string[] = [];
 
     if (files?.galleryImages?.length) {
@@ -79,8 +100,10 @@ export class AnnonceController {
 
   @AllowAnonymous()
   @Post(API_URL.ANNONCE.FIND_ALL)
-  @ApiOperation({ summary: 'Récupérer toutes les annonces actives' })
-  @ApiOkResponse({ description: 'Liste des annonces récupérée' })
+  @ApiOperation({ summary: 'Récupérer toutes les annonces actives avec filtres' })
+  @ApiBody({ type: FilterAnnonceDto })
+  @ApiOkResponse({ description: 'Liste des annonces récupérée', type: [Object] })
+  @ApiBadRequestResponse({ description: 'Paramètres de filtrage invalides' })
   async findAll(@Body() data: FilterAnnonceDto) {
     return this.announceService.findAllAnnounces(data);
   }
@@ -89,26 +112,52 @@ export class AnnonceController {
   @Get(API_URL.ANNONCE.FIND_BY_AGENCY)
   @ApiOperation({ summary: "Récupérer les annonces d'une agence spécifique" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: "Identifiant de l'utilisateur/membre de l'agence",
+  })
   @ApiOkResponse({ description: "Annonces de l'agence récupérées avec succès" })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async findByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
     return this.announceService.findAnnoncesByAgency(agencyId, userId);
   }
 
   @ApiBearerAuth()
   @Put(API_URL.ANNONCE.UPDATE)
-  @ApiOperation({ summary: 'Mettre à jour une annonce' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: UpdateAnnonceDto })
+  @ApiOperation({ summary: 'Mettre à jour une annonce' })
+  @ApiBody({
+    description:
+      'Payload Multipart comprenant les données JSON modifiées et les nouvelles images optionnelles',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'string',
+          description: 'JSON sérialisé (UpdateAnnonceDto)',
+          example:
+            '{"id": "uuid-de-l-annonce", "title": "Titre modifié", "description": "Nouvelle description"}',
+        },
+        galleryImages: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Nouvelles images à rajouter ou remplacer (Max. 5)',
+        },
+      },
+      required: ['data'],
+    },
+  })
   @ApiOkResponse({ description: 'Annonce mise à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async updateAnnonce(
     @Body('data') rawData: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
     const data: UpdateAnnonceDto = JSON.parse(rawData);
-
     let cloudinaryImagesUrls: string[] = [];
 
     if (files?.galleryImages?.length) {
@@ -131,13 +180,13 @@ export class AnnonceController {
     });
   }
 
-  // 5. SUPPRIMER
   @ApiBearerAuth()
   @Delete(API_URL.ANNONCE.DELETE)
   @ApiOperation({ summary: 'Supprimer une annonce' })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant de l'annonce à supprimer" })
   @ApiOkResponse({ description: 'Annonce supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Annonce introuvable ou erreur serveur' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async remove(@Query('id') id: string) {
     return this.announceService.deleteAnnonce(id);
   }

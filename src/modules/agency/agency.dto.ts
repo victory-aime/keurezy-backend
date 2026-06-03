@@ -44,7 +44,8 @@ export class createAgencyOwnerDto {
   @IsOptional()
   @IsString({ each: true })
   @ApiPropertyOptional({
-    description: "Liste des URLs de documents pour valider l'identité",
+    description:
+      'URLs des documents injectées après upload — ne pas envoyer manuellement dans le body',
     example: ['https://res.cloudinary.com/example/cni.pdf'],
     type: [String],
   })
@@ -97,7 +98,7 @@ export class updateAgencyDto extends createAgencyOwnerDto {
   @IsString()
   @ApiPropertyOptional({
     example: 'https://res.cloudinary.com/example/logo.png',
-    description: "URL du logo de l'agence",
+    description: 'URL du logo injectée après upload — ne pas envoyer manuellement dans le body',
   })
   agencyLogo?: string;
 }

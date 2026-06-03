@@ -9,6 +9,7 @@ import {
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
 import { AgencyService } from './agency.service';
@@ -27,10 +28,16 @@ export class AgencyController {
   ) {}
 
   @Get(API_URL.AGENCY.AGENCY_INFO)
-  @ApiOperation({ summary: "Infos d'une agence" })
+  @ApiOperation({ summary: "Récupérer les informations d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiOkResponse({ description: 'Info récupérer avec success' })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: "Identifiant de l'utilisateur membre de l'agence",
+  })
+  @ApiOkResponse({ description: "Informations de l'agence récupérées avec succès" })
+  @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async agencyInfo(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
     return this.agencyService.findAgency(agencyId, userId);
   }
@@ -39,18 +46,39 @@ export class AgencyController {
   @ApiOperation({ summary: "Récupérer les informations d'abonnement d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: "Informations d'abonnement récupérées avec succès" })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async agencySubscriptionInfo(@Query('agencyId') agencyId: string) {
     return this.agencyService.getAgencyPlanFeatures(agencyId);
   }
 
   @AllowAnonymous()
   @Post(API_URL.AGENCY.CREATE_AGENCY)
-  @ApiOperation({ summary: 'Créer une agence' })
+  @ApiOperation({ summary: 'Créer une agence (accessible sans authentification)' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: createAgencyOwnerDto })
-  @ApiOkResponse({ description: 'Agence créer avec success en attente de validation' })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiBody({
+    description:
+      "Payload Multipart comprenant les données JSON de l'agence et les documents d'identité",
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'string',
+          description: 'JSON sérialisé (createAgencyOwnerDto)',
+          example:
+            '{"name": "NANA Beauty Salon", "email": "contact@nana.sn", "address": "123 Avenue Habib Bourguiba", "phone": "+221 77 000 00 00", "description": "Agence spécialisée en location résidentielle", "acceptTerms": true, "userEmail": "owner@example.com", "username": "mamadou.diallo", "password": "motdepasse123456", "plan": {"planId": "uuid-du-plan", "billingCycle": "MONTHLY"}}',
+        },
+        documents: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: "Documents d'identité à uploader pour validation (Max. 5)",
+        },
+      },
+      required: ['data'],
+    },
+  })
+  @ApiOkResponse({ description: 'Agence créée avec succès, en attente de validation' })
+  @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 5 }]))
   async createAgency(
     @Body('data') rawData: string,
@@ -67,11 +95,32 @@ export class AgencyController {
   }
 
   @Post(API_URL.AGENCY.UPDATE_AGENCY)
-  @ApiOperation({ summary: "Mettre a jour les informations d'une agence" })
+  @ApiOperation({ summary: "Mettre à jour les informations d'une agence" })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: updateAgencyDto })
-  @ApiOkResponse({ description: 'Agence modifiée avec success' })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiBody({
+    description:
+      'Payload Multipart comprenant les données JSON à modifier et le nouveau logo optionnel',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'string',
+          description: 'JSON sérialisé (updateAgencyDto)',
+          example:
+            '{"agencyId": "uuid-de-l-agence", "userId": "uuid-du-user", "name": "Nouveau nom"}',
+        },
+        agencyLogo: {
+          type: 'string',
+          format: 'binary',
+          description: "Nouveau logo de l'agence (optionnel)",
+        },
+      },
+      required: ['data'],
+    },
+  })
+  @ApiOkResponse({ description: 'Agence mise à jour avec succès' })
+  @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'agencyLogo', maxCount: 1 }]))
   async updateAgency(
     @Body() data: updateAgencyDto,
@@ -98,22 +147,25 @@ export class AgencyController {
   }
 
   @Post(API_URL.AGENCY.CLOSE_AGENCY)
-  @ApiOperation({ summary: 'Fermée votre agence' })
+  @ApiOperation({ summary: 'Fermer une agence' })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence à fermer" })
   @ApiQuery({
     name: 'ownerId',
     required: true,
     description: "Identifiant du propriétaire de l'agence",
   })
-  @ApiOkResponse({ description: 'Agence fermée avec success' })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiOkResponse({ description: 'Agence fermée avec succès' })
+  @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async closeAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
     return this.agencyService.closeAgency({ agencyId, userId });
   }
 
   @AllowAnonymous()
   @Post(API_URL.AGENCY.CHECK_NAME)
-  @ApiOperation({ summary: 'Verifier si une agence portant ce nom existe deja' })
+  @ApiOperation({
+    summary: 'Vérifier si une agence portant ce nom existe déjà (accessible sans authentification)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -123,8 +175,8 @@ export class AgencyController {
       required: ['name'],
     },
   })
-  @ApiOkResponse({ description: 'return un boolean' })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
+  @ApiOkResponse({ description: 'Retourne true si le nom est déjà pris, false sinon' })
+  @ApiBadRequestResponse({ description: 'Données invalides' })
   async checkAgencyName(@Body() data: { name: string }) {
     return this.agencyService.checkAgencyName(data?.name);
   }
