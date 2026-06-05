@@ -1,4 +1,14 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { PermissionsService } from '_root/modules/common/services/permissions.service';
 import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
@@ -14,14 +24,18 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { NabooSignatureGuard } from '_root/guard/naboo.guard';
+import { PaymentService } from '_root/modules/common/services/payment.service';
 
 @ApiTags('Common')
 @Controller()
 export class CommonController {
+  private readonly logger = new Logger(CommonController.name);
   constructor(
     private readonly permissionService: PermissionsService,
     private readonly commonService: CommonService,
-    private readonly subscriptionLimitService: SubscriptionLimitService, // ✅ ajouté
+    private readonly paymentService: PaymentService,
+    private readonly subscriptionLimitService: SubscriptionLimitService,
   ) {}
 
   @Get(API_URL.COMMON.PERMS)
@@ -46,7 +60,7 @@ export class CommonController {
   }
 
   @Get('v1/secure/common/usage')
-  @AllowAnonymous() // ⚠️ TEMPORAIRE
+  @AllowAnonymous()
   @ApiOperation({
     summary: "Récupérer le résumé d'utilisation des limites d'abonnement d'une agence",
   })
@@ -55,5 +69,24 @@ export class CommonController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getUsageSummary(@Query('agencyId') agencyId: string) {
     return this.subscriptionLimitService.getUsageSummary(agencyId);
+  }
+
+  @AllowAnonymous()
+  @Post('webhooks/naboo')
+  @UseGuards(NabooSignatureGuard)
+  @HttpCode(HttpStatus.OK)
+  handleWebhook(@Body() payload: any) {
+    setImmediate(() => {
+      this.paymentService.handleWebhook(payload).catch((err) => {
+        this.logger.error('Erreur traitement webhook:', err.message, err.stack);
+      });
+    });
+    return { received: true };
+  }
+
+  @AllowAnonymous()
+  @Get(API_URL.COMMON.PAYMENT_POLLING)
+  getPaymentStatus(@Query('orderId') orderId: string) {
+    return this.paymentService.getPaymentStatus(orderId);
   }
 }

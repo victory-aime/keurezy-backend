@@ -11,23 +11,6 @@ export const API_URL = {
     REGISTER: `${BASE_APIS_URL.UNSECURED}/${APIS_URL_GLOBAL_PATH.AUTH}/register`,
     CHECK_EMAIL: `${BASE_APIS_URL.UNSECURED}/${APIS_URL_GLOBAL_PATH.AUTH}/verified-email`,
   },
-  CONTACT: {
-    PUBLIC_CONTACT: `${BASE_APIS_URL.UNSECURED}/contact/public`,
-    AGENCY_CONTACT_LIST: `${BASE_APIS_URL.SECURED}/contact/agency-contact-list`,
-    AGENCY_CONTACT_UPDATE_STATUS: `${BASE_APIS_URL.SECURED}/contact/agency-update-status`,
-    AGENCY_CONTACT_READ_ALL: `${BASE_APIS_URL.SECURED}/contact/agency-update-status`,
-  },
-  APPLICATION: {
-    CREATE: `${BASE_APIS_URL.SECURED}/application/create`,
-    AGENCY_APPLICATION_LIST: `${BASE_APIS_URL.SECURED}/application/agency-application-list`,
-    USER_APPLICATION_LIST: `${BASE_APIS_URL.SECURED}/application/user-application-list`,
-  },
-  RENTAL_AGREEMENT: {
-    APPROVE: `${BASE_APIS_URL.SECURED}/rental-agreement/approve`,
-    REJECT: `${BASE_APIS_URL.SECURED}/rental-agreement/reject`,
-    CLOSE: `${BASE_APIS_URL.SECURED}/rental-agreement/terminate`,
-    AGENCY_LIST: `${BASE_APIS_URL.SECURED}/rental-agreement/rental-agreement-agency-list`,
-  },
   AGENCY: {
     CREATE_AGENCY: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.AGENCY}/create`,
     AGENCY_INFO: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.AGENCY}`,
@@ -83,13 +66,6 @@ export const API_URL = {
       UPDATE: `update-faq`,
       DELETE: `delete-faq`,
     },
-  },
-  CHAT: {
-    CREATE_CONV: `${BASE_APIS_URL.SECURED}/chat/create-conversation`,
-    GET_CONV: `${BASE_APIS_URL.SECURED}/chat/get-conversation`,
-    GET_MESSAGE: `${BASE_APIS_URL.SECURED}/chat/get-message`,
-    SEND_MESSAGE: `${BASE_APIS_URL.SECURED}/chat/send-message`,
-    READ_MESSAGE: `${BASE_APIS_URL.SECURED}/chat/read`,
   },
   NOTIFICATION: {
     GET_ALL: `${BASE_APIS_URL.SECURED}/notif/get-all`,

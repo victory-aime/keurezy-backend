@@ -6,7 +6,7 @@ const convertToInteger = (value: string | number): number => {
 };
 
 const convertToFloat = (value: string): number => {
-  if (typeof value === 'string' && value !== '') {
+  if (value !== '') {
     return parseFloat(value);
   }
   return 0;

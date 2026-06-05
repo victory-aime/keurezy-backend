@@ -22,9 +22,6 @@ import { VisitsModule } from '_root/modules/visits/visits.module';
 import { StatsModule } from '_root/modules/stats/stats.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { BullModule } from '@nestjs/bullmq';
-import { ChatModule } from '_root/modules/chat/chat.module';
-import { PushSubscriptionModule } from '_root/modules/push-subscription/push-subscription.module';
 
 @Module({
   imports: [
@@ -74,19 +71,6 @@ import { PushSubscriptionModule } from '_root/modules/push-subscription/push-sub
     NotificationsModule,
     StatsModule,
     NotificationsModule,
-    // Redis partagé pour BullMQ (le même que PresenceService utilise)
-    // BullModule.forRootAsync({
-    //   inject: [ConfigService],
-    //   useFactory: (config: ConfigService) => ({
-    //     connection: { url: config.getOrThrow('REDIS_URL') },
-    //     defaultJobOptions: {
-    //       removeOnComplete: 100,
-    //       removeOnFail: 500,
-    //     },
-    //   }),
-    // }),
-    //ChatModule,
-    //PushSubscriptionModule,
   ],
 
   providers: [

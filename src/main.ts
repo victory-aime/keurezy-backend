@@ -11,70 +11,6 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as process from 'node:process';
 
 async function bootstrap() {
-  console.log('\n========== PROJECT ENV ==========');
-
-  const projectEnvs = [
-    'NODE_ENV',
-
-    // Database
-    'DATABASE_URL',
-    'DIRECT_URL',
-    'SUPABASE_DB_PASSWORD',
-
-    // Google
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-
-    // Cloudinary
-    'CLOUDINARY_CLOUD_NAME',
-    'CLOUDINARY_API_KEY',
-    'CLOUDINARY_API_SECRET',
-
-    // Better Auth
-    'BETTER_AUTH_URL',
-    'BETTER_AUTH_SECRET',
-
-    // App
-    'APP_NAME',
-    'WEB_APP_URL',
-    'PORT',
-
-    // Front URLs
-    'FRONTEND_EMAIL_VERIFIED_URL',
-    'FRONTEND_RESET_PASSWORD_URL',
-    'FRONTEND_VERIFY_INVITATION_URL',
-    'FRONTEND_UPDATE_VERIFIED_URL',
-
-    // Resend
-    'RESEND_TEMPLATE_TEAM_INVITE_ID',
-    'RESEND_TEMPLATE_EMAIL_VERIFY_ID',
-    'RESEND_TEMPLATE_RESET_PASSWORD_ID',
-    'RESEND_TEMPLATE_UPDATE_EMAIL_ID',
-    'RESEND_CLIENT_EMAIL',
-    'RESEND_API_KEY',
-
-    // Invitation
-    'INVITATION_ENCRYPTION_KEY',
-
-    // Cookies
-    'COOKIE_DOMAIN',
-  ];
-
-  projectEnvs.forEach((key) => {
-    const value = process.env[key];
-
-    const shouldHide =
-      key.includes('SECRET') ||
-      key.includes('PASSWORD') ||
-      key.includes('TOKEN') ||
-      key.includes('KEY') ||
-      key.includes('DATABASE_URL') ||
-      key.includes('DIRECT_URL');
-
-    console.log(`${key}=${shouldHide ? '********' : (value ?? 'undefined')}`);
-  });
-
-  console.log('=================================\n');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
@@ -86,29 +22,11 @@ async function bootstrap() {
   const authService = app.get<AuthService>(AuthService);
 
   expressApp.use((req, res, next) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5080',
-      'http://localhost:8082',
-      'https://vlpgtcwk-5080.euw.devtunnels.ms',
-      'https://vlpgtcwk-3000.euw.devtunnels.ms',
-      'exp://',
-      'exp://**',
-      'exp://192.168.*.*:*/**',
-      'http://localhost:8081',
-      'https://keurezy.onrender.com',
-    ];
+    const allowedOrigins = process.env.TRUSTED_ORIGINS!.split(',').map((origin) => origin.trim());
 
     const origin = req.headers.origin;
 
-    const isAllowed =
-      !!origin &&
-      (allowedOrigins.includes(origin) ||
-        origin.startsWith('http://localhost') ||
-        origin.startsWith('http://10.20.') || // ← ajouter
-        origin.startsWith('exp://') || // ← ajouter
-        origin.startsWith('keureazy://') ||
-        origin.includes('.devtunnels.ms'));
+    const isAllowed = !!origin && allowedOrigins.includes(origin);
 
     if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);

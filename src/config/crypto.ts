@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-cbc';
-const SECRET_KEY = process.env.INVITATION_ENCRYPTION_KEY!; // 32 bytes en hex
+const SECRET_KEY = process.env.INVITATION_ENCRYPTION_KEY!;
 const IV_LENGTH = 16;
 
 export function encryptPassword(plainText: string): string {

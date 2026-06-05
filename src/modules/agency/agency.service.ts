@@ -139,7 +139,6 @@ export class AgencyService {
       // ─────────────────────────────────────────
       if (isSubscription) {
         const uploadSessionId = `upload_${crypto.randomUUID()}`;
-        console.log('uploadId', uploadSessionId);
         return this.paymentService.initiateAgencyPayment(data, uploadSessionId);
       }
 

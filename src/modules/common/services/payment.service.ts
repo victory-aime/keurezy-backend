@@ -1,21 +1,14 @@
-// src/payment/payment.service.ts
-// Logique métier du flux de paiement d'onboarding agence.
-// Le payload complet de création est snapshoté dans paymentTransaction .metadata
-// et relu par le webhook pour finaliser la création après paiement confirmé.
-
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { NabooService } from './naboo.service';
 import { InitiateAgencyPaymentDto } from '../payment.dto';
 import { BillingCycle, PaymentStatus, PricingType, Role } from '../../../../prisma/generated/enums';
 import { PrismaService } from '_root/database/prisma.service';
-import { HttpError } from '_root/config/http.error';
 import { decryptPassword, encryptPassword } from '_root/config/crypto';
 import { getAuthInstance } from '_root/lib/auth';
 import { UploadsService } from '_root/modules/cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
 import { CloudinaryService } from '_root/modules/cloudinary/cloudinary.service';
 
-// ── Type du payload webhook NabooPay ─────────────────────────────────────────
 interface NabooWebhookPayload {
   order_id: string;
   transaction_status: string;
@@ -28,8 +21,6 @@ interface NabooWebhookPayload {
   paid_at: string;
 }
 
-// ── Type du snapshot stocké dans paymentTransaction .metadata ─────────────────────
-// Contient tout ce dont handleWebhook a besoin pour reconstruire l'agence.
 interface AgencyOnboardingMetadata {
   userId?: string; // ID BetterAuth créé à l'initiation
   username: string;
@@ -82,7 +73,6 @@ export class PaymentService {
     checkout_url: string;
     order_id: string;
   }> {
-    // 1a. Vérifier l'email
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.userEmail },
     });
@@ -90,7 +80,6 @@ export class PaymentService {
       throw new BadRequestException('Impossible de créer un compte avec cet email');
     }
 
-    // 1b. Résoudre le plan (logique identique à resolveActivePlan de l'ancien flow)
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: dto.plan.planId },
       include: { pricings: true },
@@ -102,7 +91,6 @@ export class PaymentService {
 
     const isSubscription = plan.pricingType === PricingType.SUBSCRIPTION;
 
-    // 1c. Résoudre le tarif (SUBSCRIPTION uniquement)
     let selectedPricing: (typeof plan.pricings)[0] | undefined;
     let priceXOF = 0;
 
@@ -135,7 +123,6 @@ export class PaymentService {
     }
 
     try {
-      // 1e. Créer la transaction NabooPay
       const nabooTx = await this.naboo.createTransaction({
         products: [
           {
@@ -149,7 +136,6 @@ export class PaymentService {
         errorUrl: `${process.env.NABOOPAY_FRONT_URL}/auth/onboarding?payment=error`,
       });
 
-      // 1f. Construire le snapshot metadata — c'est ce que le webhook relira
       const encryptedPassword = encryptPassword(dto.password);
       const metadata: AgencyOnboardingMetadata = {
         username: dto.username,
@@ -171,7 +157,6 @@ export class PaymentService {
         priceXOF,
       };
 
-      // 1g. Persister paymentTransaction avec le snapshot complet
       const paymentTransaction = await this.prisma.paymentTransaction.create({
         data: {
           naboo_order_id: nabooTx.order_id,
@@ -192,7 +177,6 @@ export class PaymentService {
         order_id: nabooTx.order_id,
       };
     } catch (err) {
-      console.log('error', err);
       this.logger.error(`Échec de création de la transaction`, err);
       throw err;
     }
@@ -211,7 +195,6 @@ export class PaymentService {
 
     this.logger.log(`Webhook reçu — order_id: ${order_id}, status: ${payload.transaction_status}`);
 
-    // 2a. Récupérer le paymentTransaction avec son snapshot metadata
     const paymentTransaction = await this.prisma.paymentTransaction.findUnique({
       where: { naboo_order_id: order_id },
     });
@@ -221,14 +204,11 @@ export class PaymentService {
       return;
     }
 
-    // 2b. Idempotence — ne pas retraiter un paiement déjà confirmé
     if (paymentTransaction.status !== PaymentStatus.PENDING) {
       this.logger.log(`order_id ${order_id} déjà traité (${paymentTransaction.status}) — ignoré`);
       return;
     }
 
-    // 2c. Double-check CRITIQUE via GET NabooPay
-    //     On ne fait jamais confiance au seul payload webhook.
     const nabooTx = await this.naboo.getTransaction(order_id);
 
     if (nabooTx.transaction_status !== 'paid') {
@@ -245,7 +225,6 @@ export class PaymentService {
       return;
     }
 
-    // 2d. Relire le snapshot metadata
     const meta = paymentTransaction.metadata as unknown as AgencyOnboardingMetadata;
 
     // ── BetterAuth HORS de la transaction Prisma ─────────────────────────
@@ -288,18 +267,15 @@ export class PaymentService {
           },
         });
 
-        // Owner
         const owner = await tx.owner.create({
           data: { userId: createdUser.id },
         });
 
-        // Rôle
         await tx.user.update({
           where: { id: createdUser.id },
           data: { role: Role.OWNER },
         });
 
-        // Agence
         const agency = await tx.agency.create({
           data: {
             name: meta.agencyName,
@@ -313,7 +289,6 @@ export class PaymentService {
           },
         });
 
-        // Abonnement
         if (meta.pricingType === PricingType.COMMISSION) {
           throw new Error('Plan COMMISSION non éligible au flux de paiement NabooPay');
         }

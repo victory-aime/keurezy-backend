@@ -10,9 +10,6 @@ import { formatExpiresIn } from '../modules/mail/utils/getExpiresTime';
 import { prisma } from '../../prisma/seed/client';
 import { customSession } from 'better-auth/plugins/custom-session';
 import { i18n } from '@better-auth/i18n';
-// ─────────────────────────────────────────
-// INSTANCE SINGLETON
-// ─────────────────────────────────────────
 
 let authInstance: ReturnType<typeof createAuth> | null = null;
 
@@ -23,18 +20,7 @@ export const getAuthInstance = () => {
   return authInstance;
 };
 
-// ─────────────────────────────────────────
-// CONFIGURATION BETTER-AUTH
-//
-// Responsabilités de Better-Auth :
-//   ✅ Gestion des sessions / cookies
-//   ✅ Hash des passwords
-//   ✅ Création User + Account (OAuth, credentials)
-//   ✅ Génération des tokens (vérification, reset)
-//   ✅ 2FA, Passkey, Expo
-//   ✅ Google OAuth
-//
-export const createAuth = (): any => {
+export const createAuth = () => {
   const isDev = process.env.NODE_ENV !== 'production';
   return betterAuth({
     advanced: {
@@ -99,13 +85,6 @@ export const createAuth = (): any => {
           url: `${process.env.FRONTEND_RESET_PASSWORD_URL}/?token=${token}`,
           expireTime: formatExpiresIn(EXPIRE_TIME._5_MINUTES),
         });
-      },
-    },
-    socialProviders: {
-      google: {
-        enabled: true,
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       },
     },
     plugins: [
@@ -207,21 +186,6 @@ export const createAuth = (): any => {
         storeInDatabase: true,
       }),
     ],
-
-    trustedOrigins: [
-      'http://localhost:3000',
-      'http://localhost:5080',
-      'http://localhost:8082',
-      'http://localhost:8081',
-      'https://vlpgtcwk-5080.euw.devtunnels.ms',
-      'https://vlpgtcwk-3000.euw.devtunnels.ms',
-      'https://keurezy.onrender.com',
-      'http://10.20.*.*:*/**',
-      'exp://',
-      'exp://**',
-      'exp://192.168.*.*:*/**',
-      'keurezy://192.168.*.*:*/**',
-      'keurezy://*',
-    ],
+    trustedOrigins: process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : [],
   });
 };

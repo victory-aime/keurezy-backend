@@ -20,7 +20,9 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "paths": {
-      "_root/*": ["src/*"]
+      "_root/*": ["src/*"],
+      "@simplewebauthn/server": ["./node_modules/@simplewebauthn/server"],
+      "zod": ["./node_modules/zod"]
     }
   }
 }

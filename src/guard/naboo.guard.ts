@@ -1,8 +1,3 @@
-// src/guard/naboo.guard.ts
-// Vérifie la signature HMAC-SHA256 des webhooks NabooPay.
-// Utilise le raw body capturé dans main.ts — pas JSON.stringify(req.body)
-// qui peut différer du payload signé (ordre des clés, espaces).
-
 import {
   CanActivate,
   ExecutionContext,
@@ -24,17 +19,13 @@ export class NabooSignatureGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const receivedSignature = req.headers['x-signature'] as string | undefined;
 
-    // ── Logs de diagnostic ────────────────────────────────────────────────
     this.logger.debug(`[Webhook] X-Signature reçue : ${receivedSignature ?? 'ABSENTE'}`);
 
-    // 1. Signature présente ?
     if (!receivedSignature) {
       this.logger.warn('[Webhook] Rejeté — en-tête X-Signature manquant');
       throw new UnauthorizedException('Signature manquante');
     }
 
-    // 2. Raw body capturé dans main.ts via express.raw()
-    //    Si absent → la config main.ts est incorrecte (bodyParser non désactivé)
     const rawBodyBuffer: Buffer | undefined = (req as any).rawBody;
 
     let bodyToSign: string;
@@ -42,12 +33,10 @@ export class NabooSignatureGuard implements CanActivate {
       bodyToSign = rawBodyBuffer.toString('utf8');
       this.logger.debug(`[Webhook] Raw body (${rawBodyBuffer.length} bytes) : ${bodyToSign}`);
     } else {
-      // Fallback moins fiable — à corriger dans main.ts si ce warning apparaît
       bodyToSign = JSON.stringify(req.body);
       this.logger.warn('[Webhook] rawBody absent — fallback JSON.stringify. Vérifiez main.ts !');
     }
 
-    // 3. Recalcul HMAC-SHA256
     const secret = this.config.get<string>('NABOOPAY_WEBHOOK_SECRET')!;
     const expectedSig = crypto
       .createHmac('sha256', secret)
@@ -57,7 +46,6 @@ export class NabooSignatureGuard implements CanActivate {
     this.logger.debug(`[Webhook] Signature attendue : ${expectedSig}`);
     this.logger.debug(`[Webhook] Signature reçue    : ${receivedSignature}`);
 
-    // 4. Comparaison en temps constant (anti timing-attack)
     let isValid = false;
     try {
       isValid = crypto.timingSafeEqual(
@@ -65,7 +53,7 @@ export class NabooSignatureGuard implements CanActivate {
         Buffer.from(expectedSig, 'utf8'),
       );
     } catch {
-      isValid = false; // longueurs différentes → forcément invalide
+      isValid = false;
     }
 
     if (!isValid) {
