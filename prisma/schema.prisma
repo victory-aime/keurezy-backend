@@ -677,10 +677,11 @@ model PlanPricing {
 }
 
 model Feature {
-  id          String          @id @default(uuid())
-  name        String          @unique // ex: "manage_properties", "view_reports"
-  description String?
-  category    FeatureCategory
+  id           String          @id @default(uuid())
+  name         String          @unique // ex: "manage_properties", "view_reports"
+  description  String?
+  category     FeatureCategory
+  isCommercial Boolean         @default(false)
 
   permissions  Permission[]
   planFeatures PlanFeature[]
@@ -992,13 +993,21 @@ enum NotificationScope {
 
 enum FeatureCategory {
   PROPERTIES
+  PROPERTY_TYPES
   ANNONCES
+  BOOST_ANNOUNCES
   LEADS
-  TENANTS
-  ACCOUNTING
   USERS
+  ROLES_PERMISSIONS
+  INVITATIONS
+  VISITS
+  CONTRACTS
+  ACCOUNTING
+  SUBSCRIPTIONS
   REPORTS
+  NOTIFICATIONS
   TICKETS
+  SUPPORT
   MARKETING
 }
 

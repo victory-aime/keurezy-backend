@@ -36,7 +36,7 @@ export class PropertyService {
           mode: Prisma.QueryMode.insensitive,
         },
       }),
-      ...(query.type && { city: query.type }),
+      ...(query.type && { type: query.type }),
       ...(query.status && { status: query.status }),
     };
 
@@ -134,7 +134,9 @@ export class PropertyService {
       }
     }
 
-    await this.prisma.property.create({ data });
+    const { userId, ...extractValues } = data;
+
+    await this.prisma.property.create({ data: { ...extractValues } });
 
     return { message: 'Propriété créée avec succès' };
   }
@@ -193,7 +195,7 @@ export class PropertyService {
       const existing = await this.prisma.property.findUnique({
         where: {
           agencyId_title: {
-            agencyId: property.agencyId!,
+            agencyId: property.agencyId,
             title: data.title,
           },
         },

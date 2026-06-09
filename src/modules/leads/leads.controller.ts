@@ -104,8 +104,8 @@ export class LeadsController {
   @ApiBody({ type: AssignLeadDto })
   @ApiOkResponse({ description: 'Agent assigné avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async assignLead(@Query('leadId') leadId: string, @Body() dto: AssignLeadDto) {
-    return this.leadsService.assignLead({ ...dto, leadId });
+  async assignLead(@Body() dto: AssignLeadDto) {
+    return this.leadsService.assignLead({ ...dto });
   }
 
   // ─────────────────────────────────────────────────────────────────

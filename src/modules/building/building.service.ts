@@ -28,7 +28,7 @@ export class BuildingService {
     const buildingFilterOptions = {
       ...{ agencyId: query?.agencyId },
       ...(query?.name && {
-        title: {
+        name: {
           contains: query.name,
           mode: Prisma.QueryMode.insensitive,
         },

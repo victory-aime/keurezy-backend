@@ -21,6 +21,7 @@ async function seed() {
     {
       name: 'manage_properties',
       category: FeatureCategory.PROPERTIES,
+      isCommercial: true,
       permissions: [
         { name: 'view_properties', description: 'Voir les propriétés' },
         { name: 'create_property', description: 'Créer une propriété' },
@@ -30,7 +31,7 @@ async function seed() {
     },
     {
       name: 'manage_property_types',
-      category: FeatureCategory.PROPERTIES,
+      category: FeatureCategory.PROPERTY_TYPES,
       permissions: [
         { name: 'manage_land', description: 'Gérer les terrains' },
         { name: 'manage_batiment', description: 'Gérer les bâtiments' },
@@ -44,6 +45,7 @@ async function seed() {
     {
       name: 'publish_properties',
       category: FeatureCategory.ANNONCES,
+      isCommercial: true,
       permissions: [
         { name: 'publish_property', description: 'Publier une propriété' },
         { name: 'publish_land', description: 'Publier un terrain' },
@@ -52,7 +54,8 @@ async function seed() {
     },
     {
       name: 'boost_annonces',
-      category: FeatureCategory.ANNONCES,
+      category: FeatureCategory.BOOST_ANNOUNCES,
+      isCommercial: true,
       permissions: [
         { name: 'boost_property', description: 'Booster une annonce' },
         { name: 'highlight_property', description: 'Mettre en avant une annonce' },
@@ -70,6 +73,7 @@ async function seed() {
     {
       name: 'manage_leads',
       category: FeatureCategory.LEADS,
+      isCommercial: false,
       permissions: [
         { name: 'view_leads', description: 'Voir les leads' },
         { name: 'create_lead', description: 'Créer un lead' },
@@ -85,6 +89,7 @@ async function seed() {
     {
       name: 'manage_users',
       category: FeatureCategory.USERS,
+      isCommercial: true,
       permissions: [
         { name: 'view_users', description: 'Voir les collaborateurs' },
         { name: 'invite_users', description: 'Inviter un collaborateur' },
@@ -94,7 +99,7 @@ async function seed() {
     },
     {
       name: 'manage_roles_permissions',
-      category: FeatureCategory.USERS,
+      category: FeatureCategory.ROLES_PERMISSIONS,
       permissions: [
         { name: 'assign_permissions', description: 'Attribuer des permissions' },
         { name: 'revoke_permissions', description: 'Retirer des permissions' },
@@ -106,7 +111,7 @@ async function seed() {
     // ─────────────────────────────────────────
     {
       name: 'manage_visits',
-      category: FeatureCategory.PROPERTIES,
+      category: FeatureCategory.VISITS,
       permissions: [
         { name: 'schedule_visit', description: 'Planifier une visite' },
         { name: 'update_visit', description: 'Modifier une visite' },
@@ -120,7 +125,7 @@ async function seed() {
     // ─────────────────────────────────────────
     {
       name: 'manage_contracts',
-      category: FeatureCategory.ACCOUNTING,
+      category: FeatureCategory.CONTRACTS,
       permissions: [
         { name: 'create_contract', description: 'Créer un contrat' },
         { name: 'view_contracts', description: 'Voir les contrats' },
@@ -160,7 +165,7 @@ async function seed() {
     // ─────────────────────────────────────────
     {
       name: 'manage_subscription',
-      category: FeatureCategory.ACCOUNTING,
+      category: FeatureCategory.SUBSCRIPTIONS,
       permissions: [
         { name: 'view_subscription', description: 'Voir abonnement' },
         { name: 'change_plan', description: 'Changer de plan' },
@@ -173,7 +178,7 @@ async function seed() {
     // ─────────────────────────────────────────
     {
       name: 'manage_notifications',
-      category: FeatureCategory.USERS,
+      category: FeatureCategory.NOTIFICATIONS,
       permissions: [
         { name: 'view_notifications', description: 'Voir notifications' },
         { name: 'mark_notifications', description: 'Marquer comme lu' },
@@ -185,7 +190,7 @@ async function seed() {
     // ─────────────────────────────────────────
     {
       name: 'manage_tickets',
-      category: FeatureCategory.USERS,
+      category: FeatureCategory.TICKETS,
       permissions: [
         { name: 'create_ticket', description: 'Créer un ticket support' },
         { name: 'view_tickets', description: 'Voir les tickets' },
@@ -195,7 +200,8 @@ async function seed() {
 
     {
       name: 'premium_support',
-      category: FeatureCategory.USERS,
+      category: FeatureCategory.SUPPORT,
+      isCommercial: true,
       permissions: [{ name: 'priority_support', description: 'Support prioritaire' }],
     },
 
@@ -216,7 +222,7 @@ async function seed() {
   for (const { permissions, ...featureData } of featuresWithPermissions) {
     const feature = await prisma.feature.upsert({
       where: { name: featureData.name },
-      update: {},
+      update: { category: featureData.category, isCommercial: featureData.isCommercial },
       create: { ...featureData },
     });
 
@@ -242,6 +248,12 @@ async function seed() {
   const allFeatures = await prisma.feature.findMany();
   const getFeatureId = (name: string) => allFeatures.find((f) => f.name === name)?.id!;
 
+  const feature = (name: string, limit: number | null = null) => ({
+    featureId: getFeatureId(name),
+    enabled: true,
+    limit,
+  });
+
   await prisma.$transaction(async (tx) => {
     // =========================================================
     // 💰 COMMISSION PLANS (3)
@@ -257,26 +269,10 @@ async function seed() {
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: 6,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: 6,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: 1,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: 1,
-            },
+            feature('manage_properties', 6),
+            feature('publish_properties', 6),
+            feature('manage_users', 1),
+            feature('premium_support', 1),
           ],
         },
       },
@@ -300,26 +296,14 @@ async function seed() {
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: 20,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: 20,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: 5,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: 2,
-            },
+            feature('manage_properties', 20),
+            feature('publish_properties', 20),
+            feature('boost_annonces', 3),
+            feature('annonce_stats'),
+            feature('manage_leads'),
+            feature('manage_users', 5),
+            feature('view_reports'),
+            feature('premium_support', 5),
           ],
         },
       },
@@ -339,30 +323,18 @@ async function seed() {
         pricingType: PricingType.COMMISSION,
         commissionRate: 15,
         planCategory: PlanCategory.COMMISSION_BASED,
-
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: null,
-            },
+            feature('manage_properties'),
+            feature('publish_properties'),
+            feature('boost_annonces'),
+            feature('annonce_stats'),
+            feature('manage_leads'),
+            feature('manage_users'),
+            feature('manage_accounting'),
+            feature('view_reports'),
+            feature('premium_support'),
           ],
         },
       },
@@ -390,26 +362,10 @@ async function seed() {
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: 6,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: 6,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: 1,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: 1,
-            },
+            feature('manage_properties', 6),
+            feature('publish_properties', 6),
+            feature('manage_users', 1),
+            feature('premium_support', 1),
           ],
         },
         pricings: {
@@ -463,31 +419,14 @@ async function seed() {
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: 10,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: 10,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: 10,
-            },
-            {
-              featureId: getFeatureId('boost_annonces'),
-              enabled: true,
-              limit: 3,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: 5,
-            },
+            feature('manage_properties', 20),
+            feature('publish_properties', 20),
+            feature('boost_annonces', 3),
+            feature('annonce_stats'),
+            feature('manage_leads'),
+            feature('manage_users', 5),
+            feature('view_reports'),
+            feature('premium_support', 5),
           ],
         },
       },
@@ -525,31 +464,15 @@ async function seed() {
         planFeatures: {
           deleteMany: {},
           create: [
-            {
-              featureId: getFeatureId('manage_properties'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('publish_properties'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('manage_users'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('boost_annonces'),
-              enabled: true,
-              limit: null,
-            },
-            {
-              featureId: getFeatureId('premium_support'),
-              enabled: true,
-              limit: null,
-            },
+            feature('manage_properties'),
+            feature('publish_properties'),
+            feature('boost_annonces'),
+            feature('annonce_stats'),
+            feature('manage_leads'),
+            feature('manage_users'),
+            feature('manage_accounting'),
+            feature('view_reports'),
+            feature('premium_support'),
           ],
         },
       },

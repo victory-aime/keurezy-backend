@@ -1,9 +1,6 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { API_URL } from '_root/config/api';
 import { TeamService } from '_root/modules/team/team.service';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
-import { AuthGuard } from '@thallesp/nestjs-better-auth';
-import { Role } from '../../../prisma/generated/enums';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -17,14 +14,10 @@ import {
 @ApiTags('Team')
 @ApiBearerAuth()
 @Controller()
-@UseGuards(AuthGuard, MiddlewareGuard)
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
   @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
-  @AuthorizeRoles(Role.OWNER)
-  @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
-  @AuthorizeRoles(Role.OWNER)
   @ApiOperation({
     summary: "Récupérer la liste des membres de l'équipe d'une agence (Owner uniquement)",
   })
@@ -36,7 +29,6 @@ export class TeamController {
     return this.teamService.getTeamListByAgencyId(agencyId, userId);
   }
   @Post(API_URL.TEAM.CHANGE_STATUS)
-  @AuthorizeRoles(Role.OWNER)
   @ApiOperation({ summary: "Activer ou désactiver le compte d'un membre (Owner uniquement)" })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant du membre de l'équipe" })
   @ApiQuery({

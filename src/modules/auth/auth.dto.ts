@@ -24,13 +24,6 @@ export class ResendVerificationDto {
   @ApiProperty({ example: 'user@example.com', description: 'Email du compte à vérifier' })
   @IsEmail()
   email: string;
-
-  @ApiProperty({
-    example: 'https://monapp.com/verified',
-    description: 'URL de redirection après vérification',
-  })
-  @IsString()
-  callbackURL: string;
 }
 
 export class ForgotPasswordDto {

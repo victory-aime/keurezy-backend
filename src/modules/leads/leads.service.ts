@@ -125,7 +125,15 @@ export class LeadsService {
             select: { title: true, type: true, city: true, price: true },
           },
           assignedTo: { select: { user: { select: { name: true } } } },
-          visits: { select: { scheduledAt: true, status: true } },
+          visits: {
+            select: {
+              scheduledAt: true,
+              status: true,
+              startTime: true,
+              endTime: true,
+              notes: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -223,6 +231,7 @@ export class LeadsService {
   // ─────────────────────────────────────────────────────────────────
   async assignLead(dto: AssignLeadDto) {
     try {
+      console.log('dto', dto);
       const lead = await this.prisma.lead.findUnique({ where: { id: dto.leadId } });
       if (!lead) {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
@@ -249,7 +258,7 @@ export class LeadsService {
         },
       });
       await this.notificationService.notifyStaff({
-        staffUserId: [staff.userId],
+        staffUserId: staff.userId,
         payload: {
           type: NotificationType.LEAD,
           title: 'Nouvelle tâche',
