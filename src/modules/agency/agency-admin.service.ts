@@ -74,6 +74,7 @@ export class AgencyAdminService {
             plan: true,
           },
         },
+
         properties: { select: { id: true } },
         batiment: { select: { id: true } },
         villas: { select: { id: true } },
@@ -108,14 +109,12 @@ export class AgencyAdminService {
       tickets,
       reports,
       invitations,
-      staff,
       ...agencyDetails
     } = agency;
 
     return {
       ...agencyDetails,
       stats: {
-        staff: staff.length,
         properties: properties.length,
         batiments: batiment.length,
         villas: villas.length,
