@@ -1,3 +1,5 @@
+// src/modules/users/admin-users.controller.ts
+
 import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -26,7 +28,9 @@ import { convertToInteger } from '_root/config/convert';
 export class AdminUsersController {
   constructor(private readonly usersAdminService: UsersAdminService) {}
 
+  // GET /api/v1/secure/admin/users
   @Get(API_URL.USER_ADMIN.LIST)
+  @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({
     summary: 'Lister tous les utilisateurs',
     description:
@@ -34,11 +38,18 @@ export class AdminUsersController {
   })
   @ApiQuery({ name: 'initialPage', required: false, example: 1 })
   @ApiQuery({ name: 'limitPerPage', required: false, example: 10 })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    enum: Role,
+    description: 'Filtrer par rôle',
+  })
   @ApiOkResponse({ description: 'Liste des utilisateurs récupérée avec succès' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async getAllUsers(
     @Query('initialPage') initialPage: number,
     @Query('limitPerPage') limitPerPage: number,
+    @Query('role') role?: Role,
   ) {
     const page = convertToInteger(initialPage) || 1;
     const limit = convertToInteger(limitPerPage) || 10;
@@ -53,6 +64,7 @@ export class AdminUsersController {
     return this.usersAdminService.getUserById(userId);
   }
 
+  // PATCH /api/v1/secure/admin/users//status
   @Patch(API_URL.USER_ADMIN.UPDATE_STATUS)
   @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({
