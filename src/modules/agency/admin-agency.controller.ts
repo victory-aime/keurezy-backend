@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Query, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Query, Patch, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -12,10 +12,15 @@ import {
 import { AgencyAdminService } from './agency-admin.service';
 import { UpdateAgencyStatusDto } from './dto/update-agency-status.dto';
 import { API_URL } from '_root/config/api';
+import { AuthGuard } from '@thallesp/nestjs-better-auth';
+import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { Role } from '../../../prisma/generated/enums';
 
 @ApiTags('Super Admin - Agences')
 @Controller()
 @ApiBearerAuth()
+@UseGuards(AuthGuard, MiddlewareGuard)
+@AuthorizeRoles(Role.SUPER_ADMIN)
 export class AdminAgencyController {
   constructor(private readonly agencyAdminService: AgencyAdminService) {}
 
