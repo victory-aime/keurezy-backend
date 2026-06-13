@@ -67,14 +67,8 @@ export class AgencyAdminService {
         },
         // ── Équipe ──
         staff: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
+          select: {
+            id: true,
           },
         },
         // ── Abonnement ──
