@@ -55,33 +55,10 @@ export class UsersController {
     return this.userService.userInfo(userId);
   }
 
-  @Get(API_URL.USER.ALL_USERS)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Récupérer les informations des utilisateurs' })
-  @ApiOkResponse({ description: 'Informations utilisateurs récupérées.' })
-  @ApiNotFoundResponse({ description: 'Aucun Utilisateur.' })
-  async getAllUsers(
-    @Query('initialPage') initialPage: number,
-    @Query('limitPerPage') limitPerPage: number,
-  ) {
-    const page = convertToInteger(initialPage) || 1;
-    const limit = convertToInteger(limitPerPage) || 10;
-    return this.userService.getAllUsers(page, limit);
-  }
-
-  @Get(API_URL.USER.ONE_USER)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Récupérer les informations de utilisateur' })
-  @ApiOkResponse({ description: 'Informations utilisateur récupérée.' })
-  @ApiNotFoundResponse({ description: 'Aucun Utilisateur.' })
-  async getUserById(@Query('userId') userId: string) {
-    return this.userService.getUserById(userId);
-  }
-
   @Get(API_URL.USER.SESSION)
   @ApiOperation({ summary: 'Récupérer la session utilisateur actuelle' })
   @ApiOkResponse({ description: 'Session utilisateur récupérée avec succès.' })
-  async getSession(@Session() session: UserSession) {
+  getSession(@Session() session: UserSession) {
     return session;
   }
 

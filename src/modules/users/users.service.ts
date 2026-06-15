@@ -93,57 +93,6 @@ export class UsersService {
     }
   }
 
-  async getAllUsers(
-    page: number,
-    limit: number,
-  ): Promise<{
-    content: User[];
-    totalDataPerPages: number;
-    currentPage: number;
-    totalItems: number;
-    totalPages: number;
-  }> {
-    const skip = (page - 1) * limit;
-
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where: { role: { in: ['USER', 'OWNER'] } },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take: limit,
-      }),
-
-      this.prisma.user.count({
-        where: { role: { in: ['USER', 'OWNER'] } },
-      }),
-    ]);
-
-    return {
-      content: data,
-      totalDataPerPages: limit,
-      totalItems: total,
-      currentPage: page,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
-
-  async getUserById(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id },
-      include: {
-        accounts: true,
-        sessions: true,
-        owner: {
-          include: {
-            agency: true,
-          },
-        },
-      },
-    });
-  }
-
   async checkUserEmail(email: string): Promise<boolean> {
     const user = await this.findUser({ email });
     return !!user;

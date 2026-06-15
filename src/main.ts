@@ -15,6 +15,40 @@ async function bootstrap() {
     bodyParser: false,
   });
 
+  console.log('\n========== PROJECT ENV ==========');
+
+  const projectEnvs = [
+    'NODE_ENV',
+    'DATABASE_URL',
+    'DIRECT_URL',
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+    'BETTER_AUTH_URL',
+    'BETTER_AUTH_SECRET',
+    'APP_NAME',
+    'WEB_APP_URL',
+    'PORT',
+    'FRONTEND_EMAIL_VERIFIED_URL',
+    'FRONTEND_RESET_PASSWORD_URL',
+    'FRONTEND_VERIFY_INVITATION_URL',
+    'RESEND_TEMPLATE_TEAM_INVITE_ID',
+    'RESEND_TEMPLATE_EMAIL_VERIFY_ID',
+    'RESEND_TEMPLATE_RESET_PASSWORD_ID',
+    'RESEND_TEMPLATE_UPDATE_EMAIL_ID',
+    'RESEND_CLIENT_EMAIL',
+    'RESEND_API_KEY',
+    'INVITATION_ENCRYPTION_KEY',
+    'COOKIE_DOMAIN',
+  ];
+
+  projectEnvs.forEach((key) => {
+    const value = process.env[key];
+
+    console.log(`${key}=${value}`);
+  });
+
+  console.log('=================================\n');
   // Access Express instance
   const expressApp = app.getHttpAdapter().getInstance();
 

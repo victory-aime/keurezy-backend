@@ -38,6 +38,7 @@ export const createAuth = () => {
     },
     appName: process.env.APP_NAME,
     baseURL: process.env.BETTER_AUTH_URL,
+    secret: process.env.BETTER_AUTH_SECRET,
     database: prismaAdapter(prisma, {
       provider: 'postgresql',
     }),
