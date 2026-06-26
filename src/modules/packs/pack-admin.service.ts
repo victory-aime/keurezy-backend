@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '_root/database/prisma.service';
 import { HttpError } from '_root/config/http.error';
+import { Decimal } from '../../../prisma/generated/internal/prismaNamespace';
 import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
 import { PlanCategory } from '../../../prisma/generated/enums';
 
@@ -63,6 +64,30 @@ export class PackAdminService {
   }
 
   // ─────────────────────────────────────────
+  // 2. Détail d'un plan par ID
+  // ─────────────────────────────────────────
+  async getPlanById(planId: string): Promise<any> {
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+      include: {
+        planFeatures: {
+          include: { feature: true },
+        },
+        pricings: true,
+        _count: {
+          select: { subscriptions: true },
+        },
+      },
+    });
+
+    if (!plan) {
+      throw new HttpError(`Plan introuvable`, HttpStatus.NOT_FOUND, 'PLAN_NOT_FOUND');
+    }
+
+    return plan;
+  }
+
+  // ─────────────────────────────────────────
   // 3. Créer un plan
   // ─────────────────────────────────────────
   async createPlan(data: CreatePlanInput) {
@@ -97,6 +122,7 @@ export class PackAdminService {
       await this.prisma.subscriptionPlan.create({
         data: {
           name: data.name,
+          commissionRate: new Decimal(data.commissionRate),
           isActive: data.isActive ?? false,
           pricings: {
             create: data.pricing.map((value) => ({
@@ -112,6 +138,11 @@ export class PackAdminService {
               enabled: f.enabled,
               limit: f.limit ?? null,
             })),
+          },
+        },
+        include: {
+          planFeatures: {
+            include: { feature: true },
           },
         },
       });
