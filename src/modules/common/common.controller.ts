@@ -10,9 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PermissionsService } from '_root/modules/common/services/permissions.service';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { Role } from '../../../prisma/generated/enums';
 import { API_URL } from '_root/config/api';
 import { CommonService } from '_root/modules/common/common.service';
 import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
@@ -40,7 +39,6 @@ export class CommonController {
 
   @Get(API_URL.COMMON.PERMS)
   @UseGuards(AuthGuard, MiddlewareGuard)
-  @AuthorizeRoles(Role.AGENCY_ADMIN, Role.OWNER)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Récupérer toutes les permissions assignables d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })

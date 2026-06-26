@@ -123,7 +123,7 @@ export class VisitsService {
 
   // LISTER LES VISITES D'UNE AGENCE
   async getVisitsByAgency(agencyId: string, userId: string) {
-    //await this.agencyService.agencyAccessControl(agencyId, userId);
+    await this.agencyService.agencyAccessControl(agencyId, userId);
     try {
       return await this.prisma.visit.findMany({
         where: { agencyId },

@@ -26,6 +26,7 @@ export class TeamService {
             id: true,
             name: true,
             email: true,
+            status: true,
           },
         },
         permissions: {
@@ -49,7 +50,7 @@ export class TeamService {
       name: member.user.name,
       email: member.user.email,
       role: member.agencyRole,
-      status: member.isActive,
+      status: member.user?.status,
       createdAt: member.createdAt,
       permissions: member.permissions,
     }));
@@ -67,7 +68,7 @@ export class TeamService {
     await this.prisma.user.update({
       where: { id: userId },
       data: {
-        status: 'INACTIVE',
+        status: status ? 'ACTIVE' : 'INACTIVE',
       },
     });
     await this.prisma.staff.update({

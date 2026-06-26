@@ -33,7 +33,6 @@ export class InvitationController {
   }
 
   @Post(API_URL.INVITATION.CREATE_INVITE)
-  @AuthorizeRoles(Role.OWNER, Role.AGENCY_ADMIN)
   @ApiOperation({ summary: 'Créer et envoyer une invitation à un membre (Owner + Admin)' })
   @ApiBody({ type: CreateInvitationDto })
   @ApiOkResponse({ description: 'Invitation envoyée avec succès' })
@@ -56,7 +55,6 @@ export class InvitationController {
   }
 
   @Post(API_URL.INVITATION.CANCEL_INVITE)
-  @AuthorizeRoles(Role.OWNER, Role.AGENCY_ADMIN)
   @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })
   @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })

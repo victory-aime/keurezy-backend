@@ -1,11 +1,16 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '_root/database/prisma.service';
 import { NotificationsDto } from './notifications.dto';
 import { HttpError } from '_root/config/http.error';
+import { PushNotificationService } from './push-notification.service';
+import { NotificationType } from '../../../prisma/generated/enums';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushNotificationsService: PushNotificationService,
+  ) {}
 
   async createNotification(params: NotificationsDto) {
     const { recipients, ...data } = params;
@@ -15,7 +20,7 @@ export class NotificationsService {
     if (!cleanRecipients.length) {
       return;
     }
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         ...data,
         deliveries: {
@@ -25,6 +30,13 @@ export class NotificationsService {
         },
       },
     });
+    await this.pushNotificationsService.sendToUsers(cleanRecipients, {
+      title: notification.title!,
+      body: notification.content,
+      notificationId: notification.id,
+      type: notification.type,
+    });
+    return notification;
   }
 
   async notifyUserAndOwner({ userId, ownerId, payload }) {
@@ -35,7 +47,13 @@ export class NotificationsService {
     });
   }
 
-  async notifyAgency({ agencyMembers, payload }) {
+  async notifyAgency({
+    agencyMembers,
+    payload,
+  }: {
+    agencyMembers: string[];
+    payload: { type: NotificationType; content: string; title: string };
+  }) {
     return this.createNotification({
       ...payload,
       scope: 'AGENCY',
@@ -66,19 +84,19 @@ export class NotificationsService {
   }
   async getUnreadNotifications(userId: string) {
     try {
+      return this.prisma.notificationDelivery.findMany({
+        where: {
+          userId,
+          isRead: false,
+        },
+        include: {
+          notification: true,
+        },
+      });
     } catch (error) {
       console.error('Erreur getUnreadNotifications:', error);
       throw new HttpError('Une erreur interne est survenue.');
     }
-    return this.prisma.notificationDelivery.findMany({
-      where: {
-        userId,
-        isRead: false,
-      },
-      include: {
-        notification: true,
-      },
-    });
   }
 
   async readOneNotification(notificationId: string, userId: string) {
@@ -110,7 +128,7 @@ export class NotificationsService {
           isRead: true,
         },
       });
-    } catch (error) {
+    } catch {
       throw new HttpError('Une erreur interne est survenue.');
     }
   }

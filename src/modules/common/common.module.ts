@@ -8,6 +8,9 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
+import { PaymentAdminService } from './services/payment-admin.service';
+import { AdminPaymentController } from './admin-payment.controller';
+import { FirebaseService } from '_root/modules/common/services/firebase.service';
 
 @Module({
   imports: [
@@ -15,14 +18,23 @@ import { SubscriptionLimitService } from '_root/modules/common/services/subscrip
     ConfigModule,
     CloudinaryModule,
   ],
-  controllers: [CommonController],
+  controllers: [CommonController, AdminPaymentController],
   providers: [
     PermissionsService,
     CommonService,
     PaymentService,
     NabooService,
     SubscriptionLimitService,
+    FirebaseService,
+    PaymentAdminService,
   ],
-  exports: [PermissionsService, PaymentService, NabooService, SubscriptionLimitService],
+  exports: [
+    PermissionsService,
+    PaymentService,
+    NabooService,
+    SubscriptionLimitService,
+    FirebaseService,
+    PaymentAdminService,
+  ],
 })
 export class CommonModule {}

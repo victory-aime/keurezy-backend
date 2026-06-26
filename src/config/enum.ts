@@ -18,6 +18,7 @@ enum APIS_URL_GLOBAL_PATH {
   ANNONCES = 'announces',
   LEADS = 'leads',
   VISITS = 'visits',
+  PUSH_NOTIF = 'push-notification',
 }
 
 enum CLOUDINARY_FOLDER_NAME {

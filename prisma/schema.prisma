@@ -38,17 +38,16 @@ model User {
   staff  Staff?
   client Client?
 
-  sessions             Session[]
-  accounts             Account[]
-  twoFactor            TwoFactor[]
-  passkeys             Passkey[]
-  paymentTransaction   PaymentTransaction[]
-  notificationDelivery NotificationDelivery[]
-
+  sessions                 Session[]
+  accounts                 Account[]
+  twoFactor                TwoFactor[]
+  passkeys                 Passkey[]
+  paymentTransaction       PaymentTransaction[]
+  notificationDelivery     NotificationDelivery[]
   sentMessages             Message[]                 @relation("SentMessages")
   receivedReceipts         MessageReceipt[]          @relation("ReceivedReceipts")
   conversationParticipants ConversationParticipant[]
-  pushSubscriptions        PushSubscription[]
+  deviceTokens             DeviceToken[]
 
   @@map("user")
 }
@@ -384,6 +383,8 @@ model Lead {
   visits Visit[]
   tenant Tenant? // ✅ FIX: backrelation manquante (Tenant.leadId)
 
+  conversation Conversation?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -562,7 +563,7 @@ model Invitation {
   email             String           @unique
   temporaryPassword String?
   agencyId          String
-  agencyRole        AgencyRole       @default(AGENCY_ADMIN)
+  agencyRole        AgencyRole       @default(AGENT)
   token             String           @unique @default(uuid())
   status            InvitationStatus @default(PENDING)
   invitedBy         String // userId de l'admin
@@ -814,15 +815,17 @@ model PaymentTransaction {
 model Conversation {
   id            String           @id @default(uuid())
   type          ConversationType @default(DIRECT)
-  title         String? // optionnel pour SUPPORT (ex: "Ticket #123")
+  leadId        String?          @unique
   lastMessageAt DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
+  lead         Lead?                     @relation(fields: [leadId], references: [id], onDelete: SetNull)
   participants ConversationParticipant[]
   messages     Message[]
 
   @@index([lastMessageAt(sort: Desc)])
+  @@index([leadId])
   @@map("conversation")
 }
 
@@ -830,8 +833,14 @@ model ConversationParticipant {
   id             String    @id @default(uuid())
   conversationId String
   userId         String
+  role           Role      @default(USER)
   joinedAt       DateTime  @default(now())
-  lastReadAt     DateTime? // pour calculer les unread count côté client
+  leftAt         DateTime?
+  lastReadAt     DateTime?
+
+  // 🔥 AJOUTS IMPORTANTS
+  unreadCount       Int     @default(0)
+  lastSeenMessageId String?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -847,9 +856,9 @@ model Message {
   senderId       String
   content        String
   type           MessageType @default(TEXT)
-  metadata       Json? // { url, filename, size, mimeType } pour IMAGE/FILE
+  metadata       Json?
   editedAt       DateTime?
-  deletedAt      DateTime? // soft delete
+  deletedAt      DateTime?
   createdAt      DateTime    @default(now())
 
   conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -882,29 +891,19 @@ model MessageReceipt {
 // PUSH SUBSCRIPTIONS
 // ─────────────────────────────────────────────
 
-model PushSubscription {
-  id       String       @id @default(uuid())
-  userId   String
-  platform PushPlatform
+model DeviceToken {
+  id        String @id @default(uuid())
+  token     String @unique // le token FCM — unique pour éviter les doublons
+  userId    String
+  deviceKey String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Mobile Expo
-  expoToken String? // "ExponentPushToken[...]"
-
-  // Web VAPID
-  endpoint String? // URL du service worker push
-  p256dh   String? // clé publique DH
-  authKey  String? // clé d'authentification
-
-  deviceId  String? // identifiant unique de l'appareil (évite doublons)
-  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, deviceId]) // 1 subscription par appareil par user
-  @@index([userId, isActive])
-  @@map("push_subscription")
+  @@unique([userId, deviceKey])
+  @@index([userId])
+  @@map("device_tokens")
 }
 
 // ─────────────────────────────────────────
@@ -913,6 +912,7 @@ model PushSubscription {
 
 enum ConversationType {
   DIRECT // staff ↔ client (1-to-1)
+  LEAD // agence, client
   SUPPORT // lié à un ticket
   GROUP // extensible si besoin
 }
@@ -945,9 +945,7 @@ enum PaymentStatus {
 enum Role {
   SUPER_ADMIN // back-office plateforme
   OWNER // propriétaire de l'agence
-  AGENCY_ADMIN // admin interne agence
   AGENT
-  ACCOUNTANT
   USER //  (utilisateur mobile app)
 }
 
@@ -958,7 +956,6 @@ enum UserStatus {
 }
 
 enum AgencyRole {
-  AGENCY_ADMIN
   AGENT
 }
 

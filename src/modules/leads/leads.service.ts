@@ -5,7 +5,7 @@ import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 import { LeadStatus, NotificationType } from '../../../prisma/generated/enums';
 import { AgencyService } from '../agency/agency.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Role } from '../../../prisma/generated/enums';
+import { ChatService } from '_root/modules/chat/chat.service';
 
 @Injectable()
 export class LeadsService {
@@ -13,6 +13,7 @@ export class LeadsService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly notificationService: NotificationsService,
+    private readonly chatService: ChatService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────
@@ -248,15 +249,21 @@ export class LeadsService {
         );
       }
 
-      await this.prisma.lead.update({
+      const leadUpdate = await this.prisma.lead.update({
         where: { id: dto.leadId },
         data: { assignedToId: dto.staffId },
         include: {
           assignedTo: {
-            select: { user: { select: { name: true, email: true } } },
+            select: { user: true },
           },
         },
       });
+
+      await this.chatService.handleLeadReassignment(
+        leadUpdate.id,
+        leadUpdate.assignedTo?.user?.id ?? null,
+      );
+
       await this.notificationService.notifyStaff({
         staffUserId: staff.userId,
         payload: {

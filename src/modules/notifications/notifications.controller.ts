@@ -1,11 +1,9 @@
-import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { API_URL } from '_root/config/api';
 import { NotificationsService } from './notifications.service';
-import { AuthGuard } from '@thallesp/nestjs-better-auth';
 
 @Controller()
-@UseGuards(AuthGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

@@ -80,10 +80,20 @@ export const API_URL = {
     READ_ALL: `${BASE_APIS_URL.SECURED}/notif/read-all`,
     READ_ONE: `${BASE_APIS_URL.SECURED}/notif/read`,
     GET_UNREAD_NOTIF: `${BASE_APIS_URL.SECURED}/notif/get-all-unread`,
+    REGISTER_PUSH_TOKEN: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PUSH_NOTIF}/register-token`,
+    REMOVE_PUSH_TOKEN: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PUSH_NOTIF}/remove-token`,
   },
   PACKS: {
     ALL_PACKS: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PACKS}/get-all-packs`,
     CREATE_PACK: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PACKS}/create-pack`,
+  },
+  PLANS_ADMIN: {
+    LIST: `${BASE_APIS_URL.SECURED}/admin/plans`,
+    DETAIL: `${BASE_APIS_URL.SECURED}/admin/plans/detail`,
+    CREATE: `${BASE_APIS_URL.SECURED}/admin/plans/create`,
+    UPDATE: `${BASE_APIS_URL.SECURED}/admin/plans/update-plan`,
+    TOGGLE_STATUS: `${BASE_APIS_URL.SECURED}/admin/plans/toggle-status`,
+    DELETE: `${BASE_APIS_URL.SECURED}/admin/plans/delete`,
   },
   INVITATION: {
     AGENCY_INVITE_LIST: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INVITE}/agency-invite-list`,
@@ -112,5 +122,11 @@ export const API_URL = {
     UPDATE: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.VISITS}/update`,
     ASSIGN_AGENT: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.VISITS}/assign-agent`,
     CANCEL_VISIT: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.VISITS}/cancel-visit`,
+  },
+  PAYMENT_ADMIN: {
+    LIST: `${BASE_APIS_URL.SECURED}/admin/payments`,
+    STATS: `${BASE_APIS_URL.SECURED}/admin/payments/stats`,
+    DETAIL: `${BASE_APIS_URL.SECURED}/admin/payments/detail`,
+    REFUND: `${BASE_APIS_URL.SECURED}/admin/payments/refund`,
   },
 };

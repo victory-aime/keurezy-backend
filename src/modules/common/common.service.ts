@@ -7,6 +7,10 @@ export class CommonService {
 
   async getAllPlans() {
     return this.prisma.subscriptionPlan.findMany({
+      where: {
+        planCategory: 'SUBSCRIPTION_BASED',
+        isActive: true,
+      },
       include: {
         planFeatures: { include: { feature: true } },
         pricings: true,

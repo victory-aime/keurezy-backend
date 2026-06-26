@@ -41,7 +41,7 @@ export class VisitsController {
   @ApiOperation({ summary: "Lister toutes les visites d'une agence" })
   @ApiOkResponse({ description: 'Liste des visites récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getVisitsByAgency(@Query('agencyId') agencyId: string, userId: string) {
+  async getVisitsByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
     return this.visitsService.getVisitsByAgency(agencyId, userId);
   }
 
