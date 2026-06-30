@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BillingCycle, Plan } from '../../../prisma/generated/enums';
-import { PlanPricing } from 'prisma/generated/client';
 
 export class PlanFeatureInput {
   @ApiProperty({ example: 'uuid-de-la-feature', description: 'Identifiant de la fonctionnalité' })
