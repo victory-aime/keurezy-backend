@@ -45,7 +45,6 @@ export class BuildingController {
   @ApiOkResponse({ description: 'Liste des bâtiments récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getBuildingByAgency(@Query() data: BuildingFilterDto) {
-    console.log('data', data);
     return this.buildingService.getAllBuildingByAgency(data);
   }
 
