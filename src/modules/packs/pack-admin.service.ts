@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '_root/database/prisma.service';
 import { HttpError } from '_root/config/http.error';
-import { Decimal } from '../../../prisma/generated/internal/prismaNamespace';
 import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
+import { PlanCategory } from '../../../prisma/generated/enums';
 
 @Injectable()
 export class PackAdminService {
@@ -11,21 +11,48 @@ export class PackAdminService {
   // ─────────────────────────────────────────
   // 1. Liste tous les plans avec features et limites
   // ─────────────────────────────────────────
-  async getAllPlans() {
+  async getAllPlans(planId?: string) {
     try {
-      return await this.prisma.subscriptionPlan.findMany({
-        where: { planCategory: 'SUBSCRIPTION_BASED' },
+      const plansFilterOptions = {
+        ...{ id: planId },
+        ...{ planCategory: 'SUBSCRIPTION_BASED' as PlanCategory },
+      };
+
+      const plans = await this.prisma.subscriptionPlan.findMany({
+        where: plansFilterOptions,
         include: {
           planFeatures: {
             include: { feature: true },
           },
           pricings: true,
+          subscriptions: {
+            include: {
+              agency: {
+                include: {
+                  owner: { include: { user: { select: { id: true, email: true, name: true } } } },
+                },
+              },
+            },
+          },
           _count: {
             select: { subscriptions: true },
           },
         },
         orderBy: { createdAt: 'asc' },
       });
+
+      return plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        popular: plan.popular,
+        planCategory: plan.planCategory,
+        planFeatures: plan.planFeatures,
+        pricing: plan.pricings,
+        status: plan.isActive,
+        subscriptionCount: plan._count.subscriptions,
+        subscriptions: plan.subscriptions,
+        createdAt: plan.createdAt,
+      }));
     } catch (error) {
       if (error instanceof HttpError) throw error;
       throw new HttpError(
@@ -36,33 +63,9 @@ export class PackAdminService {
   }
 
   // ─────────────────────────────────────────
-  // 2. Détail d'un plan par ID
-  // ─────────────────────────────────────────
-  async getPlanById(planId: string): Promise<any> {
-    const plan = await this.prisma.subscriptionPlan.findUnique({
-      where: { id: planId },
-      include: {
-        planFeatures: {
-          include: { feature: true },
-        },
-        pricings: true,
-        _count: {
-          select: { subscriptions: true },
-        },
-      },
-    });
-
-    if (!plan) {
-      throw new HttpError(`Plan introuvable`, HttpStatus.NOT_FOUND, 'PLAN_NOT_FOUND');
-    }
-
-    return plan;
-  }
-
-  // ─────────────────────────────────────────
   // 3. Créer un plan
   // ─────────────────────────────────────────
-  async createPlan(data: CreatePlanInput): Promise<any> {
+  async createPlan(data: CreatePlanInput) {
     const existing = await this.prisma.subscriptionPlan.findUnique({
       where: { name: data.name },
     });
@@ -91,11 +94,18 @@ export class PackAdminService {
     }
 
     try {
-      return await this.prisma.subscriptionPlan.create({
+      await this.prisma.subscriptionPlan.create({
         data: {
           name: data.name,
-          commissionRate: new Decimal(data.commissionRate),
           isActive: data.isActive ?? false,
+          pricings: {
+            create: data.pricing.map((value) => ({
+              billingCycle: value.billingCycle,
+              price: value.price,
+              discountPercentage: value.discountPercentage,
+              currency: 'XOF',
+            })),
+          },
           planFeatures: {
             create: data.features.map((f) => ({
               featureId: f.featureId,
@@ -104,12 +114,8 @@ export class PackAdminService {
             })),
           },
         },
-        include: {
-          planFeatures: {
-            include: { feature: true },
-          },
-        },
       });
+      return { message: 'Plan créé avec succès' };
     } catch (error) {
       if (error instanceof HttpError) throw error;
       throw new HttpError(
@@ -122,10 +128,10 @@ export class PackAdminService {
   // ─────────────────────────────────────────
   // 4. Mettre à jour un plan + ses features/limites
   // ─────────────────────────────────────────
-  async updatePlan(planId: string, data: UpdatePlanInput): Promise<any> {
+  async updatePlan(planId: string, data: UpdatePlanInput) {
     const existing = await this.prisma.subscriptionPlan.findUnique({
       where: { id: planId },
-      include: { planFeatures: true },
+      include: { planFeatures: true, pricings: true },
     });
 
     if (!existing) {
@@ -133,17 +139,7 @@ export class PackAdminService {
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        await tx.subscriptionPlan.update({
-          where: { id: planId },
-          data: {
-            ...(data.commissionRate !== undefined && {
-              commissionRate: new Decimal(data.commissionRate),
-            }),
-            ...(data.isActive !== undefined && { isActive: data.isActive }),
-          },
-        });
-
+      await this.prisma.$transaction(async (tx) => {
         if (data.features && data.features.length > 0) {
           const featureIds = data.features.map((f) => f.featureId);
           const foundFeatures = await tx.feature.findMany({
@@ -180,16 +176,38 @@ export class PackAdminService {
             ),
           );
         }
+        await Promise.all(
+          data.pricing.map((pricing) =>
+            tx.planPricing.upsert({
+              where: {
+                planId_billingCycle: {
+                  planId,
+                  billingCycle: pricing.billingCycle,
+                },
+              },
+              update: {
+                price: pricing.price,
+                discountPercentage: pricing.discountPercentage,
+              },
+              create: {
+                planId,
+                billingCycle: pricing.billingCycle,
+                price: pricing.price,
+                currency: 'XOF',
+                discountPercentage: pricing.discountPercentage,
+              },
+            }),
+          ),
+        );
 
-        return tx.subscriptionPlan.findUnique({
+        await tx.subscriptionPlan.update({
           where: { id: planId },
-          include: {
-            planFeatures: {
-              include: { feature: true },
-            },
+          data: {
+            isActive: data.isActive,
           },
         });
       });
+      return { message: 'Plan modifié avec succès' };
     } catch (error) {
       if (error instanceof HttpError) throw error;
       throw new HttpError(

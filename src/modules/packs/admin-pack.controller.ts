@@ -30,19 +30,8 @@ export class AdminPackController {
   @ApiOperation({ summary: 'Lister tous les plans avec leurs features et limites' })
   @ApiOkResponse({ description: 'Liste des plans récupérée avec succès' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async getAllPlans() {
-    return this.packAdminService.getAllPlans();
-  }
-
-  // GET /api/v1/secure/admin/plans/:id
-  @Get(API_URL.PLANS_ADMIN.DETAIL)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
-  @ApiOperation({ summary: "Détail d'un plan par ID" })
-  @ApiQuery({ name: 'id', description: 'Identifiant du plan' })
-  @ApiOkResponse({ description: 'Plan récupéré avec succès' })
-  @ApiBadRequestResponse({ description: 'Plan introuvable' })
-  async getPlanById(@Query('id') id: string) {
-    return this.packAdminService.getPlanById(id);
+  async getAllPlans(@Query('id') id: string) {
+    return this.packAdminService.getAllPlans(id);
   }
 
   // POST /api/v1/secure/admin/plans
