@@ -51,7 +51,6 @@ export class AgencyAdminService {
     const agency = await this.prismaService.agency.findUnique({
       where: { id: agencyId },
       include: {
-        // ── Propriétaire ──
         owner: {
           include: {
             user: {
@@ -65,13 +64,11 @@ export class AgencyAdminService {
             },
           },
         },
-        // ── Équipe ──
         staff: {
           select: {
             id: true,
           },
         },
-        // ── Abonnement ──
         subscriptions: {
           include: {
             plan: true,
