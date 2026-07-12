@@ -125,8 +125,24 @@ export const API_URL = {
   },
   PAYMENT_ADMIN: {
     LIST: `${BASE_APIS_URL.SECURED}/admin/payments`,
-    STATS: `${BASE_APIS_URL.SECURED}/admin/payments/stats`,
     DETAIL: `${BASE_APIS_URL.SECURED}/admin/payments/detail`,
     REFUND: `${BASE_APIS_URL.SECURED}/admin/payments/refund`,
+    ALL_REFUNDS: `${BASE_APIS_URL.SECURED}/admin/payments/refund-all`,
+    REFUND_ID: `${BASE_APIS_URL.SECURED}/admin/payments/refund-id`,
+  },
+  PROVIDERS: {
+    CONNECT: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/connect-url`,
+    CALLBACK: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/callback`,
+    STATUS: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/status`,
+    DISCONNECT: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/disconnect`,
+    UPLOAD_FILES: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/upload`,
+    FILES_LIST: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/files-list`,
+    TRASHED_FILES_LIST: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/trashed-list`,
+    TRASHED_FILE: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/trashed-file`,
+    DELETE_FILE: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.INTEGRATIONS}/providers/delete-file`,
+  },
+  FEATURES_ADMIN: {
+    LIST: `${BASE_APIS_URL.SECURED}/admin/features`,
+    DETAIL: `${BASE_APIS_URL.SECURED}/admin/features/detail`,
   },
 };

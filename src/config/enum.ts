@@ -19,6 +19,7 @@ enum APIS_URL_GLOBAL_PATH {
   LEADS = 'leads',
   VISITS = 'visits',
   PUSH_NOTIF = 'push-notification',
+  INTEGRATIONS = 'integrations',
 }
 
 enum CLOUDINARY_FOLDER_NAME {
@@ -79,6 +80,14 @@ enum EXPIRE_TIME {
   _30_DAYS = 2592000,
 }
 
+enum INTEGRATION_PROVIDER {
+  GOOGLE_DRIVE = 'GOOGLE_DRIVE',
+  ONEDRIVE = 'ONEDRIVE',
+  DROPBOX = 'DROPBOX',
+  SLACK = 'SLACK',
+  NOTION = 'NOTION',
+}
+
 export {
   TOKEN_EXCEPTION,
   CLOUDINARY_FOLDER_NAME,
@@ -86,4 +95,5 @@ export {
   SWAGGER_TAGS,
   EXPIRE_TIME,
   APIS_URL_GLOBAL_PATH,
+  INTEGRATION_PROVIDER,
 };

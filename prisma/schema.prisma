@@ -48,6 +48,7 @@ model User {
   receivedReceipts         MessageReceipt[]          @relation("ReceivedReceipts")
   conversationParticipants ConversationParticipant[]
   deviceTokens             DeviceToken[]
+  integrationProvider      IntegrationProvider[]
 
   @@map("user")
 }
@@ -906,9 +907,32 @@ model DeviceToken {
   @@map("device_tokens")
 }
 
+model IntegrationProvider {
+  id           String                  @id @default(uuid())
+  provider     IntegrationProviderType @default(GOOGLE_DRIVE)
+  userId       String
+  accessToken  String
+  refreshToken String?
+  expiryDate   Decimal?                @db.Decimal(65, 30)
+  scope        String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, userId])
+  @@index([userId])
+  @@map("integration_providers")
+}
+
 // ─────────────────────────────────────────
 // ENUMS
 // ─────────────────────────────────────────
+
+enum IntegrationProviderType {
+  GOOGLE_DRIVE
+  DROPBOX
+}
 
 enum ConversationType {
   DIRECT // staff ↔ client (1-to-1)

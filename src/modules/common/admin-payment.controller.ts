@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -14,17 +14,18 @@ import { Role, PaymentStatus } from '../../../prisma/generated/enums';
 import { PaymentAdminService } from './services/payment-admin.service';
 import { API_URL } from '_root/config/api';
 import { convertToInteger } from '_root/config/convert';
+import { NabooPayoutParams, NabooPayoutPayload, NabooTransactionParams } from './naboo';
 
 @ApiTags('Super Admin - Paiements')
 @ApiBearerAuth()
 @Controller()
 @UseGuards(AuthGuard, MiddlewareGuard)
+@AuthorizeRoles(Role.SUPER_ADMIN)
 export class AdminPaymentController {
   constructor(private readonly paymentAdminService: PaymentAdminService) {}
 
   // GET /api/v1/secure/admin/payments
   @Get(API_URL.PAYMENT_ADMIN.LIST)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({
     summary: 'Lister toutes les transactions',
     description: 'Retourne la liste paginée des transactions avec filtrage optionnel par statut.',
@@ -39,32 +40,22 @@ export class AdminPaymentController {
   })
   @ApiOkResponse({ description: 'Liste des transactions récupérée avec succès' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async getAllTransactions(
-    @Query('initialPage') initialPage: number,
-    @Query('limitPerPage') limitPerPage: number,
-    @Query('status') status?: PaymentStatus,
-  ) {
-    const page = convertToInteger(initialPage) || 1;
-    const limit = convertToInteger(limitPerPage) || 10;
-    return this.paymentAdminService.getAllTransactions({ page, limit, status });
-  }
-
-  // GET /api/v1/secure/admin/payments/stats
-  @Get(API_URL.PAYMENT_ADMIN.STATS)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
-  @ApiOperation({
-    summary: 'Statistiques des paiements',
-    description: 'Retourne le nombre de transactions par statut et le revenu total.',
-  })
-  @ApiOkResponse({ description: 'Statistiques récupérées avec succès' })
-  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async getPaymentStats() {
-    return this.paymentAdminService.getPaymentStats();
+  async getAllTransactions(@Query() data: NabooTransactionParams) {
+    const page = convertToInteger(data?.page!) || 1;
+    const limit = convertToInteger(data.limit!) || 10;
+    const min_amount = convertToInteger(data.min_amount!);
+    const max_amount = convertToInteger(data.max_amount!);
+    return this.paymentAdminService.getAllTransactions({
+      ...data,
+      max_amount,
+      min_amount,
+      page,
+      limit,
+    });
   }
 
   // GET /api/v1/secure/admin/payments/detail
   @Get(API_URL.PAYMENT_ADMIN.DETAIL)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: "Détail d'une transaction par ID" })
   @ApiQuery({ name: 'id', description: 'Identifiant de la transaction' })
   @ApiOkResponse({ description: 'Transaction récupérée avec succès' })
@@ -73,9 +64,7 @@ export class AdminPaymentController {
     return this.paymentAdminService.getTransactionById(id);
   }
 
-  // PATCH /api/v1/secure/admin/payments/refund
-  @Patch(API_URL.PAYMENT_ADMIN.REFUND)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
+  @Post(API_URL.PAYMENT_ADMIN.REFUND)
   @ApiOperation({
     summary: 'Rembourser une transaction',
     description: 'Seules les transactions avec le statut PAID peuvent être remboursées.',
@@ -83,7 +72,28 @@ export class AdminPaymentController {
   @ApiQuery({ name: 'id', description: 'Identifiant de la transaction' })
   @ApiOkResponse({ description: 'Transaction remboursée avec succès' })
   @ApiBadRequestResponse({ description: 'Transaction introuvable ou non remboursable' })
-  async refundTransaction(@Query('id') id: string) {
-    return this.paymentAdminService.refundTransaction(id);
+  async refundTransaction(@Query('id') id: string, @Body() data: NabooPayoutPayload) {
+    const amount = convertToInteger(data.amount);
+    return this.paymentAdminService.refundTransaction(id, { ...data, amount });
+  }
+
+  @Get(API_URL.PAYMENT_ADMIN.ALL_REFUNDS)
+  async getAllPayouts(@Query() data: NabooPayoutParams) {
+    const page = convertToInteger(data?.page!) || 1;
+    const limit = convertToInteger(data.limit!) || 10;
+    const min_amount = convertToInteger(data.min_amount!);
+    const max_amount = convertToInteger(data.max_amount!);
+    return this.paymentAdminService.getAllPayouts({
+      ...data,
+      max_amount,
+      min_amount,
+      page,
+      limit,
+    });
+  }
+
+  @Get(API_URL.PAYMENT_ADMIN.REFUND_ID)
+  async getPayoutById(@Query('order_id') order_id: string) {
+    return this.paymentAdminService.getPayoutById(order_id);
   }
 }

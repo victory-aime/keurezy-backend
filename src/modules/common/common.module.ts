@@ -11,6 +11,8 @@ import { SubscriptionLimitService } from '_root/modules/common/services/subscrip
 import { PaymentAdminService } from './services/payment-admin.service';
 import { AdminPaymentController } from './admin-payment.controller';
 import { FirebaseService } from '_root/modules/common/services/firebase.service';
+import { FeaturesAdminService } from './services/features-admin.service';
+import { AdminFeaturesController } from './admin-features.controller';
 
 @Module({
   imports: [
@@ -18,7 +20,7 @@ import { FirebaseService } from '_root/modules/common/services/firebase.service'
     ConfigModule,
     CloudinaryModule,
   ],
-  controllers: [CommonController, AdminPaymentController],
+  controllers: [CommonController, AdminPaymentController, AdminFeaturesController],
   providers: [
     PermissionsService,
     CommonService,
@@ -27,6 +29,7 @@ import { FirebaseService } from '_root/modules/common/services/firebase.service'
     SubscriptionLimitService,
     FirebaseService,
     PaymentAdminService,
+    FeaturesAdminService,
   ],
   exports: [
     PermissionsService,
@@ -35,6 +38,7 @@ import { FirebaseService } from '_root/modules/common/services/firebase.service'
     SubscriptionLimitService,
     FirebaseService,
     PaymentAdminService,
+    FeaturesAdminService,
   ],
 })
 export class CommonModule {}

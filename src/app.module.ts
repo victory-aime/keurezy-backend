@@ -23,6 +23,7 @@ import { StatsModule } from '_root/modules/stats/stats.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ChatModule } from '_root/modules/chat/chat.module';
+import { IntegrationsModule } from '_root/modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { ChatModule } from '_root/modules/chat/chat.module';
     StatsModule,
     NotificationsModule,
     ChatModule,
+    IntegrationsModule,
   ],
 
   providers: [

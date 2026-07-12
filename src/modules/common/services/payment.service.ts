@@ -209,7 +209,7 @@ export class PaymentService {
       return;
     }
 
-    const nabooTx = await this.naboo.getTransaction(order_id);
+    const nabooTx = await this.naboo.getTransactionById(order_id);
 
     if (nabooTx.transaction_status !== 'paid') {
       await this.prisma.paymentTransaction.update({
@@ -376,7 +376,7 @@ export class PaymentService {
 
     if (!paymentTransaction) throw new NotFoundException('Paiement introuvable');
 
-    const nabooTx = await this.naboo.getTransaction(orderId);
+    const nabooTx = await this.naboo.getTransactionById(orderId);
 
     // ── Cas de rattrapage : NabooPay dit paid mais, le webhook n'est pas arrivé ──
     // On déclenche le même traitement que handleWebhook pour ne pas bloquer le client.
