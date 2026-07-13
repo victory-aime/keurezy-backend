@@ -57,26 +57,24 @@ export class TeamService {
   }
 
   async enableOrDisabledAccount(
-    id: string,
-    userId: string,
-    status: boolean,
+    data: { status: boolean; id: string; userId: string },
+    agencyId: string,
+    ownerId: string,
   ): Promise<{ message: string }> {
-    if (!id || !userId) {
-      throw new HttpError('Certaines informations sont manquantes', HttpStatus.NOT_FOUND);
-    }
+    await this.agencyService.agencyAccessControl(agencyId, ownerId);
 
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: data.userId },
       data: {
-        status: status ? 'ACTIVE' : 'INACTIVE',
+        status: data.status ? 'ACTIVE' : 'INACTIVE',
       },
     });
     await this.prisma.staff.update({
-      where: { id },
-      data: { isActive: status },
+      where: { id: data.id },
+      data: { isActive: data.status },
     });
     return {
-      message: `Le compte a été ${status ? 'activé' : 'désactivé'} avec succès.`,
+      message: `Le compte a été ${data.status ? 'activé' : 'désactivé'} avec succès.`,
     };
   }
 }

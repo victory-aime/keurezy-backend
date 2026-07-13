@@ -187,7 +187,11 @@ export class AnnonceController {
   @ApiOkResponse({ description: 'Annonce supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Annonce introuvable ou erreur serveur' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async remove(@Query('id') id: string) {
-    return this.announceService.deleteAnnonce(id);
+  async remove(
+    @Query('id') id: string,
+    @Query('agencyId') agencyId: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.announceService.deleteAnnonce(id, agencyId, userId);
   }
 }

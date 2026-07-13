@@ -1,4 +1,3 @@
-// guards/permission.guard.ts
 import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SetMetadata } from '@nestjs/common';
@@ -14,7 +13,6 @@ export class PermissionGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // Pas de permission requise → route publique
     if (!requiredPermission) return true;
 
     const request = context.switchToHttp().getRequest();
@@ -25,8 +23,7 @@ export class PermissionGuard implements CanActivate {
 
     if (!session?.session?.token) throw new ForbiddenException('Non authentifié.');
 
-    // ADMIN → accès total sans vérifier les permissions
-    if (session.user?.role === 'AGENCY_ADMIN' || 'OWNER') return true;
+    if (session.user?.role === 'OWNER') return true;
 
     const hasPermission = session.session?.permissions.some(
       (p: any) => p.name === requiredPermission,

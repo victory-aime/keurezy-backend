@@ -180,4 +180,13 @@ export class AgencyController {
   async checkAgencyName(@Body() data: { name: string }) {
     return this.agencyService.checkAgencyName(data?.name);
   }
+
+  @Get(API_URL.AGENCY.STATS)
+  @ApiOperation({ summary: "Statistiques globales de l'agence" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: 'Statistiques recuperees avec succes' })
+  @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
+  async getAgencyStats(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+    return this.agencyService.getAgencyStats(agencyId, userId);
+  }
 }

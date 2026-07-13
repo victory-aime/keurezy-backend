@@ -10,10 +10,6 @@ import {
 async function seed() {
   console.log('🌱 Seeding Features, Permissions & Plans...');
 
-  // ─────────────────────────────────────────
-  // 1. FEATURES + PERMISSIONS
-  // (inchangé — déjà bon)
-  // ─────────────────────────────────────────
   const featuresWithPermissions = [
     // ─────────────────────────────────────────
     // PROPERTIES (biens)

@@ -12,7 +12,7 @@ export class CommonService {
         isActive: true,
       },
       include: {
-        planFeatures: { include: { feature: true } },
+        planFeatures: { include: { feature: true }, orderBy: { limit: 'desc' } },
         pricings: true,
       },
       orderBy: { pricingType: 'asc' },

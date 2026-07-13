@@ -358,6 +358,7 @@ export class VisitsService {
 
   // ASSIGNER UN AGENT A UNE VISITE
   async assignAgent(visitId: string, dto: AssignAgentDto) {
+    await this.agencyService.agencyAccessControl(dto.agencyId, dto?.userId);
     try {
       const visit = await this.prisma.visit.findUnique({ where: { id: visitId } });
       if (!visit) {

@@ -4,9 +4,10 @@ import { AnnonceController } from './annonce.controller';
 import { DatabaseModule } from '_root/database/database.module';
 import { CloudinaryModule } from '_root/modules/cloudinary/cloudinary.module';
 import { AgencyModule } from '_root/modules/agency/agency.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [DatabaseModule, CloudinaryModule, AgencyModule],
+  imports: [DatabaseModule, CloudinaryModule, AgencyModule, CommonModule],
   controllers: [AnnonceController],
   providers: [AnnounceService],
 })

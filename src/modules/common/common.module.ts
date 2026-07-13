@@ -7,12 +7,12 @@ import { NabooService } from '_root/modules/common/services/naboo.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
-import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
 import { PaymentAdminService } from './services/payment-admin.service';
 import { AdminPaymentController } from './admin-payment.controller';
 import { FirebaseService } from '_root/modules/common/services/firebase.service';
 import { FeaturesAdminService } from './services/features-admin.service';
 import { AdminFeaturesController } from './admin-features.controller';
+import { PlanFeaturePolicyService } from './services/plan-feature-policy.service';
 
 @Module({
   imports: [
@@ -26,19 +26,19 @@ import { AdminFeaturesController } from './admin-features.controller';
     CommonService,
     PaymentService,
     NabooService,
-    SubscriptionLimitService,
     FirebaseService,
     PaymentAdminService,
     FeaturesAdminService,
+    PlanFeaturePolicyService,
   ],
   exports: [
     PermissionsService,
     PaymentService,
     NabooService,
-    SubscriptionLimitService,
     FirebaseService,
     PaymentAdminService,
     FeaturesAdminService,
+    PlanFeaturePolicyService,
   ],
 })
 export class CommonModule {}

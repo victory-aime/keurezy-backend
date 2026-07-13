@@ -5,12 +5,15 @@ import { HttpError } from '_root/config/http.error';
 import { convertToInteger } from '_root/config/convert';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from '_root/modules/land/land.dto';
 import { Prisma } from '../../../prisma/generated/client';
+import { FeatureCommercial } from '_root/config/enum';
+import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
 
 @Injectable()
 export class LandService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   async getAllLandByAgency(query: LandFilterDto) {
@@ -60,6 +63,28 @@ export class LandService {
 
   async createLand(data: CreateLandDto): Promise<{ message: string }> {
     await this.agencyService.agencyAccessControl(data.agencyId, data?.userId);
+
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
+
+    const currentProperties = await this.prisma.land.count({
+      where: {
+        agencyId: data.agencyId,
+      },
+    });
+
+    const check = this.planFeaturePolicy.checkCapacity(
+      context,
+      FeatureCommercial.PROPERTIES,
+      currentProperties,
+    );
+
+    if (!check.allowed) {
+      throw new HttpError(
+        'Votre capacité maximale de biens est atteinte.',
+        HttpStatus.FORBIDDEN,
+        'LAND_CAPACITY_REACHED',
+      );
+    }
 
     const { userId, ...safeValues } = data;
     const uniqueName = await this.prisma.land.findUnique({

@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '_root/config/http.error';
 import {
@@ -6,15 +6,18 @@ import {
   FilterAnnonceDto,
   UpdateAnnonceDto,
 } from '_root/modules/annonce/annonce.dto';
-import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
+import { AnnonceStatus } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
+import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
+import { FeatureCommercial } from '_root/config/enum';
 
 @Injectable()
 export class AnnounceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   // Vérification centralisée
@@ -39,6 +42,31 @@ export class AnnounceService {
   // 1. CREATE
   async createAnnounce(dto: CreateAnnonceDto): Promise<{ message: string }> {
     await this.agencyService.agencyAccessControl(dto.agencyId!, dto.userId!);
+
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId!);
+
+    const currentProperties = await this.prisma.annonce.count({
+      where: {
+        property: {
+          agencyId: dto.agencyId,
+        },
+      },
+    });
+
+    const check = this.planFeaturePolicy.checkCapacity(
+      context,
+      FeatureCommercial.ANNOUNCES,
+      currentProperties,
+    );
+
+    if (!check.allowed) {
+      throw new HttpError(
+        'Votre capacité maximale de biens est atteinte.',
+        HttpStatus.FORBIDDEN,
+        'PROPERTY_CAPACITY_REACHED',
+      );
+    }
+
     if (!dto.galleryImages?.length) {
       throw new HttpError(
         'Vous devez fournir au moins une image.',
@@ -251,7 +279,12 @@ export class AnnounceService {
   }
 
   // 5. DELETE
-  async deleteAnnonce(id: string): Promise<{ success: boolean; message: string }> {
+  async deleteAnnonce(
+    id: string,
+    agencyId: string,
+    userId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
     const annonce = await this.prisma.annonce.findUnique({
       where: { id },
     });

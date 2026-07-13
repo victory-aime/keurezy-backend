@@ -14,7 +14,6 @@ import { MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '_root/config/api';
 import { CommonService } from '_root/modules/common/common.service';
-import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -34,7 +33,6 @@ export class CommonController {
     private readonly permissionService: PermissionsService,
     private readonly commonService: CommonService,
     private readonly paymentService: PaymentService,
-    private readonly subscriptionLimitService: SubscriptionLimitService,
   ) {}
 
   @Get(API_URL.COMMON.PERMS)
@@ -55,18 +53,6 @@ export class CommonController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getAllPacks() {
     return this.commonService.getAllPlans();
-  }
-
-  @Get('v1/secure/common/usage')
-  @AllowAnonymous()
-  @ApiOperation({
-    summary: "Récupérer le résumé d'utilisation des limites d'abonnement d'une agence",
-  })
-  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiOkResponse({ description: "Résumé d'utilisation récupéré avec succès" })
-  @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async getUsageSummary(@Query('agencyId') agencyId: string) {
-    return this.subscriptionLimitService.getUsageSummary(agencyId);
   }
 
   @AllowAnonymous()

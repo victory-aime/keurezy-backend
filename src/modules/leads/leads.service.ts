@@ -101,7 +101,6 @@ export class LeadsService {
       });
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur getLeadsByAgency:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
@@ -140,7 +139,6 @@ export class LeadsService {
       });
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur getMyLeads:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
@@ -177,7 +175,6 @@ export class LeadsService {
       return lead;
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur getLeadById:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
@@ -219,7 +216,6 @@ export class LeadsService {
       };
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur updateLeadStatus:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
@@ -231,8 +227,8 @@ export class LeadsService {
   // Accessible : Owner + AGENCY_ADMIN uniquement
   // ─────────────────────────────────────────────────────────────────
   async assignLead(dto: AssignLeadDto) {
+    await this.agencyService.agencyAccessControl(dto.agencyId, dto?.userId);
     try {
-      console.log('dto', dto);
       const lead = await this.prisma.lead.findUnique({ where: { id: dto.leadId } });
       if (!lead) {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
@@ -277,7 +273,6 @@ export class LeadsService {
       };
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur assignLead:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
@@ -308,67 +303,9 @@ export class LeadsService {
       return { message: 'Lead supprimé avec succès' };
     } catch (error) {
       if (error instanceof HttpError) throw error;
-      console.error('Erreur deleteLead:', error);
       throw new InternalServerErrorException(
         'Une erreur interne est survenue. Veuillez réessayer plus tard.',
       );
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────
-  // CONVERTIR UN LEAD EN LOCATAIRE
-  // Accessible : Owner + AGENCY_ADMIN uniquement
-  // ─────────────────────────────────────────────────────────────────
-  /*async convertToTenant(leadId: string, dto: ConvertToTenantDto, userId: string, userRole: Role) {
-    try {
-      const lead = await this.prisma.lead.findUnique({
-        where: { id: leadId },
-        // ✅ On inclut le profil client pour récupérer ses infos automatiquement
-        include: { tenant: true, client: { include: { user: true } } },
-      });
-      if (!lead) {
-        throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
-      }
-
-      await this.checkAgencyAccess(lead.agencyId, userId, userRole);
-      await this.checkAdminAccess(lead.agencyId, userId, userRole);
-
-      if (lead.tenant) {
-        throw new HttpError(
-          'Ce lead a déjà été converti en locataire',
-          HttpStatus.BAD_REQUEST,
-          'LEAD_ALREADY_CONVERTED',
-        );
-      }
-      // Transaction : les deux réussissent ensemble ou échouent ensemble
-      return await this.prisma.$transaction(async (tx) => {
-        const tenant = await tx.tenant.create({
-          data: {
-            // Infos récupérées automatiquement depuis le profil Client connecté
-            name: lead.client?.user?.name ?? 'Inconnu',
-            email: lead.client?.user?.email ?? null,
-            phone: lead.client?.phone ?? null,
-            documents: dto.documents ?? [],
-            leadId: leadId,
-            propertyId: lead.propertyId,
-            agencyId: lead.agencyId,
-          },
-        });
-
-        await tx.lead.update({
-          where: { id: leadId },
-          data: { status: LeadStatus.CONVERTED },
-        });
-
-        return tenant;
-      });
-    } catch (error) {
-      if (error instanceof HttpError) throw error;
-      console.error('Erreur convertToTenant:', error);
-      throw new InternalServerErrorException(
-        'Une erreur interne est survenue. Veuillez réessayer plus tard.',
-      );
-    }
-  }
-    */
 }

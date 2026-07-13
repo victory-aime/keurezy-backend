@@ -5,14 +5,15 @@ import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { convertToInteger } from '_root/config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { SubscriptionLimitService } from '_root/modules/common/services/subscription-limit.service';
+import { FeatureCommercial } from '_root/config/enum';
+import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
 
 @Injectable()
 export class PropertyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
-    private readonly subscriptionLimitService: SubscriptionLimitService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   async getAllPropertyByAgency(query: PropertyFilterDto) {
@@ -77,10 +78,31 @@ export class PropertyService {
   }
 
   async createProperty(data: propertyDto): Promise<{ message: string }> {
-    // ✅ Vérifier la limite du plan avant de créer
-    await this.subscriptionLimitService.checkPropertyLimit(data.agencyId);
+    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
-    // ✅ agencyAccessControl remplace checkAgencyOwnership (inexistant)
+    const currentProperties = await this.prisma.annonce.count({
+      where: {
+        property: {
+          agencyId: data.agencyId,
+        },
+      },
+    });
+
+    const check = this.planFeaturePolicy.checkCapacity(
+      context,
+      FeatureCommercial.PROPERTIES,
+      currentProperties,
+    );
+
+    if (!check.allowed) {
+      throw new HttpError(
+        'Votre capacité maximale de biens est atteinte.',
+        HttpStatus.FORBIDDEN,
+        'PROPERTY_CAPACITY_REACHED',
+      );
+    }
+
     const agency = await this.prisma.agency.findUnique({ where: { id: data.agencyId } });
     if (!agency) {
       throw new HttpError('Agence introuvable', HttpStatus.NOT_FOUND, 'AGENCY_NOT_FOUND');
@@ -142,6 +164,7 @@ export class PropertyService {
   }
 
   async updateProperty(propertyId: string, data: propertyDto): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId },
     });

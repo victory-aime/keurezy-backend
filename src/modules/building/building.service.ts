@@ -9,12 +9,15 @@ import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '_root/modules/agency/agency.service';
 import { convertToInteger } from '_root/config/convert';
 import { Prisma } from '../../../prisma/generated/client';
+import { FeatureCommercial } from '_root/config/enum';
+import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
 
 @Injectable()
 export class BuildingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   async getAllBuildingByAgency(query: BuildingFilterDto) {
@@ -72,6 +75,28 @@ export class BuildingService {
 
   async createBuilding(data: CreateBuildingDto): Promise<{ message: string }> {
     await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
+
+    const currentProperties = await this.prisma.batiment.count({
+      where: {
+        agencyId: data.agencyId,
+      },
+    });
+
+    const check = this.planFeaturePolicy.checkCapacity(
+      context,
+      FeatureCommercial.PROPERTIES,
+      currentProperties,
+    );
+
+    if (!check.allowed) {
+      throw new HttpError(
+        'Votre capacité maximale de bâtiment est atteinte.',
+        HttpStatus.FORBIDDEN,
+        'BUILDING_CAPACITY_REACHED',
+      );
+    }
 
     const uniqueName = await this.prisma.batiment.findUnique({
       where: { name_agencyId: { name: data?.name, agencyId: data?.agencyId } },

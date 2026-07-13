@@ -9,14 +9,17 @@ import { PrismaService } from '_root/database/prisma.service';
 import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
+  LeadStatus,
   PricingType,
+  PropertyStatus,
   Role,
   SubscriptionStatus,
+  TenantStatus,
+  VisitStatus,
 } from '../../../prisma/generated/enums';
 import { UsersService } from '_root/modules/users/users.service';
 import { HttpError } from '_root/config/http.error';
 import { getAuthInstance } from '_root/lib/auth';
-import { Subscription } from '../../../prisma/generated/client';
 import { PaymentService } from '_root/modules/common/services/payment.service';
 import * as crypto from 'crypto';
 import { UploadsService } from '../cloudinary/uploads.service';
@@ -239,6 +242,7 @@ export class AgencyService {
   // ─────────────────────────────────────────
 
   async updateAgency(data: updateAgencyDto): Promise<{ message: string }> {
+    await this.agencyAccessControl(data.agencyId, data.userId);
     try {
       const agency = await this.findAgency(data.agencyId, data?.userId);
       await this.prismaService.agency.update({
@@ -266,6 +270,7 @@ export class AgencyService {
   // ─────────────────────────────────────────
 
   async closeAgency(data: { agencyId: string; userId: string }) {
+    await this.agencyAccessControl(data.agencyId, data.userId);
     const agency = await this.findAgency(data.agencyId, data.userId);
 
     const owner = await this.prismaService.owner.findUnique({
@@ -347,5 +352,106 @@ export class AgencyService {
       userStaffId: staff?.userId,
       agencyId,
     };
+  }
+
+  async getAgencyStats(agencyId: string, userId: string) {
+    await this.agencyAccessControl(agencyId, userId);
+    try {
+      // PROPRIETES
+      const [totalProperties, availableProperties, rentedProperties] = await Promise.all([
+        this.prismaService.property.count({ where: { agencyId } }),
+        this.prismaService.property.count({
+          where: { agencyId, status: PropertyStatus.AVAILABLE },
+        }),
+        this.prismaService.property.count({ where: { agencyId, status: PropertyStatus.RENTED } }),
+      ]);
+
+      // LEADS
+      const [totalLeads, newLeads, contactedLeads, visitPlannedLeads, convertedLeads] =
+        await Promise.all([
+          this.prismaService.lead.count({ where: { agencyId } }),
+          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.NEW } }),
+          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.CONTACTED } }),
+          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.VISIT_PLANNED } }),
+          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.CONVERTED } }),
+        ]);
+
+      // VISITES
+      const [totalVisits, plannedVisits, confirmedVisits, doneVisits, cancelledVisits] =
+        await Promise.all([
+          this.prismaService.visit.count({ where: { agencyId } }),
+          this.prismaService.visit.count({ where: { agencyId, status: VisitStatus.PLANNED } }),
+          this.prismaService.visit.count({ where: { agencyId, status: VisitStatus.CONFIRMED } }),
+          this.prismaService.visit.count({ where: { agencyId, status: VisitStatus.DONE } }),
+          this.prismaService.visit.count({ where: { agencyId, status: VisitStatus.CANCELLED } }),
+        ]);
+
+      // LOCATAIRES
+      const [totalTenants, activeTenants, inactiveTenants] = await Promise.all([
+        this.prismaService.tenant.count({ where: { agencyId } }),
+        this.prismaService.tenant.count({ where: { agencyId, status: TenantStatus.ACTIVE } }),
+        this.prismaService.tenant.count({ where: { agencyId, status: TenantStatus.INACTIVE } }),
+      ]);
+
+      //  STAFF
+      const [totalStaff, activeStaff] = await Promise.all([
+        this.prismaService.staff.count({ where: { agencyId } }),
+        this.prismaService.staff.count({ where: { agencyId, isActive: true } }),
+      ]);
+
+      // TICKETS
+      const [totalTickets, openTickets, inProgressTickets, resolvedTickets] = await Promise.all([
+        this.prismaService.ticket.count({ where: { agencyId } }),
+        this.prismaService.ticket.count({ where: { agencyId, status: 'OPEN' } }),
+        this.prismaService.ticket.count({ where: { agencyId, status: 'IN_PROGRESS' } }),
+        this.prismaService.ticket.count({ where: { agencyId, status: 'RESOLVED' } }),
+      ]);
+
+      // RETOURNER LES STATS
+      return {
+        properties: {
+          total: totalProperties,
+          available: availableProperties,
+          rented: rentedProperties,
+          occupancyRate:
+            totalProperties > 0 ? Math.round((rentedProperties / totalProperties) * 100) : 0, // taux d'occupation en %
+        },
+        leads: {
+          total: totalLeads,
+          new: newLeads,
+          contacted: contactedLeads,
+          visitPlanned: visitPlannedLeads,
+          converted: convertedLeads,
+          conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0, // taux de conversion en %
+        },
+        visits: {
+          total: totalVisits,
+          planned: plannedVisits,
+          confirmed: confirmedVisits,
+          done: doneVisits,
+          cancelled: cancelledVisits,
+        },
+        tenants: {
+          total: totalTenants,
+          active: activeTenants,
+          inactive: inactiveTenants,
+        },
+        staff: {
+          total: totalStaff,
+          active: activeStaff,
+          inactive: totalStaff - activeStaff,
+        },
+        tickets: {
+          total: totalTickets,
+          open: openTickets,
+          inProgress: inProgressTickets,
+          resolved: resolvedTickets,
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Une erreur interne est survenue. Veuillez reessayer plus tard.',
+      );
+    }
   }
 }

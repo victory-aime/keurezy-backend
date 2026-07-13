@@ -3,10 +3,11 @@ import { PrismaService } from '_root/database/prisma.service';
 import { getAuthInstance } from '_root/lib/auth';
 import { decryptPassword, encryptPassword } from '_root/config/crypto';
 import { ResendService } from '_root/modules/mail/resend.service';
-import { EXPIRE_TIME } from '_root/config/enum';
+import { EXPIRE_TIME, FeatureCommercial } from '_root/config/enum';
 import { CreateInvitationDto } from '_root/modules/invitations/invitation.dto';
 import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '../agency/agency.service';
+import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
 
 @Injectable()
 export class InvitationService {
@@ -14,6 +15,7 @@ export class InvitationService {
     private readonly prisma: PrismaService,
     private readonly resendService: ResendService,
     private readonly agencyService: AgencyService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   async getAllInviteByAgencyId(agencyId: string, userId: string) {
@@ -30,6 +32,29 @@ export class InvitationService {
 
   async createInvitation({ adminId, userId, agencyId, payload }: CreateInvitationDto) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
+
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(agencyId);
+
+    const currentProperties = await this.prisma.staff.count({
+      where: {
+        agencyId,
+      },
+    });
+
+    const check = this.planFeaturePolicy.checkCapacity(
+      context,
+      FeatureCommercial.USERS,
+      currentProperties,
+    );
+
+    if (!check.allowed) {
+      throw new HttpError(
+        "Votre capacité maximale d'utilisateur est atteinte.",
+        HttpStatus.FORBIDDEN,
+        'USERS_CAPACITY_REACHED',
+      );
+    }
+
     const agency = await this.prisma.agency.findUniqueOrThrow({
       where: { id: agencyId },
     });
@@ -110,8 +135,6 @@ export class InvitationService {
         },
       },
     });
-
-    console.log('invitation', invitation);
 
     if (invitation.status !== 'PENDING') {
       throw new HttpError(

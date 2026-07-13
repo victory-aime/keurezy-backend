@@ -4,9 +4,7 @@ const Configuration = {
    * Referenced packages must be installed
    */
   extends: ['@commitlint/config-conventional'],
-
   ignores: [(message) => message.startsWith('Merge')],
-
   rules: {
     'type-enum': [
       2,
@@ -28,6 +26,11 @@ const Configuration = {
 
     'subject-empty': [2, 'never'],
     'type-empty': [2, 'never'],
+    'header-max-length': [0],
+    'body-max-line-length': [0],
+    'footer-max-line-length': [0],
+    'subject-case': [0],
+    'subject-full-stop': [0],
   },
 };
 module.exports = Configuration;

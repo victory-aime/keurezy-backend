@@ -52,10 +52,10 @@ export class TeamController {
   @ApiOkResponse({ description: 'Statut du compte mis à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async enabledOrDisabled(
-    @Query('id') id: string,
-    @Query('userId') userId: string,
-    @Body() data: { status: boolean },
+    @Query('agencyId') agencyId: string,
+    @Query('agentId') agentId: string,
+    @Body() data: { status: boolean; id: string; userId: string },
   ) {
-    return this.teamService.enableOrDisabledAccount(id, userId, data.status);
+    return this.teamService.enableOrDisabledAccount(data, agencyId, agentId);
   }
 }

@@ -82,10 +82,15 @@ enum EXPIRE_TIME {
 
 enum INTEGRATION_PROVIDER {
   GOOGLE_DRIVE = 'GOOGLE_DRIVE',
-  ONEDRIVE = 'ONEDRIVE',
   DROPBOX = 'DROPBOX',
-  SLACK = 'SLACK',
-  NOTION = 'NOTION',
+}
+
+enum FeatureCommercial {
+  PROPERTIES = 'manage_properties',
+  ANNOUNCES = 'publish_properties',
+  BOOST_ANNOUNCES = 'boost_annonces',
+  USERS = 'manage_users',
+  SUPPORT = 'premium_support',
 }
 
 export {
@@ -96,4 +101,5 @@ export {
   EXPIRE_TIME,
   APIS_URL_GLOBAL_PATH,
   INTEGRATION_PROVIDER,
+  FeatureCommercial,
 };
