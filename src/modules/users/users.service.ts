@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { User } from '../../../prisma/generated/client';
 import { HttpError } from '../../config/http.error';
+import { getAuthInstance } from '../../lib/auth';
 
 @Injectable()
 export class UsersService {
@@ -122,6 +123,30 @@ export class UsersService {
         data.email && data.email !== existingUser.email
           ? 'Modification enregistrée. Veuillez confirmer votre nouvelle adresse e-mail.'
           : 'Utilisateur mis à jour',
+    };
+  }
+
+  async userPassKeyAndSessionsList(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        sessions: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        passkeys: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!user) throw new HttpError('Un problème est survenu', HttpStatus.BAD_REQUEST);
+    return {
+      passkeys: user.passkeys,
+      sessions: user.sessions,
     };
   }
 }

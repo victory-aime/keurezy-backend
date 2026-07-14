@@ -23,24 +23,6 @@ import {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/login
-  // Connexion — retourne le token JWT
-  // ─────────────────────────────────────────
-  @Post(API_URL.AUTH.LOGIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Connexion utilisateur — retourne le token JWT' })
-  @ApiBody({ type: LoginDto })
-  @ApiOkResponse({ description: 'Connexion réussie, token retourné' })
-  @ApiBadRequestResponse({ description: 'Email ou mot de passe incorrect' })
-  async loginUser(@Body() body: LoginDto) {
-    return this.authService.loginUser(body);
-  }
-
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/register
-  // Inscription
-  // ─────────────────────────────────────────
   @Post(API_URL.AUTH.REGISTER)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Créer un compte utilisateur' })
@@ -51,9 +33,6 @@ export class AuthController {
     return this.authService.registerUser(body);
   }
 
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/forgot-password
-  // ─────────────────────────────────────────
   @Post(API_URL.AUTH.FORGOT_PASSWORD)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Demande de réinitialisation de mot de passe' })
@@ -64,9 +43,6 @@ export class AuthController {
     return this.authService.forgotPassword(body);
   }
 
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/send-email-verification
-  // ─────────────────────────────────────────
   @Post(API_URL.AUTH.SEND_VERIFICATION)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Renvoyer l'email de vérification" })
@@ -91,9 +67,6 @@ export class AuthController {
     return this.authService.verifyMobileEmail(body);
   }
 
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/reset-password
-  // ─────────────────────────────────────────
   @Post(API_URL.AUTH.RESET_PASSWORD)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Réinitialiser le mot de passe' })
@@ -104,9 +77,6 @@ export class AuthController {
     return this.authService.resetPassword(body);
   }
 
-  // ─────────────────────────────────────────
-  // POST v1/unsecured/auth/verified-email
-  // ─────────────────────────────────────────
   @Post(API_URL.AUTH.CHECK_EMAIL)
   @ApiOperation({ summary: 'Vérifier si un email existe' })
   @ApiBody({

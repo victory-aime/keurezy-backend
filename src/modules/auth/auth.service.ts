@@ -4,7 +4,6 @@ import { PrismaService } from '../../database/prisma.service';
 import {
   CreateUserDto,
   ForgotPasswordDto,
-  LoginDto,
   ResendVerificationDto,
   ResetPasswordDto,
 } from './auth.dto';
@@ -18,48 +17,6 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly prisma: PrismaService,
   ) {}
-
-  // ─────────────────────────────────────────
-  // CONNEXION — retourne le token JWT
-  // ─────────────────────────────────────────
-
-  async loginUser(data: LoginDto) {
-    try {
-      const auth = getAuthInstance();
-
-      const response = await auth.api.signInEmail({
-        body: {
-          email: data.email,
-          password: data.password,
-        },
-      });
-
-      if (!response?.token) {
-        throw new HttpError(
-          'Erreur lors de la connexion.',
-          HttpStatus.UNAUTHORIZED,
-          'LOGIN_FAILED',
-        );
-      }
-
-      return {
-        message: 'Connexion réussie',
-        session: response,
-      };
-    } catch (error) {
-      if (error instanceof HttpError) throw error;
-      console.error('Erreur loginUser:', error);
-      throw new HttpError(
-        'Email ou mot de passe incorrect.',
-        HttpStatus.UNAUTHORIZED,
-        'INVALID_CREDENTIALS',
-      );
-    }
-  }
-
-  // ─────────────────────────────────────────
-  // CRÉATION USER VIA BETTER-AUTH (backend)
-  // ─────────────────────────────────────────
 
   async registerUser(data: CreateUserDto) {
     try {
@@ -115,10 +72,6 @@ export class AuthService {
       throw new HttpError('Une erreur interne est survenue. Veuillez réessayer plus tard.');
     }
   }
-
-  // ─────────────────────────────────────────
-  // RENVOI EMAIL DE VÉRIFICATION
-  // ─────────────────────────────────────────
 
   async sendVerificationEmail(data: ResendVerificationDto): Promise<{ message: string }> {
     const user = await this.usersService.findUser({ email: data?.email });
@@ -214,9 +167,6 @@ export class AuthService {
       message: 'Verification success.',
     };
   }
-  // ─────────────────────────────────────────
-  // FORGOT PASSWORD
-  // ─────────────────────────────────────────
 
   async forgotPassword(data: ForgotPasswordDto): Promise<{ message: string }> {
     try {
@@ -246,10 +196,6 @@ export class AuthService {
       throw new HttpError('Une erreur interne est survenue. Veuillez réessayer plus tard.');
     }
   }
-
-  // ─────────────────────────────────────────
-  // RESET PASSWORD
-  // ─────────────────────────────────────────
 
   async resetPassword(data: ResetPasswordDto): Promise<{ message: string }> {
     try {

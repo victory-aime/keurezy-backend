@@ -11,7 +11,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SWAGGER_TAGS } from '../../config/enum';
-import { AllowAnonymous, AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
+import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { User } from '../../../prisma/generated/client';
 
@@ -43,13 +43,6 @@ export class UsersController {
     return this.userService.userInfo(userId);
   }
 
-  @Get(API_URL.USER.SESSION)
-  @ApiOperation({ summary: 'Récupérer la session utilisateur actuelle' })
-  @ApiOkResponse({ description: 'Session utilisateur récupérée avec succès.' })
-  getSession(@Session() session: UserSession) {
-    return session;
-  }
-
   @AllowAnonymous()
   @Post(API_URL.USER.CHECK_EMAIL)
   @ApiOperation({ summary: 'Verifier un email' })
@@ -66,5 +59,9 @@ export class UsersController {
   @Patch(API_URL.USER.UPDATE)
   async updateUserInfo(@Body() data: User) {
     return this.userService.updateUser(data);
+  }
+  @Get(API_URL.USER.PASSKEY_SESSION)
+  async getPasskeyAndSessions(@Query('userId') userId: string) {
+    return this.userService.userPassKeyAndSessionsList(userId);
   }
 }
