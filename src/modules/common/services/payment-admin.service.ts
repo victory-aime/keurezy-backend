@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { HttpError } from '_root/config/http.error';
 import { NabooService } from './naboo.service';
 import { NabooPayoutParams, NabooPayoutPayload, NabooTransactionParams } from '../naboo';
+import { PrismaService } from '../../../database/prisma.service';
+import { HttpError } from '../../../config/http.error';
 
 @Injectable()
 export class PaymentAdminService {

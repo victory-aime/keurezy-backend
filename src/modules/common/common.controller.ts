@@ -9,11 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { PermissionsService } from '_root/modules/common/services/permissions.service';
-import { MiddlewareGuard } from '_root/guard/middleware.guard';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { API_URL } from '_root/config/api';
-import { CommonService } from '_root/modules/common/common.service';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -22,8 +18,12 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { NabooSignatureGuard } from '_root/guard/naboo.guard';
-import { PaymentService } from '_root/modules/common/services/payment.service';
+import { PermissionsService } from './services/permissions.service';
+import { CommonService } from './common.service';
+import { PaymentService } from './services/payment.service';
+import { API_URL } from '../../config/api';
+import { MiddlewareGuard } from '../../guard/middleware.guard';
+import { NabooSignatureGuard } from '../../guard/naboo.guard';
 
 @ApiTags('Common')
 @Controller()

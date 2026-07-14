@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '_root/database/database.module';
+import { DatabaseModule } from '../../database/database.module';
 import { PackAdminService } from './pack-admin.service';
 import { AdminPackController } from './admin-pack.controller';
 

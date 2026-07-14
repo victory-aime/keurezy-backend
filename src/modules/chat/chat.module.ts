@@ -1,11 +1,10 @@
-// modules/chat/chat.module.ts
 import { Module } from '@nestjs/common';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
-import { NotificationsModule } from '_root/modules/notifications/notifications.module';
-import { WsBetterAuthGuard } from '_root/guard/ws.guard';
-import { UsersModule } from '_root/modules/users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
+import { WsBetterAuthGuard } from '../../guard/ws.guard';
 
 @Module({
   imports: [NotificationsModule, UsersModule],

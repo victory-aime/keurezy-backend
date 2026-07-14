@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -14,9 +14,9 @@ import {
 import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
 import { AgencyService } from './agency.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { UploadsService } from '../cloudinary/uploads.service';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @ApiTags('Agency')
 @Controller()

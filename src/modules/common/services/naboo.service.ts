@@ -1,7 +1,3 @@
-// src/payment/naboo.service.ts
-// Wrapper NestJS autour de l'API NabooPay.
-// Injecté dans PaymentService via le module.
-
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';

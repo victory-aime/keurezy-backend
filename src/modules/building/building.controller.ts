@@ -8,16 +8,6 @@ import {
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { BuildingService } from '_root/modules/building/building.service';
-import {
-  BuildingFilterDto,
-  CreateBuildingDto,
-  UpdateBuildingDto,
-} from '_root/modules/building/building.dto';
-import { API_URL } from '_root/config/api';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import { AgencyService } from '_root/modules/agency/agency.service';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
@@ -29,6 +19,12 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { AgencyService } from '../agency/agency.service';
+import { BuildingService } from './building.service';
+import { UploadsService } from '../cloudinary/uploads.service';
+import { API_URL } from '../../config/api';
+import { BuildingFilterDto, CreateBuildingDto, UpdateBuildingDto } from './building.dto';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @ApiTags('Building')
 @ApiBearerAuth()

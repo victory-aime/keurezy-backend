@@ -9,11 +9,11 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { Role, PaymentStatus } from '../../../prisma/generated/enums';
 import { PaymentAdminService } from './services/payment-admin.service';
-import { API_URL } from '_root/config/api';
-import { convertToInteger } from '_root/config/convert';
+import { API_URL } from '../../config/api';
+import { convertToInteger } from '../../config/convert';
 import { NabooPayoutParams, NabooPayoutPayload, NabooTransactionParams } from './naboo';
 
 @ApiTags('Super Admin - Paiements')

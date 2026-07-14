@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import { NotificationsService } from './notifications.service';
 
 @Controller()

@@ -1,16 +1,16 @@
 import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
-import { getAuthInstance } from '_root/lib/auth';
-import { HttpError } from '_root/config/http.error';
-import { UsersService } from '_root/modules/users/users.service';
+import { UsersService } from '../users/users.service';
+import { PrismaService } from '../../database/prisma.service';
 import {
   CreateUserDto,
   ForgotPasswordDto,
   LoginDto,
   ResendVerificationDto,
   ResetPasswordDto,
-} from '_root/modules/auth/auth.dto';
-import { PrismaService } from '_root/database/prisma.service';
-import { EXPIRE_TIME } from '_root/config/enum';
+} from './auth.dto';
+import { getAuthInstance } from '../../lib/auth';
+import { HttpError } from '../../config/http.error';
+import { EXPIRE_TIME } from '../../config/enum';
 
 @Injectable()
 export class AuthService {

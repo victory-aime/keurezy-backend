@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LandPaymentType, LandStatus } from '../../../prisma/generated/enums';
-import { IPaginationDto } from '_root/config/pagination.dto';
+import { IPaginationDto } from '../../config/pagination.dto';
 
 export class LandDto {
   @ApiProperty({ example: 'Terrain Almadies', description: 'Titre du terrain' })

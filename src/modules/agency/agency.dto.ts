@@ -3,14 +3,13 @@ import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   MinLength,
 } from 'class-validator';
-import { BillingCycle, Plan } from '../../../prisma/generated/enums';
+import { BillingCycle } from '../../../prisma/generated/enums';
 
 export class createAgencyOwnerDto {
   @IsString()

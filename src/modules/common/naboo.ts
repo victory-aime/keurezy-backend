@@ -1,4 +1,4 @@
-// ── Types de retour NabooPay ──────────────────────────────────────────────────
+import { BillingCycle, PricingType } from '../../../prisma/generated/enums';
 
 type NabooPaidStatus =
   | 'pending'
@@ -140,4 +140,37 @@ export interface NabooPayoutPayload {
     phone: string;
   };
   reason: string;
+}
+
+export interface NabooWebhookPayload {
+  order_id: string;
+  transaction_status: string;
+  amount: number;
+  currency: string;
+  selected_payment_method: string;
+  customer?: { first_name: string; last_name: string; phone: string };
+  fees: number;
+  fees_customer_side: boolean;
+  paid_at: string;
+}
+
+export interface AgencyOnboardingMetadata {
+  userId?: string; // ID BetterAuth créé à l'initiation
+  username: string;
+  uploadSessionId: string;
+  userEmail: string;
+  password: string;
+  agencyName: string;
+  agencyEmail: string;
+  description: string;
+  address: string;
+  phone: string;
+  acceptTerms: boolean;
+  documents: string[];
+  planId: string;
+  billingCycle: BillingCycle | null;
+  pricingType: PricingType;
+  commissionRate: string | null; // Decimal sérialisé en string pour le JSON
+  pricingId: string | null; // ID du PlanPricing sélectionné
+  priceXOF: number;
 }

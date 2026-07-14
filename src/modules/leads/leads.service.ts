@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { HttpError } from '_root/config/http.error';
 import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 import { LeadStatus, NotificationType } from '../../../prisma/generated/enums';
 import { AgencyService } from '../agency/agency.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ChatService } from '_root/modules/chat/chat.service';
+import { PrismaService } from '../../database/prisma.service';
+import { ChatService } from '../chat/chat.service';
+import { HttpError } from '../../config/http.error';
 
 @Injectable()
 export class LeadsService {

@@ -1,8 +1,8 @@
 import { Injectable, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
 import { SendMessageDto, GetMessagesDto, MessagePayload, CreateConversationDto } from './chat.dto';
 import { ConversationType, MessageStatus, Role } from '../../../prisma/generated/enums';
-import { UsersService } from '_root/modules/users/users.service';
+import { PrismaService } from '../../database/prisma.service';
+import { UsersService } from '../users/users.service';
 
 const DEFAULT_PAGE_SIZE = 30;
 

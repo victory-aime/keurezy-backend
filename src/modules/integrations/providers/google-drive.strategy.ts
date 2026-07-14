@@ -7,11 +7,11 @@ import {
   UploadResult,
 } from '../interfaces/cloud-provider-strategy.interface';
 import { TokenSet } from '../interfaces/token-set.interface';
-import { INTEGRATION_PROVIDER } from '_root/config/enum';
+import { IntegrationProviderType } from '../../../../prisma/generated/enums';
 
 @Injectable()
 export class GoogleDriveStrategy implements CloudProviderStrategy {
-  readonly key = INTEGRATION_PROVIDER.GOOGLE_DRIVE;
+  readonly key = IntegrationProviderType.GOOGLE_DRIVE;
 
   private createClient() {
     return new google.auth.OAuth2(

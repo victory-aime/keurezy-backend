@@ -11,10 +11,10 @@ import {
 } from '@nestjs/swagger';
 import { AgencyAdminService } from './agency-admin.service';
 import { UpdateAgencyStatusDto } from './dto/update-agency-status.dto';
-import { API_URL } from '_root/config/api';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
 import { Role } from '../../../prisma/generated/enums';
+import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
+import { API_URL } from '../../config/api';
 
 @ApiTags('Super Admin - Agences')
 @Controller()

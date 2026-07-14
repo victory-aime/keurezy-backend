@@ -3,8 +3,8 @@ import { IntegrationsRegistry } from './integrations-registry.service';
 import { EncryptionService } from './encryption.service';
 import { OAuthStateService } from './oauth-state.service';
 import { TokenSet } from '../interfaces/token-set.interface';
-import { PrismaService } from '_root/database/prisma.service';
 import { IntegrationProviderType } from '../../../../prisma/generated/enums';
+import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
 export class IntegrationsService {

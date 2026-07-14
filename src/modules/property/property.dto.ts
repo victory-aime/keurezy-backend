@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 import { PropertyStatus, PropertyType, PropertyFeature } from '../../../prisma/generated/enums';
-import { IPaginationDto } from '_root/config/pagination.dto';
+import { IPaginationDto } from '../../config/pagination.dto';
 
 export class propertyDto {
   @ApiProperty({

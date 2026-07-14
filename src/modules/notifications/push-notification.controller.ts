@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Post, Query } from '@nestjs/common';
 import { RegisterPushNotificationTokenDto } from './notifications.dto';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import { PushNotificationService } from './push-notification.service';
 
 @Controller()

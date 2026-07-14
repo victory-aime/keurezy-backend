@@ -14,7 +14,7 @@ import { Response } from 'express';
 import { Session } from '@thallesp/nestjs-better-auth';
 import { IntegrationsService } from './services/integrations.service';
 import { IntegrationProviderType } from '../../../prisma/generated/enums';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 
 @Controller()
 export class IntegrationsController {

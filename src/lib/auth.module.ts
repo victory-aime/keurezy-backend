@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '@thallesp/nestjs-better-auth';
-import { createAuth } from '_root/lib/auth';
+import { createAuth } from '../lib/auth';
 
 @Module({
   imports: [

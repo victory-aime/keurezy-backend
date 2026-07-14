@@ -1,4 +1,4 @@
-import { INTEGRATION_PROVIDER } from '_root/config/enum';
+import { INTEGRATION_PROVIDER } from '../../../config/enum';
 
 export interface IntegrationProviderService {
   provider: INTEGRATION_PROVIDER;

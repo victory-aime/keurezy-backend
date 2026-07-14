@@ -10,7 +10,7 @@ import {
   UploadedFiles,
 } from '@nestjs/common';
 import { AnnounceService } from './annonce.service';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -24,14 +24,10 @@ import {
 } from '@nestjs/swagger';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import {
-  CreateAnnonceDto,
-  FilterAnnonceDto,
-  UpdateAnnonceDto,
-} from '_root/modules/annonce/annonce.dto';
-import { AgencyService } from '_root/modules/agency/agency.service';
+import { UploadsService } from '../cloudinary/uploads.service';
+import { AgencyService } from '../agency/agency.service';
+import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @ApiTags('Annonces')
 @Controller()

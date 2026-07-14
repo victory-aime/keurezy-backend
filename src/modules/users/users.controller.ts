@@ -1,16 +1,6 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -20,11 +10,9 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_TAGS } from '_root/config/enum';
+import { SWAGGER_TAGS } from '../../config/enum';
 import { AllowAnonymous, AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
-import { Role } from '../../../prisma/generated/enums';
-import { convertToInteger } from '_root/config/convert';
+import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { User } from '../../../prisma/generated/client';
 
 @ApiBearerAuth()

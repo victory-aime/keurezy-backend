@@ -8,23 +8,22 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { Role, FeatureCategory } from '../../../prisma/generated/enums';
 import { FeaturesAdminService } from './services/features-admin.service';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
+import { AuthGuard } from '@thallesp/nestjs-better-auth';
 
 @ApiTags('Super Admin - Fonctionnalités')
 @ApiBearerAuth()
 @Controller()
-@AllowAnonymous() // ← retirer avant la PR
-//@UseGuards(AuthGuard, MiddlewareGuard)
+@UseGuards(AuthGuard, MiddlewareGuard)
+@AuthorizeRoles(Role.SUPER_ADMIN)
 export class AdminFeaturesController {
   constructor(private readonly featuresAdminService: FeaturesAdminService) {}
 
   // GET /api/v1/secure/admin/features
   @Get(API_URL.FEATURES_ADMIN.LIST)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({
     summary: 'Lister toutes les fonctionnalités',
     description:
@@ -44,7 +43,6 @@ export class AdminFeaturesController {
 
   // GET /api/v1/secure/admin/features/:id
   @Get(API_URL.FEATURES_ADMIN.DETAIL)
-  @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({
     summary: "Détail d'une fonctionnalité",
     description:

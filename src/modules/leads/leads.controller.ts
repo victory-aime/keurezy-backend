@@ -9,10 +9,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import { LeadsService } from './leads.service';
-import { AssignLeadDto, ConvertToTenantDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
-import { Role } from '../../../prisma/generated/enums';
+import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 
 @ApiTags('Leads')
 @ApiBearerAuth()

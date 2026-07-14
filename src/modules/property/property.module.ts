@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '_root/database/database.module';
-import { CloudinaryModule } from '_root/modules/cloudinary/cloudinary.module';
-import { PropertyController } from '_root/modules/property/property.controller';
-import { PropertyService } from '_root/modules/property/property.service';
-import { AgencyModule } from '_root/modules/agency/agency.module';
-import { CommonModule } from '_root/modules/common/common.module';
+import { DatabaseModule } from '../../database/database.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { PropertyController } from './property.controller';
+import { PropertyService } from './property.service';
+import { AgencyModule } from '../agency/agency.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [DatabaseModule, CloudinaryModule, AgencyModule, CommonModule],

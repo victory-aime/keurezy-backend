@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BatimentStatus } from '../../../prisma/generated/enums';
-import { IPaginationDto } from '_root/config/pagination.dto';
+import { IPaginationDto } from '../../config/pagination.dto';
 
 export class CreateBuildingDto {
   @ApiProperty({ example: 'Résidence Les Almadies', description: 'Nom du bâtiment' })

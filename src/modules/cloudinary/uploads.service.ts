@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { CloudinaryService } from './cloudinary.service';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { randomUUID } from 'crypto';
 

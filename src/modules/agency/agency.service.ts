@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
@@ -17,13 +17,13 @@ import {
   TenantStatus,
   VisitStatus,
 } from '../../../prisma/generated/enums';
-import { UsersService } from '_root/modules/users/users.service';
-import { HttpError } from '_root/config/http.error';
-import { getAuthInstance } from '_root/lib/auth';
-import { PaymentService } from '_root/modules/common/services/payment.service';
 import * as crypto from 'crypto';
 import { UploadsService } from '../cloudinary/uploads.service';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
+import { getAuthInstance } from '../../lib/auth';
+import { UsersService } from '../users/users.service';
+import { PaymentService } from '../common/services/payment.service';
+import { HttpError } from '../../config/http.error';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @Injectable()
 export class AgencyService {

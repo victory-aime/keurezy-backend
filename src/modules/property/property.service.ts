@@ -1,12 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { propertyDto, PropertyFilterDto } from '_root/modules/property/property.dto';
-import { HttpError } from '_root/config/http.error';
-import { AgencyService } from '_root/modules/agency/agency.service';
-import { convertToInteger } from '_root/config/convert';
+import { PrismaService } from '../../database/prisma.service';
+import { propertyDto, PropertyFilterDto } from './property.dto';
+import { HttpError } from '../../config/http.error';
+import { AgencyService } from '../agency/agency.service';
+import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { FeatureCommercial } from '_root/config/enum';
-import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
+import { FeatureCommercial } from '../../config/enum';
+import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
 
 @Injectable()
 export class PropertyService {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -9,9 +9,9 @@ import {
 } from '@nestjs/swagger';
 import { VisitsService } from './visits.service';
 import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
-import { MiddlewareGuard } from '_root/guard/middleware.guard';
-import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { API_URL } from '_root/config/api';
+import { MiddlewareGuard } from '../../guard/middleware.guard';
+import { AuthGuard } from '@thallesp/nestjs-better-auth';
+import { API_URL } from '../../config/api';
 
 @ApiTags('Visits')
 @ApiBearerAuth()

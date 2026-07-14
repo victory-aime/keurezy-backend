@@ -1,10 +1,10 @@
 import { HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
 import { NotificationScope, NotificationType, VisitStatus } from '../../../prisma/generated/enums';
-import { HttpError } from '_root/config/http.error';
+import { HttpError } from '../../config/http.error';
 import { NotificationsService } from '../notifications/notifications.service';
-import { AgencyService } from '_root/modules/agency/agency.service';
+import { AgencyService } from '../agency/agency.service';
 
 @Injectable()
 export class VisitsService {

@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { User } from '../../../prisma/generated/client';
-import { HttpError } from '_root/config/http.error';
+import { HttpError } from '../../config/http.error';
 
 @Injectable()
 export class UsersService {

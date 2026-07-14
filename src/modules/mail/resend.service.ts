@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
-import { formatExpiresIn } from '_root/modules/mail/utils/getExpiresTime';
-import { EXPIRE_TIME } from '_root/config/enum';
 import { EMAIL_TEMPLATE_ID, EMAIL_TEMPLATE_RUNTIME_ID } from './utils/mail';
 import {
   EmailResult,
   SendInviteEmailPayload,
   SendTemplateEmailOptions,
 } from './types/mail-template.type';
+import { formatExpiresIn } from './utils/getExpiresTime';
+import { EXPIRE_TIME } from '../../config/enum';
 
 @Injectable()
 export class ResendService {

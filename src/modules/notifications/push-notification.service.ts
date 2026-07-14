@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { FirebaseService } from '_root/modules/common/services/firebase.service';
-import {
-  PushNotificationsDto,
-  RegisterPushNotificationTokenDto,
-} from '../notifications/notifications.dto';
+import { PushNotificationsDto, RegisterPushNotificationTokenDto } from './notifications.dto';
+import { PrismaService } from '../../database/prisma.service';
+import { FirebaseService } from '../common/services/firebase.service';
 
 @Injectable()
 export class PushNotificationService {

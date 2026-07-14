@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { HttpError } from '_root/config/http.error';
+import { PrismaService } from '../../database/prisma.service';
+import { HttpError } from '../../config/http.error';
 import { Decimal } from '../../../prisma/generated/internal/prismaNamespace';
 import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
 import { PlanCategory } from '../../../prisma/generated/enums';

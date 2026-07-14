@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AnnounceService } from './annonce.service';
 import { AnnonceController } from './annonce.controller';
-import { DatabaseModule } from '_root/database/database.module';
-import { CloudinaryModule } from '_root/modules/cloudinary/cloudinary.module';
-import { AgencyModule } from '_root/modules/agency/agency.module';
 import { CommonModule } from '../common/common.module';
+import { DatabaseModule } from '../../database/database.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { AgencyModule } from '../agency/agency.module';
 
 @Module({
   imports: [DatabaseModule, CloudinaryModule, AgencyModule, CommonModule],

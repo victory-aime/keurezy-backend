@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
-import { CommonModule } from '_root/modules/common/common.module';
 import { PushNotificationService } from './push-notification.service';
 import { PushNotificationController } from './push-notification.controller';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [CommonModule],

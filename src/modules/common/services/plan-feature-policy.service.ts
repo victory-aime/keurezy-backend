@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../../database/prisma.service';
 
 export interface FeatureCapacityCheck {
   feature: string;

@@ -11,12 +11,12 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { UsersAdminService } from './users-admin.service';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import { Role } from '../../../prisma/generated/enums';
-import { convertToInteger } from '_root/config/convert';
+import { convertToInteger } from '../../config/convert';
 
 @ApiTags('Super Admin - Utilisateurs')
 @ApiBearerAuth()

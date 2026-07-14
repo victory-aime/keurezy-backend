@@ -5,24 +5,24 @@ import { utilities as nestWinstonModuleUtilities, WinstonModule } from 'nest-win
 import { UsersModule } from './modules/users/users.module';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { APP_GUARD } from '@nestjs/core';
-import { AgencyModule } from '_root/modules/agency/agency.module';
-import { PropertyModule } from '_root/modules/property/property.module';
-import { BetterAuthModule } from '_root/lib/auth.module';
+import { AgencyModule } from './modules/agency/agency.module';
+import { PropertyModule } from './modules/property/property.module';
+import { BetterAuthModule } from './lib/auth.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { PackModule } from '_root/modules/packs/pack.module';
-import { AuthModule } from '_root/modules/auth/auth.module';
-import { BuildingModule } from '_root/modules/building/building.module';
-import { LandModule } from '_root/modules/land/land.module';
-import { CommonModule } from '_root/modules/common/common.module';
-import { InvitationModule } from '_root/modules/invitations/invitation.module';
-import { AnnounceModule } from '_root/modules/annonce/annonce.module';
-import { TeamModule } from '_root/modules/team/team.module';
-import { LeadsModule } from '_root/modules/leads/leads.module';
-import { VisitsModule } from '_root/modules/visits/visits.module';
+import { PackModule } from './modules/packs/pack.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { BuildingModule } from './modules/building/building.module';
+import { LandModule } from './modules/land/land.module';
+import { CommonModule } from './modules/common/common.module';
+import { InvitationModule } from './modules/invitations/invitation.module';
+import { AnnounceModule } from './modules/annonce/annonce.module';
+import { TeamModule } from './modules/team/team.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { VisitsModule } from './modules/visits/visits.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { ChatModule } from '_root/modules/chat/chat.module';
-import { IntegrationsModule } from '_root/modules/integrations/integrations.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [

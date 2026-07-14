@@ -1,10 +1,8 @@
-// auth/auth-email.bridge.ts
-// ─────────────────────────────────────────
-// Bridge entre Better-Auth (hors NestJS DI)
-// et MailService (dans NestJS DI)
-// Initialisé une seule fois au bootstrap
-// ─────────────────────────────────────────
-
+/** auth/auth-email.bridge.ts
+ * Bridge entre Better-Auth (hors NestJS DI)
+ * et MailService (dans NestJS DI)
+ * Initialisé une seule fois au bootstrap
+ */
 type EmailHandler = (payload: {
   name: string;
   email: string;

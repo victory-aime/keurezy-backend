@@ -1,7 +1,7 @@
 // auth/guards/ws-better-auth.guard.ts
 import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { getAuthInstance } from '_root/lib/auth'; // ← adapte le chemin vers ton fichier auth.ts
+import { getAuthInstance } from '../lib/auth'; // ← adapte le chemin vers ton fichier auth.ts
 
 @Injectable()
 export class WsBetterAuthGuard implements CanActivate {

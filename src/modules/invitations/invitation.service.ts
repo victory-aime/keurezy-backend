@@ -1,13 +1,13 @@
 import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { getAuthInstance } from '_root/lib/auth';
-import { decryptPassword, encryptPassword } from '_root/config/crypto';
-import { ResendService } from '_root/modules/mail/resend.service';
-import { EXPIRE_TIME, FeatureCommercial } from '_root/config/enum';
-import { CreateInvitationDto } from '_root/modules/invitations/invitation.dto';
-import { HttpError } from '_root/config/http.error';
 import { AgencyService } from '../agency/agency.service';
-import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
+import { PrismaService } from '../../database/prisma.service';
+import { ResendService } from '../mail/resend.service';
+import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { CreateInvitationDto } from './invitation.dto';
+import { EXPIRE_TIME, FeatureCommercial } from '../../config/enum';
+import { HttpError } from '../../config/http.error';
+import { decryptPassword, encryptPassword } from '../../config/crypto';
+import { getAuthInstance } from '../../lib/auth';
 
 @Injectable()
 export class InvitationService {

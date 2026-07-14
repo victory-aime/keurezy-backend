@@ -1,12 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { AgencyService } from '_root/modules/agency/agency.service';
-import { HttpError } from '_root/config/http.error';
-import { convertToInteger } from '_root/config/convert';
-import { CreateLandDto, LandFilterDto, UpdateLandDto } from '_root/modules/land/land.dto';
 import { Prisma } from '../../../prisma/generated/client';
-import { FeatureCommercial } from '_root/config/enum';
-import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
+import { PrismaService } from '../../database/prisma.service';
+import { AgencyService } from '../agency/agency.service';
+import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
+import { convertToInteger } from '../../config/convert';
+import { FeatureCommercial } from '../../config/enum';
+import { HttpError } from '../../config/http.error';
 
 @Injectable()
 export class LandService {

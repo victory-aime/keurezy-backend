@@ -8,14 +8,7 @@ import {
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { LandService } from '_root/modules/land/land.service';
-import { CreateLandDto, LandFilterDto, UpdateLandDto } from '_root/modules/land/land.dto';
-import { AgencyService } from '_root/modules/agency/agency.service';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import { convertToInteger } from '_root/config/convert';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { API_URL } from '_root/config/api';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -25,6 +18,13 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { LandService } from './land.service';
+import { AgencyService } from '../agency/agency.service';
+import { UploadsService } from '../cloudinary/uploads.service';
+import { API_URL } from '../../config/api';
+import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { convertToInteger } from '../../config/convert';
 
 @ApiTags('Land')
 @ApiBearerAuth()

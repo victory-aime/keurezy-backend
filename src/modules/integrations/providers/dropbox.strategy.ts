@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CloudProviderStrategy,
-  ListedFileResult,
-  UploadResult,
-} from '../interfaces/cloud-provider-strategy.interface';
+import { ListedFileResult, UploadResult } from '../interfaces/cloud-provider-strategy.interface';
 import { TokenSet } from '../interfaces/token-set.interface';
 import { IntegrationProviderType } from 'prisma/generated/enums';
 

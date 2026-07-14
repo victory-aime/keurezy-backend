@@ -10,11 +10,11 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { AuthorizeRoles, MiddlewareGuard } from '_root/guard/middleware.guard';
+import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { Role } from '../../../prisma/generated/enums';
 import { PackAdminService } from './pack-admin.service';
 import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 
 @ApiTags('Super Admin - Plans')
 @ApiBearerAuth()

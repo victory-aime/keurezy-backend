@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CloudinaryService } from './cloudinary.service';
 import { ConfigModule } from '@nestjs/config';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
+import { UploadsService } from './uploads.service';
 import { UploadRecoveryCron } from './upload.recovery.service';
 
 @Module({

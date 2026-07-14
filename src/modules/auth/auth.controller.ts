@@ -7,7 +7,7 @@ import {
   ResendVerificationDto,
   ResetPasswordDto,
 } from './auth.dto';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import {
   ApiBadRequestResponse,

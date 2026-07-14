@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { API_URL } from '_root/config/api';
+import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -13,7 +13,7 @@ import { propertyDto, PropertyFilterDto } from './property.dto';
 import { PropertyService } from './property.service';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { Throttle } from '@nestjs/throttler';
-import { PermissionGuard, RequirePermission } from '_root/guard/permission.guard';
+import { PermissionGuard, RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Property')
 @Controller()

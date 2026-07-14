@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { NotificationType, VisitStatus } from '../../../prisma/generated/enums';
-import { NotificationsService } from '_root/modules/notifications/notifications.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class VisiteJobService {

@@ -1,16 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { HttpError } from '_root/config/http.error';
-import {
-  CreateAnnonceDto,
-  FilterAnnonceDto,
-  UpdateAnnonceDto,
-} from '_root/modules/annonce/annonce.dto';
 import { AnnonceStatus } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
-import { PlanFeaturePolicyService } from '_root/modules/common/services/plan-feature-policy.service';
-import { FeatureCommercial } from '_root/config/enum';
+import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { HttpError } from '../../config/http.error';
+import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
+import { FeatureCommercial } from '../../config/enum';
 
 @Injectable()
 export class AnnounceService {

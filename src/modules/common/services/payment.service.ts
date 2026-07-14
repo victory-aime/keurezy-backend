@@ -2,45 +2,13 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { NabooService } from './naboo.service';
 import { InitiateAgencyPaymentDto } from '../payment.dto';
 import { BillingCycle, PaymentStatus, PricingType, Role } from '../../../../prisma/generated/enums';
-import { PrismaService } from '_root/database/prisma.service';
-import { decryptPassword, encryptPassword } from '_root/config/crypto';
-import { getAuthInstance } from '_root/lib/auth';
-import { UploadsService } from '_root/modules/cloudinary/uploads.service';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import { CloudinaryService } from '_root/modules/cloudinary/cloudinary.service';
-
-interface NabooWebhookPayload {
-  order_id: string;
-  transaction_status: string;
-  amount: number;
-  currency: string;
-  selected_payment_method: string;
-  customer?: { first_name: string; last_name: string; phone: string };
-  fees: number;
-  fees_customer_side: boolean;
-  paid_at: string;
-}
-
-interface AgencyOnboardingMetadata {
-  userId?: string; // ID BetterAuth créé à l'initiation
-  username: string;
-  uploadSessionId: string;
-  userEmail: string;
-  password: string;
-  agencyName: string;
-  agencyEmail: string;
-  description: string;
-  address: string;
-  phone: string;
-  acceptTerms: boolean;
-  documents: string[];
-  planId: string;
-  billingCycle: BillingCycle | null;
-  pricingType: PricingType;
-  commissionRate: string | null; // Decimal sérialisé en string pour le JSON
-  pricingId: string | null; // ID du PlanPricing sélectionné
-  priceXOF: number;
-}
+import { PrismaService } from '../../../database/prisma.service';
+import { UploadsService } from '../../cloudinary/uploads.service';
+import { CloudinaryService } from '../../cloudinary/cloudinary.service';
+import { CLOUDINARY_FOLDER_NAME } from '../../../config/enum';
+import { decryptPassword, encryptPassword } from '../../../config/crypto';
+import { getAuthInstance } from '../../../lib/auth';
+import { AgencyOnboardingMetadata, NabooWebhookPayload } from '../naboo';
 
 @Injectable()
 export class PaymentService {

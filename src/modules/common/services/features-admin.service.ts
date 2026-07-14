@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
-import { HttpError } from '_root/config/http.error';
 import { FeatureCategory } from '../../../../prisma/generated/enums';
+import { PrismaService } from '../../../database/prisma.service';
+import { HttpError } from '../../../config/http.error';
 
 @Injectable()
 export class FeaturesAdminService {

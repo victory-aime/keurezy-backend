@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '_root/database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { NotificationsDto } from './notifications.dto';
-import { HttpError } from '_root/config/http.error';
+import { HttpError } from '../../config/http.error';
 import { PushNotificationService } from './push-notification.service';
 import { NotificationType } from '../../../prisma/generated/enums';
 

@@ -9,11 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { getAuthInstance } from '_root/lib/auth';
 import { ChatService } from './chat.service';
 import { SendMessageDto, TypingPayload } from './chat.dto';
-import { PushNotificationService } from '_root/modules/notifications/push-notification.service';
 import { MessageStatus, NotificationType } from '../../../prisma/generated/enums';
+import { PushNotificationService } from '../notifications/push-notification.service';
+import { getAuthInstance } from '../../lib/auth';
 
 const connectedUsers = new Map<string, Set<string>>();
 const openConversationByUser = new Map<string, string>();

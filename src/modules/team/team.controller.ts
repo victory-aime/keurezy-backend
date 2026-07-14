@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { API_URL } from '_root/config/api';
-import { TeamService } from '_root/modules/team/team.service';
+import { API_URL } from '../../config/api';
+import { TeamService } from './team.service';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,

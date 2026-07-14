@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CLOUDINARY_FOLDER_NAME } from '_root/config/enum';
-import { PrismaService } from '_root/database/prisma.service';
 import { PaymentStatus } from 'prisma/generated/enums';
 import { UploadsService } from './uploads.service';
 import { CloudinaryService } from './cloudinary.service';
+import { PrismaService } from '../../database/prisma.service';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @Injectable()
 export class UploadRecoveryCron {
