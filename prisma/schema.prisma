@@ -185,36 +185,35 @@ model Client {
 // ─────────────────────────────────────────
 
 model Agency {
-  id                    String                  @id @default(uuid())
-  name                  String                  @unique
-  email                 String                  @unique
-  phone                 String?                 @unique
-  address               String
-  agencyLogo            String?
-  description           String?
-  documents             String[]
-  acceptTerms           Boolean
-  isVerified            Boolean                 @default(false)
-  status                AgencyStatus            @default(PENDING)
+  id            String         @id @default(uuid())
+  name          String         @unique
+  email         String         @unique
+  phone         String?        @unique
+  address       String
+  agencyLogo    String?
+  description   String?
+  documents     String[]
+  acceptTerms   Boolean
+  isVerified    Boolean        @default(false)
+  status        AgencyStatus   @default(PENDING)
   // ownerId est une donnée dénormalisée (String simple, pas de FK Prisma)
   // La relation réelle passe par Owner.agencyId
-  ownerId               String                  @unique // 1 agence = 1 owner
-  owner                 Owner                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  staff                 Staff[]
-  leads                 Lead[]
-  tenants               Tenant[]
-  contracts             Contract[]
-  subscriptions         Subscription[]
-  tickets               Ticket[]
-  transactions          Transaction[]
-  reports               Report[]
-  visits                Visit[]
-  transactionCommission TransactionCommission[]
-  lands                 Land[]
-  batiment              Batiment[]
-  villas                Villa[]
-  properties            Property[]
-  invitations           Invitation[]
+  ownerId       String         @unique // 1 agence = 1 owner
+  owner         Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  staff         Staff[]
+  leads         Lead[]
+  tenants       Tenant[]
+  contracts     Contract[]
+  subscriptions Subscription[]
+  tickets       Ticket[]
+  transactions  Transaction[]
+  reports       Report[]
+  visits        Visit[]
+  lands         Land[]
+  batiment      Batiment[]
+  villas        Villa[]
+  properties    Property[]
+  invitations   Invitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -532,30 +531,6 @@ model Transaction {
 }
 
 // ─────────────────────────────────────────
-// BUSINESS MODEL APP
-// ─────────────────────────────────────────
-
-model TransactionCommission {
-  id String @id @default(uuid())
-
-  agencyId String
-  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-
-  amount   Decimal @db.Decimal(10, 2)
-  currency String
-
-  status TransactionStatus @default(PENDING)
-
-  // 💸 commission calculée
-  commissionAmount Decimal? @db.Decimal(10, 2)
-  commissionRate   Decimal? @db.Decimal(5, 2)
-
-  validatedAt DateTime?
-
-  createdAt DateTime @default(now())
-}
-
-// ─────────────────────────────────────────
 // INVITATION
 // ─────────────────────────────────────────
 model Invitation {
@@ -607,7 +582,7 @@ model Subscription {
   status   SubscriptionStatus @default(ACTIVE)
 
   // stratégie appliquée
-  pricingType  PricingType   @default(COMMISSION)
+  pricingType  PricingType   @default(SUBSCRIPTION)
   billingCycle BillingCycle?
 
   // snapshot pricing SaaS
@@ -636,17 +611,13 @@ model Subscription {
 model SubscriptionPlan {
   id             String      @id @default(cuid())
   name           Plan        @unique @default(BASIC_COMMISSION)
-  pricingType    PricingType @default(COMMISSION)
+  pricingType    PricingType @default(SUBSCRIPTION)
   popular        Boolean     @default(false)
-  // uniquement si Commission COMMISSION
   commissionRate Decimal?    @db.Decimal(5, 2)
 
-  // uniquement si SUBSCRIPTION
-  pricings PlanPricing[]
-
-  planCategory PlanCategory @default(COMMISSION_BASED) // 🔥 AJOUT
-
-  isActive Boolean @default(true)
+  pricings     PlanPricing[]
+  planCategory PlanCategory  @default(SUBSCRIPTION_BASED)
+  isActive     Boolean       @default(true)
 
   planFeatures       PlanFeature[]
   subscriptions      Subscription[]
@@ -1041,12 +1012,6 @@ enum Plan {
   PREMIUM_SUB
 }
 
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
 enum SubscriptionStatus {
   ACTIVE
   INACTIVE
@@ -1055,7 +1020,6 @@ enum SubscriptionStatus {
 enum TransactionType {
   RENT
   SALE
-  COMMISSION
   EXPENSE
   MAINTENANCE
 }
