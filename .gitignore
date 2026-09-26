@@ -49,7 +49,7 @@ src/lib/*.json
 .tmp
 
 #prisma files
-prisma/migrations
+# prisma/migrations est versionné : les migrations sont déployées sur chaque environnement (migrate deploy)
 prisma/generated
 
 # Runtime data

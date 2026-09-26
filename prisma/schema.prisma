@@ -174,6 +174,7 @@ model Client {
 
   favorites Favorite[]
   leads     Lead[]
+  bookings  Booking[]
 
   createdAt DateTime @default(now())
 
@@ -214,6 +215,7 @@ model Agency {
   villas        Villa[]
   properties    Property[]
   invitations   Invitation[]
+  bookings      Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -322,13 +324,16 @@ model Property {
   agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   batiment   Batiment? @relation(fields: [batimentId], references: [id], onDelete: Cascade)
 
-  annonces  Annonce[]
-  leads     Lead[]
-  tenants   Tenant[]
-  contracts Contract[]
-  tickets   Ticket[]
-  favorites Favorite[]
-  visits    Visit[]
+  annonces       Annonce[]
+  leads          Lead[]
+  tenants        Tenant[]
+  contracts      Contract[]
+  tickets        Ticket[]
+  favorites      Favorite[]
+  visits         Visit[]
+  rentalConfigs  PropertyRentalConfig[]
+  availabilities PropertyAvailability[]
+  bookings       Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -356,6 +361,76 @@ model Annonce {
 
   @@index([propertyId])
   @@map("annonces")
+}
+
+// ─────────────────────────────────────────
+// LOCATIONS, MODALITÉS & RÉSERVATIONS
+// ─────────────────────────────────────────
+
+model PropertyRentalConfig {
+  id          String     @id @default(uuid())
+  propertyId  String
+  rentalType  RentalType
+  price       Decimal    @db.Decimal(10, 2)
+  deposit     Decimal    @default(0) @db.Decimal(10, 2)
+  minDuration Int?       @default(1)
+  maxDuration Int?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, rentalType])
+  @@index([propertyId])
+  @@map("property_rental_config")
+}
+
+// Fenêtre de disponibilité (bornes incluses). Les créneaux réservables sont calculés
+// en retirant les réservations actives : les fenêtres ne sont jamais découpées en base.
+model PropertyAvailability {
+  id          String      @id @default(uuid())
+  propertyId  String
+  rentalType  RentalType?
+  startDate   DateTime    @db.Date
+  endDate     DateTime    @db.Date
+  isAvailable Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, startDate, endDate])
+  @@map("property_availability")
+}
+
+model Booking {
+  id                 String        @id @default(uuid())
+  propertyId         String
+  agencyId           String
+  clientId           String?
+  rentalType         RentalType
+  startDate          DateTime      @db.Date
+  endDate            DateTime      @db.Date
+  totalAmount        Decimal       @db.Decimal(10, 2)
+  depositAmount      Decimal       @default(0) @db.Decimal(10, 2)
+  status             BookingStatus @default(PENDING)
+  notes              String?
+  rejectionReason    String?
+  cancellationReason String?
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Restrict : un bien ou une agence ayant des réservations ne peut pas être supprimé (historique conservé)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+  client   Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId, startDate, endDate])
+  @@index([agencyId, status])
+  @@map("booking")
 }
 
 // ─────────────────────────────────────────
@@ -1166,4 +1241,19 @@ enum PlanCategory {
 enum BillingCycle {
   MONTHLY
   YEARLY
+}
+
+enum RentalType {
+  DAILY
+  NIGHTLY
+  MONTHLY
+  YEARLY
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REJECTED
+  COMPLETED
 }
