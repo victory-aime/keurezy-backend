@@ -6,7 +6,7 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { setupSwagger } from './config/swagger';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { toNodeHandler } from 'better-auth/node';
-import { ValidationPipe } from '@nestjs/common';
+import { createValidationPipe } from './config/validation-pipe';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as process from 'node:process';
 
@@ -92,7 +92,7 @@ async function bootstrap() {
     }),
   );
   app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  app.useGlobalPipes(createValidationPipe());
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
   setupSwagger(app);
 

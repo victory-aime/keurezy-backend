@@ -131,14 +131,14 @@ export class AgencyController {
     },
   ) {
     // Contrôle d'accès avant tout upload vers Cloudinary
-    await this.agencyService.agencyAccessControl(data.agencyId, userId);
+    const agency = await this.agencyService.findAgency(data.agencyId, userId);
 
     let cloudinaryAgencyLogoFileUrl: string = '';
 
     if (files?.agencyLogo?.length) {
       const uploadAgencyLogo = await this.uploadFileService.uploadFiles(
         files.agencyLogo[0],
-        data.name,
+        data.name ?? agency.name,
         CLOUDINARY_FOLDER_NAME.LOGO,
       );
       cloudinaryAgencyLogoFileUrl = uploadAgencyLogo.secure_url;

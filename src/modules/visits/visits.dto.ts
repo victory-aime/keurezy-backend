@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { VisitStatus } from '../../../prisma/generated/enums';
 
 // DTO : CRÉER UNE VISITE
@@ -73,6 +73,7 @@ export class CreateVisitDto {
     description: 'Nouveau statut de la visite',
   })
   @IsNotEmpty()
+  @IsEnum(VisitStatus)
   status: VisitStatus;
 }
 
@@ -84,13 +85,42 @@ export class UpdateVisitDto {
     description: 'Nouveau statut de la visite',
   })
   @IsNotEmpty()
+  @IsEnum(VisitStatus)
   status: VisitStatus;
+
+  @ApiProperty({ example: '2026-10-01', description: 'Date de la visite' })
+  @IsNotEmpty()
+  @IsDateString()
   scheduledAt: string;
+
+  @ApiProperty({ example: '2026-10-01T10:00:00.000Z', description: 'Heure de début' })
+  @IsNotEmpty()
+  @IsDateString()
   startTime: string;
+
+  @ApiProperty({ example: '2026-10-01T11:00:00.000Z', description: 'Heure de fin' })
+  @IsNotEmpty()
+  @IsDateString()
   endTime: string;
+
+  @ApiProperty({ example: 'uuid-visite', description: 'Identifiant de la visite à modifier' })
+  @IsNotEmpty()
+  @IsString()
   visitId: string;
+
+  @ApiPropertyOptional({ example: 'uuid-agent', description: 'Agent assigné' })
+  @IsOptional()
+  @IsString()
   agentId?: string | null;
+
+  @ApiPropertyOptional({ example: 'Visite appartement F3', description: 'Titre de la visite' })
+  @IsOptional()
+  @IsString()
   title?: string;
+
+  @ApiPropertyOptional({ example: 'Apporter les clés', description: 'Notes' })
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 

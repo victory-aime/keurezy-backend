@@ -12,7 +12,6 @@ import {
 import { propertyDto, PropertyFilterDto } from './property.dto';
 import { PropertyService } from './property.service';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { Throttle } from '@nestjs/throttler';
 import { PermissionGuard, RequirePermission } from '../../guard/permission.guard';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 
@@ -22,7 +21,6 @@ import { AgencyProfileId } from '../../guard/current-user.decorator';
 export class PropertyController {
   constructor(private readonly propertyService: PropertyService) {}
 
-  @Throttle({ default: { limit: 3, ttl: 60 } })
   @Get(API_URL.PROPERTY.ALL_PROPERTIES_BY_AGENCY)
   @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission('view_properties')

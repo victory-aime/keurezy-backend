@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { BatimentStatus } from '../../../prisma/generated/enums';
 import { IPaginationDto } from '../../config/pagination.dto';
 
@@ -67,14 +68,22 @@ export class UpdateBuildingDto extends CreateBuildingDto {
 
 export class BuildingFilterDto extends IPaginationDto {
   @ApiPropertyOptional({ example: 'Résidence', description: 'Filtrer par nom de bâtiment' })
+  @IsOptional()
+  @IsString()
   name: string;
 
   @ApiPropertyOptional({ example: 'Dakar', description: 'Filtrer par ville' })
+  @IsOptional()
+  @IsString()
   city: string;
 
   @ApiPropertyOptional({ example: 'Almadies', description: 'Filtrer par quartier' })
+  @IsOptional()
+  @IsString()
   district: string;
 
   @ApiPropertyOptional({ enum: BatimentStatus, description: 'Filtrer par statut' })
+  @IsOptional()
+  @IsEnum(BatimentStatus)
   status: BatimentStatus;
 }

@@ -1,6 +1,8 @@
 import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateAnnonceDto {
   @ApiProperty({ example: 'Appartement F3 Almadies', description: "Titre de l'annonce" })
@@ -49,15 +51,27 @@ export class UpdateAnnonceDto extends PartialType(CreateAnnonceDto) {
 
 export class FilterAnnonceDto {
   @ApiProperty({ example: 1, description: 'Numéro de la page initiale' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   initialPage: number;
 
   @ApiProperty({ example: 10, description: "Nombre d'annonces maximum par page" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   limitPerPage: number;
 
   @ApiPropertyOptional({ example: 'Dakar', description: 'Filtrer par ville' })
+  @IsOptional()
+  @IsString()
   city?: string;
 
   @ApiPropertyOptional({ example: 'Almadies', description: 'Filtrer par quartier' })
+  @IsOptional()
+  @IsString()
   district?: string;
 
   @ApiPropertyOptional({
@@ -65,6 +79,8 @@ export class FilterAnnonceDto {
     enumName: 'PropertyType',
     description: 'Filtrer par type de propriété',
   })
+  @IsOptional()
+  @IsEnum(PropertyType)
   type?: PropertyType;
 
   @ApiPropertyOptional({
@@ -72,6 +88,10 @@ export class FilterAnnonceDto {
     description: 'Prix minimum (en FCFA)',
     minimum: 0,
   })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
   minPrice?: number;
 
   @ApiPropertyOptional({
@@ -79,9 +99,17 @@ export class FilterAnnonceDto {
     description: 'Prix maximum (en FCFA)',
     minimum: 0,
   })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
   maxPrice?: number;
 
   @ApiPropertyOptional({ example: 3, description: 'Nombre de chambres minimum', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   rooms?: number;
 
   @ApiPropertyOptional({
@@ -90,5 +118,8 @@ export class FilterAnnonceDto {
     description: 'Filtrer par commodités disponibles',
     isArray: true,
   })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(PropertyFeature, { each: true })
   features?: PropertyFeature[];
 }

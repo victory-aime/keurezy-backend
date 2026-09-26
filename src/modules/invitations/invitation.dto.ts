@@ -1,11 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { AgencyRole } from '../../../prisma/generated/enums';
+
+export class InvitationPermissionDto {
+  @ApiProperty({ example: 'uuid-permission', description: 'Identifiant de la permission' })
+  @IsString()
+  permissionId: string;
+
+  @ApiProperty({ example: true, description: 'Permission accordée ou non' })
+  @IsBoolean()
+  granted: boolean;
+}
 
 export class InvitationPayloadDto {
   @ApiProperty({ example: 'Amadou Diallo', description: "Nom complet de l'invité" })
+  @IsString()
   name: string;
 
   @ApiProperty({ example: 'agent@example.com', description: "Email de l'invité" })
+  @IsEmail()
   email: string;
 
   @ApiProperty({
@@ -13,48 +35,43 @@ export class InvitationPayloadDto {
     example: AgencyRole.AGENT,
     description: "Rôle attribué à l'invité dans l'agence",
   })
+  @IsEnum(AgencyRole)
   role: AgencyRole;
 
   @ApiProperty({
     example: 'TempPass123!',
     description: "Mot de passe temporaire généré pour l'invité",
   })
+  @IsString()
   temporaryPassword: string;
 
   @ApiProperty({
     description: "Liste des permissions accordées à l'invité",
-    example: [{ permissionId: 'uuid-permission', granted: true }],
-    type: 'array',
-    items: {
-      type: 'object',
-      properties: {
-        permissionId: { type: 'string', example: 'uuid-permission' },
-        granted: { type: 'boolean', example: true },
-      },
-    },
+    type: [InvitationPermissionDto],
   })
-  permissions: { permissionId: string; granted: boolean }[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvitationPermissionDto)
+  permissions: InvitationPermissionDto[];
 }
 
 export class CreateInvitationDto {
-  @ApiProperty({
-    example: 'uuid-de-l-admin',
-    description: "Identifiant de l'administrateur qui envoie l'invitation",
-  })
+  // Renseigné côté serveur depuis la session (User.id de l'expéditeur).
+  @IsOptional()
+  @IsString()
   adminId: string;
 
-  @ApiProperty({ example: 'uuid-user', description: "Identifiant de l'utilisateur connecté" })
+  // Renseigné côté serveur depuis la session (profil agence de l'expéditeur).
+  @IsOptional()
+  @IsString()
   userId: string;
 
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
+  @IsString()
   agencyId: string;
 
   @ApiProperty({ type: InvitationPayloadDto, description: "Données de l'invité" })
-  payload: {
-    name: string;
-    email: string;
-    role: AgencyRole;
-    temporaryPassword: string;
-    permissions: { permissionId: string; granted: boolean }[];
-  };
+  @ValidateNested()
+  @Type(() => InvitationPayloadDto)
+  payload: InvitationPayloadDto;
 }

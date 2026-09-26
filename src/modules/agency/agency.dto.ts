@@ -78,13 +78,39 @@ export class createAgencyOwnerDto {
   password: string;
 }
 
-export class updateAgencyDto extends createAgencyOwnerDto {
+export class updateAgencyDto {
   @IsUUID()
   @ApiProperty({
     example: 'uuid-de-l-agence',
     description: "Identifiant de l'agence à mettre à jour",
   })
   agencyId: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ example: 'NANA Beauty Salon', description: "Nom de l'agence" })
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    example: '123 Avenue Habib Bourguiba',
+    description: "Adresse de l'agence",
+  })
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ example: '+221 77 000 00 00', description: "Téléphone de l'agence" })
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    example: 'Agence spécialisée en location résidentielle',
+    description: "Description de l'agence",
+  })
+  description?: string;
 
   @IsOptional()
   @IsString()
