@@ -36,8 +36,8 @@ export class AnnounceService {
   }
 
   // 1. CREATE
-  async createAnnounce(dto: CreateAnnonceDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(dto.agencyId!, dto.userId!);
+  async createAnnounce(dto: CreateAnnonceDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(dto.agencyId!, userId);
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId!);
 
@@ -75,7 +75,7 @@ export class AnnounceService {
       where: { id: dto.propertyId },
     });
 
-    if (!property) {
+    if (!property || property.agencyId !== dto.agencyId) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
 
@@ -240,16 +240,17 @@ export class AnnounceService {
   }
 
   // 4. UPDATE
-  async updateAnnonce(dto: UpdateAnnonceDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(dto.agencyId!, dto.userId!);
-
+  async updateAnnonce(dto: UpdateAnnonceDto, userId: string): Promise<{ message: string }> {
     const annonce = await this.prisma.annonce.findUnique({
       where: { id: dto.id },
+      include: { property: { select: { agencyId: true } } },
     });
 
     if (!annonce) {
       throw new HttpError('Annonce introuvable', HttpStatus.NOT_FOUND, 'ANNONCE_NOT_FOUND');
     }
+
+    await this.agencyService.agencyAccessControl(annonce.property.agencyId, userId);
 
     const nextStatus = dto.status ?? annonce.status;
 
@@ -275,19 +276,17 @@ export class AnnounceService {
   }
 
   // 5. DELETE
-  async deleteAnnonce(
-    id: string,
-    agencyId: string,
-    userId: string,
-  ): Promise<{ success: boolean; message: string }> {
-    await this.agencyService.agencyAccessControl(agencyId, userId);
+  async deleteAnnonce(id: string, userId: string): Promise<{ success: boolean; message: string }> {
     const annonce = await this.prisma.annonce.findUnique({
       where: { id },
+      include: { property: { select: { agencyId: true } } },
     });
 
     if (!annonce) {
       throw new HttpError(`Impossible de supprimer.`, HttpStatus.NOT_FOUND, 'ANNONCE_NOT_FOUND');
     }
+
+    await this.agencyService.agencyAccessControl(annonce.property.agencyId, userId);
 
     await this.prisma.annonce.delete({
       where: { id },

@@ -13,7 +13,7 @@ export class AuthMailInitializer implements OnModuleInit {
 
   onModuleInit() {
     authEmailBridge.registerVerificationHandler(async ({ name, email, url }) => {
-      this.logger.debug(`verify email link ${url}`);
+      this.logger.debug(`Envoi du lien de vérification email à ${email}`);
       await this.emailService.sendEmailVerificationLink({
         sendTo: email,
         username: name,
@@ -21,7 +21,7 @@ export class AuthMailInitializer implements OnModuleInit {
       });
     });
     authEmailBridge.updateUserEmailHandler(async ({ name, email, newEmail, url }) => {
-      this.logger.debug(`update email link ${url}`);
+      this.logger.debug(`Envoi du lien de changement d'email à ${email}`);
 
       await this.emailService.updateUserEmailLink({
         sendTo: email,
@@ -32,7 +32,7 @@ export class AuthMailInitializer implements OnModuleInit {
     });
 
     authEmailBridge.registerResetPasswordHandler(async ({ name, email, url }) => {
-      this.logger.debug(`Reset password link ${url}`);
+      this.logger.debug(`Envoi du lien de réinitialisation à ${email}`);
       await this.emailService.sendResetPasswordEmailLink({
         sendTo: email,
         username: name,

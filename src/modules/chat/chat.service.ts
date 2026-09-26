@@ -501,7 +501,13 @@ export class ChatService {
       where: { leadId },
       include: this.conversationInclude(),
     });
-    if (existing) return existing;
+    if (existing) {
+      // Une conversation existante n'est renvoyée qu'à ses participants actifs
+      if (!existing.participants.some((p) => p.userId === requesterId)) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à accéder à cette conversation");
+      }
+      return existing;
+    }
 
     const lead = await this.prisma.lead.findUnique({
       where: { id: leadId },

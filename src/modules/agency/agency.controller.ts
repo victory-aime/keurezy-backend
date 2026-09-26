@@ -17,6 +17,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
 
 @ApiTags('Agency')
 @Controller()
@@ -30,15 +31,10 @@ export class AgencyController {
   @Get(API_URL.AGENCY.AGENCY_INFO)
   @ApiOperation({ summary: "Récupérer les informations d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiQuery({
-    name: 'userId',
-    required: false,
-    description: "Identifiant de l'utilisateur membre de l'agence",
-  })
   @ApiOkResponse({ description: "Informations de l'agence récupérées avec succès" })
   @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async agencyInfo(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async agencyInfo(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.agencyService.findAgency(agencyId, userId);
   }
 
@@ -48,7 +44,11 @@ export class AgencyController {
   @ApiOkResponse({ description: "Informations d'abonnement récupérées avec succès" })
   @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async agencySubscriptionInfo(@Query('agencyId') agencyId: string) {
+  async agencySubscriptionInfo(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+  ) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
     return this.agencyService.getAgencyPlanFeatures(agencyId);
   }
 
@@ -124,11 +124,15 @@ export class AgencyController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'agencyLogo', maxCount: 1 }]))
   async updateAgency(
     @Body() data: updateAgencyDto,
+    @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       agencyLogo?: Express.Multer.File[];
     },
   ) {
+    // Contrôle d'accès avant tout upload vers Cloudinary
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
+
     let cloudinaryAgencyLogoFileUrl: string = '';
 
     if (files?.agencyLogo?.length) {
@@ -140,10 +144,13 @@ export class AgencyController {
       cloudinaryAgencyLogoFileUrl = uploadAgencyLogo.secure_url;
     }
 
-    return this.agencyService.updateAgency({
-      ...data,
-      agencyLogo: cloudinaryAgencyLogoFileUrl,
-    });
+    return this.agencyService.updateAgency(
+      {
+        ...data,
+        agencyLogo: cloudinaryAgencyLogoFileUrl,
+      },
+      userId,
+    );
   }
 
   @Post(API_URL.AGENCY.CLOSE_AGENCY)
@@ -157,7 +164,7 @@ export class AgencyController {
   @ApiOkResponse({ description: 'Agence fermée avec succès' })
   @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async closeAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async closeAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.agencyService.closeAgency({ agencyId, userId });
   }
 
@@ -186,7 +193,7 @@ export class AgencyController {
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Statistiques recuperees avec succes' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getAgencyStats(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async getAgencyStats(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.agencyService.getAgencyStats(agencyId, userId);
   }
 }

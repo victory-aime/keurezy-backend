@@ -23,6 +23,7 @@ import { AgencyService } from '../agency/agency.service';
 import { BuildingService } from './building.service';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { API_URL } from '../../config/api';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { BuildingFilterDto, CreateBuildingDto, UpdateBuildingDto } from './building.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
@@ -40,8 +41,8 @@ export class BuildingController {
   @ApiOperation({ summary: "Récupérer tous les bâtiments d'une agence" })
   @ApiOkResponse({ description: 'Liste des bâtiments récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async getBuildingByAgency(@Query() data: BuildingFilterDto) {
-    return this.buildingService.getAllBuildingByAgency(data);
+  async getBuildingByAgency(@Query() data: BuildingFilterDto, @AgencyProfileId() userId: string) {
+    return this.buildingService.getAllBuildingByAgency({ ...data, userId });
   }
 
   @Post(API_URL.BUILDING.CREATE_BUILDING)
@@ -54,12 +55,13 @@ export class BuildingController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async createBuilding(
     @Body('data') rawData: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: CreateBuildingDto = JSON.parse(rawData);
+    const data: CreateBuildingDto = { ...(JSON.parse(rawData) as CreateBuildingDto), userId };
     let cloudinaryDocumentsFilesUrl: string[] = [];
     const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
     if (files?.documents?.length) {
@@ -90,13 +92,13 @@ export class BuildingController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async updateBuilding(
     @Body('data') rawData: string,
-    @Query('ownerId') ownerId: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: UpdateBuildingDto = JSON.parse(rawData);
+    const data: UpdateBuildingDto = { ...(JSON.parse(rawData) as UpdateBuildingDto), userId };
 
     let cloudinaryDocumentsFilesUrl: string[] = [];
     const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
@@ -123,11 +125,7 @@ export class BuildingController {
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Bâtiment supprimé avec succès' })
   @ApiBadRequestResponse({ description: 'Bâtiment introuvable ou erreur serveur' })
-  async deleteBuilding(
-    @Query('userId') userId: string,
-    @Query('id') id: string,
-    @Query('agencyId') agencyId: string,
-  ) {
-    return this.buildingService.deleteBuilding(id, agencyId, userId);
+  async deleteBuilding(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.buildingService.deleteBuilding(id, userId);
   }
 }

@@ -5,10 +5,10 @@ import { LeadStatus } from '../../../prisma/generated/enums';
 class ILeadsDto {
   @IsUUID()
   leadId: string;
+  // Conservé pour compatibilité client : l'agence est déduite du lead côté serveur.
+  @IsOptional()
   @IsUUID()
-  agencyId: string;
-  @IsUUID()
-  userId: string;
+  agencyId?: string;
 }
 
 // ─── 1. Créer un lead (client connecté uniquement) ────────────────

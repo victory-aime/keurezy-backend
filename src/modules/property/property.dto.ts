@@ -19,6 +19,8 @@ export class propertyDto {
   @IsString()
   agencyId: string;
 
+  // Renseigné côté serveur depuis la session (toute valeur envoyée par le client est écrasée).
+  @IsOptional()
   @IsString()
   userId: string;
 

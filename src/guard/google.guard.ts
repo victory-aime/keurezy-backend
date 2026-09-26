@@ -9,7 +9,6 @@ export class GoogleAuthGuard implements CanActivate {
   private client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   async verifyIdToken(idToken: string) {
-    console.log('Verifying Google ID Token:', idToken);
     try {
       const ticket = await this.client.verifyIdToken({
         idToken,

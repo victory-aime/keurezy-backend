@@ -2,6 +2,7 @@ import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { API_URL } from '../../config/api';
 import { NotificationsService } from './notifications.service';
+import { CurrentUserId } from '../../guard/current-user.decorator';
 
 @Controller()
 export class NotificationsController {
@@ -16,7 +17,7 @@ export class NotificationsController {
   @ApiBadRequestResponse({
     description: 'Une erreur est survenue réessayer plus tard',
   })
-  async getAllNotifications(@Query('userId') userId: string) {
+  async getAllNotifications(@CurrentUserId() userId: string) {
     return this.notificationsService.getUserNotifications(userId);
   }
 
@@ -29,7 +30,7 @@ export class NotificationsController {
   @ApiBadRequestResponse({
     description: 'Une erreur est survenue réessayer plus tard',
   })
-  async markAllAsRead(@Query('userId') userId: string) {
+  async markAllAsRead(@CurrentUserId() userId: string) {
     return this.notificationsService.readAllNotifications(userId);
   }
 
@@ -44,7 +45,7 @@ export class NotificationsController {
   })
   async readOneNotification(
     @Query('notificationId') notificationId: string,
-    @Query('userId') userId: string,
+    @CurrentUserId() userId: string,
   ) {
     return this.notificationsService.readOneNotification(notificationId, userId);
   }
@@ -58,7 +59,7 @@ export class NotificationsController {
   @ApiBadRequestResponse({
     description: 'Une erreur est survenue réessayer plus tard',
   })
-  async getAllUnreadNotification(@Query('userId') userId: string) {
+  async getAllUnreadNotification(@CurrentUserId() userId: string) {
     return this.notificationsService.getUnreadNotifications(userId);
   }
 }

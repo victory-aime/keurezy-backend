@@ -19,8 +19,6 @@ export class NabooSignatureGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const receivedSignature = req.headers['x-signature'] as string | undefined;
 
-    this.logger.debug(`[Webhook] X-Signature reçue : ${receivedSignature ?? 'ABSENTE'}`);
-
     if (!receivedSignature) {
       this.logger.warn('[Webhook] Rejeté — en-tête X-Signature manquant');
       throw new UnauthorizedException('Signature manquante');
@@ -31,7 +29,6 @@ export class NabooSignatureGuard implements CanActivate {
     let bodyToSign: string;
     if (rawBodyBuffer && Buffer.isBuffer(rawBodyBuffer)) {
       bodyToSign = rawBodyBuffer.toString('utf8');
-      this.logger.debug(`[Webhook] Raw body (${rawBodyBuffer.length} bytes) : ${bodyToSign}`);
     } else {
       bodyToSign = JSON.stringify(req.body);
       this.logger.warn('[Webhook] rawBody absent — fallback JSON.stringify. Vérifiez main.ts !');
@@ -42,9 +39,6 @@ export class NabooSignatureGuard implements CanActivate {
       .createHmac('sha256', secret)
       .update(bodyToSign, 'utf8')
       .digest('hex');
-
-    this.logger.debug(`[Webhook] Signature attendue : ${expectedSig}`);
-    this.logger.debug(`[Webhook] Signature reçue    : ${receivedSignature}`);
 
     let isValid = false;
     try {

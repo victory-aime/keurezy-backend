@@ -127,7 +127,7 @@ export class BuildingService {
       where: { id: data.id },
     });
 
-    if (!building) {
+    if (!building || building.agencyId !== data.agencyId) {
       throw new HttpError('Aucun bâtiment trouvé', HttpStatus.NOT_FOUND, 'BUILDING_NOT_EXIST');
     }
 
@@ -155,7 +155,7 @@ export class BuildingService {
         where: { id: data.landId },
       });
 
-      if (!land) {
+      if (!land || land.agencyId !== building.agencyId) {
         throw new HttpError('Terrain introuvable', HttpStatus.NOT_FOUND, 'LAND_NOT_FOUND');
       }
     }
@@ -188,8 +188,17 @@ export class BuildingService {
     };
   }
 
-  async deleteBuilding(id: string, agencyId: string, userId: string) {
-    await this.agencyService.agencyAccessControl(agencyId, userId);
+  async deleteBuilding(id: string, userId: string) {
+    const building = await this.prisma.batiment.findUnique({
+      where: { id },
+      select: { agencyId: true },
+    });
+
+    if (!building?.agencyId) {
+      throw new HttpError('Aucun bâtiment trouvé', HttpStatus.NOT_FOUND, 'BUILDING_NOT_EXIST');
+    }
+
+    await this.agencyService.agencyAccessControl(building.agencyId, userId);
     await this.prisma.batiment.delete({
       where: { id },
     });

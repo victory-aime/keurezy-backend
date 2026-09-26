@@ -12,6 +12,7 @@ import {
 import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { InvitationService } from './invitation.service';
 import { API_URL } from '../../config/api';
+import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
 import { CreateInvitationDto } from './invitation.dto';
 
 @ApiTags('Invitation')
@@ -24,10 +25,12 @@ export class InvitationController {
   @Get(API_URL.INVITATION.AGENCY_INVITE_LIST)
   @ApiOperation({ summary: "Lister toutes les invitations d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" })
   @ApiOkResponse({ description: 'Liste des invitations récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async AllAgencyInviteList(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async AllAgencyInviteList(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+  ) {
     return this.invitationService.getAllInviteByAgencyId(agencyId, userId);
   }
 
@@ -39,8 +42,10 @@ export class InvitationController {
   async createInvitation(
     @Body()
     data: CreateInvitationDto,
+    @CurrentUserId() adminId: string,
+    @AgencyProfileId() userId: string,
   ) {
-    return this.invitationService.createInvitation(data);
+    return this.invitationService.createInvitation({ ...data, adminId, userId });
   }
 
   @Post(API_URL.INVITATION.ACCEPT_INVITE)
@@ -56,15 +61,9 @@ export class InvitationController {
   @Post(API_URL.INVITATION.CANCEL_INVITE)
   @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })
   @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation" })
-  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" })
   @ApiOkResponse({ description: 'Invitation annulée avec succès' })
   @ApiBadRequestResponse({ description: 'Invitation introuvable ou déjà acceptée' })
-  async cancelInvitation(
-    @Query('inviteId') inviteId: string,
-    @Query('agencyId') agencyId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.invitationService.cancelledInvitation(inviteId, agencyId, userId);
+  async cancelInvitation(@Query('inviteId') inviteId: string, @AgencyProfileId() userId: string) {
+    return this.invitationService.cancelledInvitation(inviteId, userId);
   }
 }

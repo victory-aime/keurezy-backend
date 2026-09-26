@@ -241,10 +241,9 @@ export class AgencyService {
   // MISE À JOUR
   // ─────────────────────────────────────────
 
-  async updateAgency(data: updateAgencyDto): Promise<{ message: string }> {
-    await this.agencyAccessControl(data.agencyId, data.userId);
+  async updateAgency(data: updateAgencyDto, userId: string): Promise<{ message: string }> {
     try {
-      const agency = await this.findAgency(data.agencyId, data?.userId);
+      const agency = await this.findAgency(data.agencyId, userId);
       await this.prismaService.agency.update({
         where: { id: agency.id },
         data: {
@@ -270,7 +269,6 @@ export class AgencyService {
   // ─────────────────────────────────────────
 
   async closeAgency(data: { agencyId: string; userId: string }) {
-    await this.agencyAccessControl(data.agencyId, data.userId);
     const agency = await this.findAgency(data.agencyId, data.userId);
 
     const owner = await this.prismaService.owner.findUnique({
@@ -352,6 +350,17 @@ export class AgencyService {
       userStaffId: staff?.userId,
       agencyId,
     };
+  }
+
+  /** Vrai si l'utilisateur (User.id) est le propriétaire ou un membre actif de l'agence. */
+  async isAgencyMember(agencyId: string, userId: string): Promise<boolean> {
+    const count = await this.prismaService.agency.count({
+      where: {
+        id: agencyId,
+        OR: [{ owner: { userId } }, { staff: { some: { userId, isActive: true } } }],
+      },
+    });
+    return count > 0;
   }
 
   async getAgencyStats(agencyId: string, userId: string) {

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { API_URL } from '../../config/api';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { TeamService } from './team.service';
 import {
   ApiBadRequestResponse,
@@ -22,20 +23,17 @@ export class TeamController {
     summary: "Récupérer la liste des membres de l'équipe d'une agence (Owner uniquement)",
   })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiQuery({ name: 'userId', required: true, description: "Identifiant de l'utilisateur" })
   @ApiOkResponse({ description: "Liste de l'équipe récupérée avec succès" })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async getAllTeamsByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async getAllTeamsByAgency(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+  ) {
     return this.teamService.getTeamListByAgencyId(agencyId, userId);
   }
   @Post(API_URL.TEAM.CHANGE_STATUS)
   @ApiOperation({ summary: "Activer ou désactiver le compte d'un membre (Owner uniquement)" })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant du membre de l'équipe" })
-  @ApiQuery({
-    name: 'userId',
-    required: true,
-    description: "Identifiant de l'utilisateur effectuant l'action",
-  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -53,9 +51,9 @@ export class TeamController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async enabledOrDisabled(
     @Query('agencyId') agencyId: string,
-    @Query('agentId') agentId: string,
-    @Body() data: { status: boolean; id: string; userId: string },
+    @AgencyProfileId() ownerId: string,
+    @Body() data: { status: boolean; id: string },
   ) {
-    return this.teamService.enableOrDisabledAccount(data, agencyId, agentId);
+    return this.teamService.enableOrDisabledAccount(data, agencyId, ownerId);
   }
 }

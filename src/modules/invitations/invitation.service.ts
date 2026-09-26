@@ -222,8 +222,15 @@ export class InvitationService {
     });
   }
 
-  async cancelledInvitation(id: string, agencyId: string, userId: string) {
-    await this.agencyService.agencyAccessControl(agencyId, userId);
+  async cancelledInvitation(id: string, userId: string) {
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { id },
+      select: { agencyId: true },
+    });
+    if (!invitation) {
+      throw new HttpError('Invitation introuvable', HttpStatus.NOT_FOUND, 'INVITATION_NOT_FOUND');
+    }
+    await this.agencyService.agencyAccessControl(invitation.agencyId, userId);
     await this.prisma.invitation.update({
       where: { id },
       data: {

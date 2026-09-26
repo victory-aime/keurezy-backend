@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { API_URL } from '../../config/api';
 import {
@@ -7,13 +7,13 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { SWAGGER_TAGS } from '../../config/enum';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
-import { User } from '../../../prisma/generated/client';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CurrentUserId } from '../../guard/current-user.decorator';
 
 @ApiBearerAuth()
 @ApiTags(SWAGGER_TAGS.USER_MANAGEMENT)
@@ -31,15 +31,9 @@ export class UsersController {
 
   @Get(API_URL.USER.INFO)
   @ApiOperation({ summary: 'Récupérer les informations d’un utilisateur' })
-  @ApiQuery({
-    name: 'userId',
-    required: true,
-    example: 'ckx123abc',
-    description: 'Identifiant unique de l’utilisateur',
-  })
   @ApiOkResponse({ description: 'Informations utilisateur récupérées.' })
   @ApiNotFoundResponse({ description: 'Utilisateur introuvable.' })
-  async getUserInfo(@Query('userId') userId: string) {
+  async getUserInfo(@CurrentUserId() userId: string) {
     return this.userService.userInfo(userId);
   }
 
@@ -57,11 +51,11 @@ export class UsersController {
   }
 
   @Patch(API_URL.USER.UPDATE)
-  async updateUserInfo(@Body() data: User) {
-    return this.userService.updateUser(data);
+  async updateUserInfo(@CurrentUserId() userId: string, @Body() data: UpdateUserDto) {
+    return this.userService.updateUser(userId, data);
   }
   @Get(API_URL.USER.PASSKEY_SESSION)
-  async getPasskeyAndSessions(@Query('userId') userId: string) {
+  async getPasskeyAndSessions(@CurrentUserId() userId: string) {
     return this.userService.userPassKeyAndSessionsList(userId);
   }
 }

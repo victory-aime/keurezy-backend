@@ -121,7 +121,7 @@ export class LandService {
       where: { id: data?.id },
     });
 
-    if (!land) {
+    if (!land || land.agencyId !== data.agencyId) {
       throw new HttpError('Terrain introuvable', HttpStatus.NOT_FOUND, 'LAND_NOT_FOUND');
     }
 

@@ -103,19 +103,4 @@ export class AssignAgentDto {
   @IsNotEmpty()
   @IsString()
   agentId: string;
-  @ApiProperty({
-    example: 'uuid-agent-id',
-    description: 'Identifiant du nouvel agent à assigner à la visite',
-  })
-  @IsNotEmpty()
-  @IsString()
-  userId: string;
-
-  @ApiProperty({
-    example: 'uuid-agent-id',
-    description: 'Identifiant du nouvel agent à assigner à la visite',
-  })
-  @IsNotEmpty()
-  @IsString()
-  agencyId: string;
 }

@@ -27,6 +27,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { AgencyService } from '../agency/agency.service';
 import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @ApiTags('Annonces')
@@ -69,13 +70,14 @@ export class AnnonceController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async create(
     @Body('data') rawData: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
     const data: CreateAnnonceDto = JSON.parse(rawData);
     let cloudinaryImagesUrls: string[] = [];
 
     if (files?.galleryImages?.length) {
-      const agency = await this.agencyService.findAgency(data?.agencyId!, data?.userId!);
+      const agency = await this.agencyService.findAgency(data.agencyId!, userId);
       const uploads = await Promise.all(
         files.galleryImages.map((file) =>
           this.uploadFileService.uploadFiles(
@@ -88,10 +90,13 @@ export class AnnonceController {
       cloudinaryImagesUrls = uploads.map((res) => res.secure_url);
     }
 
-    return this.announceService.createAnnounce({
-      ...data,
-      galleryImages: cloudinaryImagesUrls,
-    });
+    return this.announceService.createAnnounce(
+      {
+        ...data,
+        galleryImages: cloudinaryImagesUrls,
+      },
+      userId,
+    );
   }
 
   @AllowAnonymous()
@@ -108,15 +113,10 @@ export class AnnonceController {
   @Get(API_URL.ANNONCE.FIND_BY_AGENCY)
   @ApiOperation({ summary: "Récupérer les annonces d'une agence spécifique" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
-  @ApiQuery({
-    name: 'userId',
-    required: true,
-    description: "Identifiant de l'utilisateur/membre de l'agence",
-  })
   @ApiOkResponse({ description: "Annonces de l'agence récupérées avec succès" })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async findByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async findByAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.announceService.findAnnoncesByAgency(agencyId, userId);
   }
 
@@ -151,13 +151,14 @@ export class AnnonceController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async updateAnnonce(
     @Body('data') rawData: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
     const data: UpdateAnnonceDto = JSON.parse(rawData);
     let cloudinaryImagesUrls: string[] = [];
 
     if (files?.galleryImages?.length) {
-      const agency = await this.agencyService.findAgency(data?.agencyId!, data?.userId!);
+      const agency = await this.agencyService.findAgency(data.agencyId!, userId);
       const uploads = await Promise.all(
         files.galleryImages.map((file) =>
           this.uploadFileService.uploadFiles(
@@ -170,10 +171,13 @@ export class AnnonceController {
       cloudinaryImagesUrls = uploads.map((res) => res.secure_url);
     }
 
-    return this.announceService.updateAnnonce({
-      ...data,
-      galleryImages: cloudinaryImagesUrls,
-    });
+    return this.announceService.updateAnnonce(
+      {
+        ...data,
+        galleryImages: cloudinaryImagesUrls,
+      },
+      userId,
+    );
   }
 
   @ApiBearerAuth()
@@ -183,11 +187,7 @@ export class AnnonceController {
   @ApiOkResponse({ description: 'Annonce supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Annonce introuvable ou erreur serveur' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async remove(
-    @Query('id') id: string,
-    @Query('agencyId') agencyId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.announceService.deleteAnnonce(id, agencyId, userId);
+  async remove(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.announceService.deleteAnnonce(id, userId);
   }
 }

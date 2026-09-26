@@ -86,13 +86,6 @@ export class updateAgencyDto extends createAgencyOwnerDto {
   })
   agencyId: string;
 
-  @IsUUID()
-  @ApiProperty({
-    example: 'uuid-du-user',
-    description: "Identifiant de l'utilisateur effectuant la mise à jour",
-  })
-  userId: string;
-
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({

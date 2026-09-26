@@ -34,12 +34,6 @@ export class CreateAnnonceDto {
   agencyId?: string;
 
   @ApiPropertyOptional({
-    example: 'uuid-de-l-user',
-    description: "Identifiant d'un membre de l'agence publiant l'annonce",
-  })
-  userId?: string;
-
-  @ApiPropertyOptional({
     enum: AnnonceStatus,
     enumName: 'AnnonceStatus',
     example: AnnonceStatus.ACTIVE,

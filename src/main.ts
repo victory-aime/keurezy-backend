@@ -15,9 +15,7 @@ async function bootstrap() {
     bodyParser: false,
   });
 
-  console.log('\n========== PROJECT ENV ==========');
-
-  const projectEnvs = [
+  const requiredEnvs = [
     'NODE_ENV',
     'DATABASE_URL',
     'DIRECT_URL',
@@ -42,15 +40,16 @@ async function bootstrap() {
     'COOKIE_DOMAIN',
   ];
 
-  projectEnvs.forEach((key) => {
-    const value = process.env[key];
-
-    console.log(`${key}=${value}`);
-  });
-
-  console.log('=================================\n');
+  // Ne jamais afficher les valeurs : seules les clés manquantes sont signalées
+  const missingEnvs = requiredEnvs.filter((key) => !process.env[key]);
+  if (missingEnvs.length) {
+    console.warn(`[env] Variables manquantes : ${missingEnvs.join(', ')}`);
+  }
   // Access Express instance
   const expressApp = app.getHttpAdapter().getInstance();
+
+  // Derrière le load balancer Render : req.ip / req.ips reflètent X-Forwarded-For
+  expressApp.set('trust proxy', true);
 
   // Access BetterAuth instance from AuthService
   const authService = app.get<AuthService>(AuthService);
@@ -84,7 +83,14 @@ async function bootstrap() {
   expressApp.all(/^\/api\/auth\/.*/, toNodeHandler(authService.instance.handler));
 
   // Re-enable Nest's JSON body parser AFTER mounting BetterAuth
-  expressApp.use(express.json());
+  // Conserve le corps brut : la signature HMAC des webhooks (Naboo) est calculée dessus
+  expressApp.use(
+    express.json({
+      verify: (req: express.Request & { rawBody?: Buffer }, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));

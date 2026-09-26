@@ -149,10 +149,8 @@ export class LeadsService {
   // DÉTAIL D'UN LEAD
   // Accessible : Owner + Staff de l'agence
   // ─────────────────────────────────────────────────────────────────
-  async getLeadById(leadId: string, agencyId: string, userId: string) {
+  async getLeadById(leadId: string, userId: string) {
     try {
-      await this.agencyService.agencyAccessControl(agencyId, userId);
-
       const lead = await this.prisma.lead.findUnique({
         where: { id: leadId },
         include: {
@@ -172,6 +170,8 @@ export class LeadsService {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
       }
 
+      await this.agencyService.agencyAccessControl(lead.agencyId, userId);
+
       return lead;
     } catch (error) {
       if (error instanceof HttpError) throw error;
@@ -185,13 +185,13 @@ export class LeadsService {
   // CHANGER LE STATUT D'UN LEAD (pipeline CRM)
   // Accessible : Owner + Staff actif de l'agence
   // ─────────────────────────────────────────────────────────────────
-  async updateLeadStatus(dto: UpdateLeadStatusDto) {
+  async updateLeadStatus(dto: UpdateLeadStatusDto, userId: string) {
     try {
-      await this.agencyService.agencyAccessControl(dto.leadId, dto.userId);
       const lead = await this.prisma.lead.findUnique({ where: { id: dto.leadId } });
       if (!lead) {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
       }
+      await this.agencyService.agencyAccessControl(lead.agencyId, userId);
 
       const isConverted = (status: LeadStatus) => status === LeadStatus.CONVERTED;
 
@@ -226,13 +226,13 @@ export class LeadsService {
   // ASSIGNER UN AGENT AU LEAD
   // Accessible : Owner + AGENCY_ADMIN uniquement
   // ─────────────────────────────────────────────────────────────────
-  async assignLead(dto: AssignLeadDto) {
-    await this.agencyService.agencyAccessControl(dto.agencyId, dto?.userId);
+  async assignLead(dto: AssignLeadDto, userId: string) {
     try {
       const lead = await this.prisma.lead.findUnique({ where: { id: dto.leadId } });
       if (!lead) {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
       }
+      await this.agencyService.agencyAccessControl(lead.agencyId, userId);
 
       const staff = await this.prisma.staff.findFirst({
         where: { id: dto.staffId, agencyId: lead.agencyId, isActive: true },
@@ -282,13 +282,13 @@ export class LeadsService {
   // ─────────────────────────────────────────────────────────────────
   // SUPPRIMER UN LEAD
   // Accessible : Owner + AGENCY_ADMIN uniquement
-  async deleteLead(leadId: string, userId: string, agencyId: string) {
+  async deleteLead(leadId: string, userId: string) {
     try {
-      await this.agencyService.agencyAccessControl(agencyId, userId);
       const lead = await this.prisma.lead.findUnique({ where: { id: leadId } });
       if (!lead) {
         throw new HttpError('Lead introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
       }
+      await this.agencyService.agencyAccessControl(lead.agencyId, userId);
       //  Bloquer la suppression d'un lead converti
       if (lead.status === LeadStatus.CONVERTED) {
         throw new HttpError(

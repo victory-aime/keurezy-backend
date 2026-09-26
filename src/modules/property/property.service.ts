@@ -24,6 +24,7 @@ export class PropertyService {
         'AGENCY_ID_REQUIRED',
       );
     }
+    await this.agencyService.agencyAccessControl(query.agencyId, query.userId);
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
@@ -169,7 +170,7 @@ export class PropertyService {
       where: { id: propertyId },
     });
 
-    if (!property) {
+    if (!property || property.agencyId !== data.agencyId) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
 
@@ -233,7 +234,7 @@ export class PropertyService {
       }
     }
 
-    const { agencyId, batimentId, ...safeValues } = data;
+    const { agencyId, batimentId, userId, ...safeValues } = data;
 
     await this.prisma.property.update({
       where: { id: propertyId },

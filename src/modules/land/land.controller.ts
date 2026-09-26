@@ -22,6 +22,7 @@ import { LandService } from './land.service';
 import { AgencyService } from '../agency/agency.service';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { API_URL } from '../../config/api';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { convertToInteger } from '../../config/convert';
@@ -40,8 +41,8 @@ export class LandController {
   @ApiOperation({ summary: "Récupérer tous les terrains d'une agence" })
   @ApiOkResponse({ description: 'Liste des terrains récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async getAllLands(@Query() data: LandFilterDto) {
-    return this.landService.getAllLandByAgency(data);
+  async getAllLands(@Query() data: LandFilterDto, @AgencyProfileId() userId: string) {
+    return this.landService.getAllLandByAgency({ ...data, userId });
   }
 
   @Post(API_URL.LAND.CREATE_LAND)
@@ -53,12 +54,13 @@ export class LandController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async createLand(
     @Body('data') rawData: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: CreateLandDto = JSON.parse(rawData);
+    const data: CreateLandDto = { ...(JSON.parse(rawData) as CreateLandDto), userId };
 
     let cloudinaryDocumentsFilesUrl: string[] = [];
     const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data.userId);
@@ -92,12 +94,13 @@ export class LandController {
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async updateLand(
     @Body('data') rawData: string,
+    @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: UpdateLandDto = JSON.parse(rawData);
+    const data: UpdateLandDto = { ...(JSON.parse(rawData) as UpdateLandDto), userId };
 
     let cloudinaryDocumentsFilesUrl: string[] = [];
 

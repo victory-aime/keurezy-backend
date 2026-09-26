@@ -22,14 +22,14 @@ export class VisitsService {
         where: { id: dto.leadId },
         include: { client: { include: { user: true } } },
       });
-      if (!lead) {
+      if (!lead || lead.agencyId !== agencyId) {
         throw new HttpError('Demande introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
       }
 
       const property = await this.prisma.property.findUnique({
         where: { id: dto.propertyId },
       });
-      if (!property) {
+      if (!property || property.agencyId !== agencyId) {
         throw new HttpError('Bien introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
       }
 
@@ -158,7 +158,7 @@ export class VisitsService {
   }
 
   // DETAIL D'UNE VISITE
-  async getVisitById(visitId: string) {
+  async getVisitById(visitId: string, userId: string) {
     try {
       const visit = await this.prisma.visit.findUnique({
         where: { id: visitId },
@@ -173,7 +173,11 @@ export class VisitsService {
         },
       });
 
-      if (!visit) {
+      const isVisitClient = visit?.lead?.client?.userId === userId;
+      if (
+        !visit ||
+        (!isVisitClient && !(await this.agencyService.isAgencyMember(visit.agencyId, userId)))
+      ) {
         throw new HttpError('Visite introuvable', HttpStatus.NOT_FOUND, 'VISIT_NOT_FOUND');
       }
 
@@ -211,9 +215,7 @@ export class VisitsService {
     }
   }
 
-  async updateVisit(userId: string, agencyId: string, dto: UpdateVisitDto) {
-    const actor = await this.agencyService.agencyAccessControl(agencyId, userId);
-
+  async updateVisit(userId: string, dto: UpdateVisitDto) {
     try {
       const visit = await this.prisma.visit.findUnique({
         where: { id: dto.visitId },
@@ -227,6 +229,8 @@ export class VisitsService {
       if (!visit) {
         throw new HttpError('Visite introuvable', HttpStatus.NOT_FOUND, 'VISIT_NOT_FOUND');
       }
+
+      const actor = await this.agencyService.agencyAccessControl(visit.agencyId, userId);
 
       // 🔒 BLOCK if DONE
       if (visit.status === VisitStatus.DONE) {
@@ -357,13 +361,13 @@ export class VisitsService {
   }
 
   // ASSIGNER UN AGENT A UNE VISITE
-  async assignAgent(visitId: string, dto: AssignAgentDto) {
-    await this.agencyService.agencyAccessControl(dto.agencyId, dto?.userId);
+  async assignAgent(visitId: string, dto: AssignAgentDto, userId: string) {
     try {
       const visit = await this.prisma.visit.findUnique({ where: { id: visitId } });
       if (!visit) {
         throw new HttpError('Visite introuvable', HttpStatus.NOT_FOUND, 'VISIT_NOT_FOUND');
       }
+      await this.agencyService.agencyAccessControl(visit.agencyId, userId);
 
       if (visit.agentId === dto.agentId) {
         return { message: 'Cet agent est deja assigne a cette visite.' };
@@ -401,10 +405,8 @@ export class VisitsService {
     }
   }
 
-  async cancelVisit(visitId: string, agencyId: string, userId: string) {
+  async cancelVisit(visitId: string, userId: string) {
     try {
-      await this.agencyService.agencyAccessControl(agencyId, userId);
-
       const visit = await this.prisma.visit.findUnique({
         where: { id: visitId },
         include: {
@@ -429,6 +431,8 @@ export class VisitsService {
       if (!visit) {
         throw new HttpError('Visite introuvable', HttpStatus.NOT_FOUND, 'VISIT_NOT_FOUND');
       }
+
+      await this.agencyService.agencyAccessControl(visit.agencyId, userId);
 
       // 🔒 DONE = locked
       if (visit.status === VisitStatus.DONE) {

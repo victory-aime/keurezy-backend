@@ -50,6 +50,13 @@ export class PushNotificationService {
   /**
    * Supprime un token (ex logout, token expiré côté FCM).
    */
+  /** Suppression demandée par l'utilisateur : limitée à ses propres appareils. */
+  async removeUserDeviceToken(userId: string, fcmToken: string): Promise<void> {
+    await this.prisma.deviceToken.deleteMany({
+      where: { token: fcmToken, userId },
+    });
+  }
+
   async removeDeviceToken(fcmToken: string): Promise<void> {
     await this.prisma.deviceToken.delete({
       where: { token: fcmToken },
@@ -85,7 +92,7 @@ export class PushNotificationService {
 
   async sendToUser(userId: string, payload: PushNotificationsDto) {
     const tokens = await this.getTokensByUserId(userId);
-    this.logger.log(`Destinataire — envoi push FCM à ${tokens}`);
+    this.logger.log(`Envoi push FCM — user=${userId}, appareils=${tokens.length}`);
     if (!tokens.length) {
       return;
     }

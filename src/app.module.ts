@@ -8,7 +8,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { AgencyModule } from './modules/agency/agency.module';
 import { PropertyModule } from './modules/property/property.module';
 import { BetterAuthModule } from './lib/auth.module';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { SessionThrottlerGuard } from './guard/throttler.guard';
 import { PackModule } from './modules/packs/pack.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuildingModule } from './modules/building/building.module';
@@ -50,7 +51,8 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     ThrottlerModule.forRoot({
       throttlers: [
         {
-          ttl: 10,
+          // ttl en millisecondes (Throttler v6) : 100 requêtes / 10 s par utilisateur
+          ttl: 10_000,
           limit: 100,
         },
       ],
@@ -76,7 +78,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: SessionThrottlerGuard },
   ],
 })
 export class AppModule {}

@@ -12,6 +12,7 @@ import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '../../config/api';
+import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
 
 @ApiTags('Visits')
 @ApiBearerAuth()
@@ -30,7 +31,7 @@ export class VisitsController {
   async createVisit(
     @Body() dto: CreateVisitDto,
     @Query('agencyId') agencyId: string,
-    @Query('userId') userId: string,
+    @AgencyProfileId() userId: string,
   ) {
     return this.visitsService.createVisit(dto, agencyId, userId);
   }
@@ -41,7 +42,7 @@ export class VisitsController {
   @ApiOperation({ summary: "Lister toutes les visites d'une agence" })
   @ApiOkResponse({ description: 'Liste des visites récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getVisitsByAgency(@Query('agencyId') agencyId: string, @Query('userId') userId: string) {
+  async getVisitsByAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.visitsService.getVisitsByAgency(agencyId, userId);
   }
 
@@ -50,8 +51,8 @@ export class VisitsController {
   @ApiOperation({ summary: "Détail d'une visite" })
   @ApiOkResponse({ description: 'Visite récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getVisitById(@Query('visitId') visitId: string) {
-    return this.visitsService.getVisitById(visitId);
+  async getVisitById(@Query('visitId') visitId: string, @CurrentUserId() userId: string) {
+    return this.visitsService.getVisitById(visitId, userId);
   }
 
   // GET v1/secure/visits/my-visits
@@ -60,7 +61,7 @@ export class VisitsController {
   @ApiOperation({ summary: 'Voir mes visites planifiées (client connecté)' })
   @ApiOkResponse({ description: 'Liste de mes visites récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getMyVisits(@Query('userId') userId: string) {
+  async getMyVisits(@CurrentUserId() userId: string) {
     return this.visitsService.getMyVisits(userId);
   }
 
@@ -71,12 +72,8 @@ export class VisitsController {
   @ApiBody({ type: UpdateVisitDto })
   @ApiOkResponse({ description: 'Mis à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async updateVisitStatus(
-    @Query('agencyId') agencyId: string,
-    @Query('userId') userId: string,
-    @Body() dto: UpdateVisitDto,
-  ) {
-    return this.visitsService.updateVisit(userId, agencyId, dto);
+  async updateVisitStatus(@AgencyProfileId() userId: string, @Body() dto: UpdateVisitDto) {
+    return this.visitsService.updateVisit(userId, dto);
   }
 
   // PATCH v1/secure/visits/assign-agent?visitId=xxx
@@ -86,8 +83,12 @@ export class VisitsController {
   @ApiBody({ type: AssignAgentDto })
   @ApiOkResponse({ description: 'Agent assigné avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async assignAgent(@Query('visitId') visitId: string, @Body() dto: AssignAgentDto) {
-    return this.visitsService.assignAgent(visitId, dto);
+  async assignAgent(
+    @Query('visitId') visitId: string,
+    @Body() dto: AssignAgentDto,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.visitsService.assignAgent(visitId, dto, userId);
   }
 
   // DELETE v1/secure/visits/delete?visitId=
@@ -96,11 +97,7 @@ export class VisitsController {
   @ApiOperation({ summary: 'Supprimer une visite' })
   @ApiOkResponse({ description: 'Visite supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async deleteVisit(
-    @Query('visitId') visitId: string,
-    @Query('agencyId') agencyId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.visitsService.cancelVisit(visitId, agencyId, userId);
+  async deleteVisit(@Query('visitId') visitId: string, @AgencyProfileId() userId: string) {
+    return this.visitsService.cancelVisit(visitId, userId);
   }
 }

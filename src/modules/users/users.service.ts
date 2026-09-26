@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { User } from '../../../prisma/generated/client';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { HttpError } from '../../config/http.error';
 import { getAuthInstance } from '../../lib/auth';
 
@@ -99,22 +99,20 @@ export class UsersService {
     return !!user;
   }
 
-  async updateUser(data: User): Promise<{ message: string }> {
-    if (!data?.id) {
-      throw new HttpError('Informations utilisateur manquantes', HttpStatus.BAD_REQUEST);
-    }
-
-    const existingUser = await this.findUser({ id: data.id });
+  async updateUser(userId: string, data: UpdateUserDto): Promise<{ message: string }> {
+    const existingUser = await this.findUser({ id: userId });
 
     if (!existingUser) {
       throw new HttpError('Informations utilisateur manquantes', HttpStatus.BAD_REQUEST);
     }
 
+    // Seuls les champs de profil explicitement autorisés sont écrits
     await this.prisma.user.update({
       where: { id: existingUser.id },
       data: {
-        ...data,
-        email: existingUser.email,
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.theme_color !== undefined && { theme_color: data.theme_color }),
+        ...(data.theme_mode !== undefined && { theme_mode: data.theme_mode }),
       },
     });
 
