@@ -1,7 +1,7 @@
 import { prisma } from './client';
-import { getAuthInstance } from '../../src/lib/auth';
+import { initAuthInstance } from '../../src/lib/auth';
 
-const auth = getAuthInstance();
+const auth = initAuthInstance(prisma);
 
 async function main() {
   console.log('🌱 Seeding database...');

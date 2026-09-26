@@ -7,20 +7,30 @@ import { passkey } from '@better-auth/passkey';
 import { expo } from '@better-auth/expo';
 import { authEmailBridge } from '../modules/auth/auth-email.bridge';
 import { formatExpiresIn } from '../modules/mail/utils/getExpiresTime';
-import { prisma } from '../../prisma/seed/client';
+import { PrismaClient } from '../../prisma/generated/client';
 import { customSession } from 'better-auth/plugins/custom-session';
 import { i18n } from '@better-auth/i18n';
 
 let authInstance: ReturnType<typeof createAuth> | null = null;
 
+/**
+ * Initialise l'unique instance Better Auth avec le client Prisma fourni
+ * (PrismaService dans l'application, client dédié dans les scripts de seed).
+ */
+export const initAuthInstance = (prisma: PrismaClient) => {
+  authInstance ??= createAuth(prisma);
+  return authInstance;
+};
+
+/** Instance Better Auth partagée ; initialisée au démarrage par BetterAuthModule. */
 export const getAuthInstance = () => {
   if (!authInstance) {
-    authInstance = createAuth();
+    throw new Error('Better Auth non initialisé : BetterAuthModule doit être chargé');
   }
   return authInstance;
 };
 
-export const createAuth = () => {
+const createAuth = (prisma: PrismaClient) => {
   const isDev = process.env.NODE_ENV !== 'production';
   return betterAuth({
     advanced: {
