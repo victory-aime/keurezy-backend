@@ -5,9 +5,10 @@ import { PropertyController } from './property.controller';
 import { PropertyService } from './property.service';
 import { AgencyModule } from '../agency/agency.module';
 import { PackModule } from '../packs/pack.module';
+import { RentalsModule } from '../rentals/rentals.module';
 
 @Module({
-  imports: [DatabaseModule, CloudinaryModule, AgencyModule, PackModule],
+  imports: [DatabaseModule, CloudinaryModule, AgencyModule, PackModule, RentalsModule],
   controllers: [PropertyController],
   providers: [PropertyService],
 })

@@ -1,8 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { PropertyStatus, PropertyType, PropertyFeature } from '../../../prisma/generated/enums';
 import { PaginationDto } from '../../config/pagination.dto';
+import { RentalConfigDto } from '../rentals/rentals.dto';
 
 export class PropertyDto {
   @ApiProperty({
@@ -151,6 +152,17 @@ export class PropertyDto {
   @IsOptional()
   @IsEnum(PropertyStatus)
   status?: PropertyStatus;
+
+  @ApiPropertyOptional({
+    type: [RentalConfigDto],
+    description:
+      'Modalités de location (obligatoires à la création). Le prix et la caution du bien en sont dérivés.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RentalConfigDto)
+  rentalConfigs?: RentalConfigDto[];
 }
 
 export class PropertyFilterDto extends PaginationDto {

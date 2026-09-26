@@ -119,6 +119,17 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
         district: 'Almadies',
         propertyOwner: 'M. Diallo',
         status: 'AVAILABLE',
+        rentalConfigs: [
+          {
+            rentalType: 'MONTHLY',
+            price: 150000,
+            deposit: 300000,
+            minDuration: 1,
+            maxDuration: 12,
+            isActive: true,
+            availabilities: [{ startDate: '2026-08-01', endDate: '2026-08-30' }],
+          },
+        ],
       },
     ],
     [

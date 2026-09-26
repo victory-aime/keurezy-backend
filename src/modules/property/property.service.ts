@@ -7,6 +7,7 @@ import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
+import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
 
 @Injectable()
 export class PropertyService {
@@ -14,6 +15,7 @@ export class PropertyService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
+    private readonly rentalConfigService: RentalConfigService,
   ) {}
 
   async getAllPropertyByAgency(query: PropertyFilterDto, userId: string) {
@@ -45,6 +47,7 @@ export class PropertyService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.property.findMany({
         where: propertyFilterOptions,
+        include: RENTAL_INCLUDE,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limitPage,
@@ -82,12 +85,8 @@ export class PropertyService {
     await this.agencyService.agencyAccessControl(data.agencyId, userId);
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
-    const currentProperties = await this.prisma.annonce.count({
-      where: {
-        property: {
-          agencyId: data.agencyId,
-        },
-      },
+    const currentProperties = await this.prisma.property.count({
+      where: { agencyId: data.agencyId },
     });
 
     const check = this.planFeaturePolicy.checkCapacity(
@@ -157,7 +156,15 @@ export class PropertyService {
       }
     }
 
-    await this.prisma.property.create({ data });
+    const { rentalConfigs = [], ...propertyValues } = data;
+    this.rentalConfigService.validate(rentalConfigs);
+
+    await this.prisma.$transaction(async (tx) => {
+      const property = await tx.property.create({
+        data: { ...propertyValues, ...this.rentalConfigService.referencePricing(rentalConfigs) },
+      });
+      await this.rentalConfigService.replaceForProperty(tx, property.id, rentalConfigs);
+    });
 
     return { message: 'Propriété créée avec succès' };
   }
@@ -236,17 +243,25 @@ export class PropertyService {
       }
     }
 
-    const { agencyId, batimentId, ...safeValues } = data;
+    const { agencyId, batimentId, rentalConfigs, ...safeValues } = data;
+    // Modalités absentes (anciens clients) : elles restent inchangées
+    if (rentalConfigs) this.rentalConfigService.validate(rentalConfigs);
 
-    await this.prisma.property.update({
-      where: { id: propertyId },
-      data: {
-        ...safeValues,
-        agency: { connect: { id: agencyId } },
-        ...(batimentId
-          ? { batiment: { connect: { id: batimentId } } }
-          : { batiment: { disconnect: true } }),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.property.update({
+        where: { id: propertyId },
+        data: {
+          ...safeValues,
+          ...(rentalConfigs && this.rentalConfigService.referencePricing(rentalConfigs)),
+          agency: { connect: { id: agencyId } },
+          ...(batimentId
+            ? { batiment: { connect: { id: batimentId } } }
+            : { batiment: { disconnect: true } }),
+        },
+      });
+      if (rentalConfigs) {
+        await this.rentalConfigService.replaceForProperty(tx, propertyId, rentalConfigs);
+      }
     });
 
     return { message: 'Propriété mis a jour avec succès' };
