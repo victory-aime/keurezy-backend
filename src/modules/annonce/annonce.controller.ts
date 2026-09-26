@@ -28,6 +28,7 @@ import { UploadsService } from '../cloudinary/uploads.service';
 import { AgencyService } from '../agency/agency.service';
 import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
+import { MultipartJson } from '../../config/multipart-json.decorator';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
 @ApiTags('Annonces')
@@ -69,15 +70,14 @@ export class AnnonceController {
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async create(
-    @Body('data') rawData: string,
+    @MultipartJson('data', CreateAnnonceDto) data: CreateAnnonceDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
-    const data: CreateAnnonceDto = JSON.parse(rawData);
     let cloudinaryImagesUrls: string[] = [];
 
     if (files?.galleryImages?.length) {
-      const agency = await this.agencyService.findAgency(data.agencyId!, userId);
+      const agency = await this.agencyService.findAgency(data.agencyId, userId);
       const uploads = await Promise.all(
         files.galleryImages.map((file) =>
           this.uploadFileService.uploadFiles(
@@ -150,12 +150,12 @@ export class AnnonceController {
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'galleryImages', maxCount: 5 }]))
   async updateAnnonce(
-    @Body('data') rawData: string,
+    @MultipartJson('data', UpdateAnnonceDto) data: UpdateAnnonceDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles() files: { galleryImages?: Express.Multer.File[] },
   ) {
-    const data: UpdateAnnonceDto = JSON.parse(rawData);
-    let cloudinaryImagesUrls: string[] = [];
+    // Sans nouvel upload, la galerie existante est conservée (undefined ≠ [])
+    let cloudinaryImagesUrls: string[] | undefined;
 
     if (files?.galleryImages?.length) {
       const agency = await this.agencyService.findAgency(data.agencyId!, userId);

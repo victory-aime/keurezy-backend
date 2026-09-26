@@ -2,7 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
 import { Decimal } from '../../../prisma/generated/internal/prismaNamespace';
-import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
+import { CreatePlanDto, UpdatePlanDto } from './pack.dto';
 import { PlanCategory } from '../../../prisma/generated/enums';
 
 @Injectable()
@@ -90,7 +90,7 @@ export class PackAdminService {
   // ─────────────────────────────────────────
   // 3. Créer un plan
   // ─────────────────────────────────────────
-  async createPlan(data: CreatePlanInput) {
+  async createPlan(data: CreatePlanDto) {
     const existing = await this.prisma.subscriptionPlan.findUnique({
       where: { name: data.name },
     });
@@ -159,7 +159,7 @@ export class PackAdminService {
   // ─────────────────────────────────────────
   // 4. Mettre à jour un plan + ses features/limites
   // ─────────────────────────────────────────
-  async updatePlan(planId: string, data: UpdatePlanInput) {
+  async updatePlan(planId: string, data: UpdatePlanDto) {
     const existing = await this.prisma.subscriptionPlan.findUnique({
       where: { id: planId },
       include: { planFeatures: true, pricings: true },

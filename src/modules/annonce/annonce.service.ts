@@ -3,7 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AnnonceStatus } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
-import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { HttpError } from '../../config/http.error';
 import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
 import { FeatureCommercial } from '../../config/enum';
@@ -262,8 +262,9 @@ export class AnnounceService {
     await this.prisma.annonce.update({
       where: { id: dto.id },
       data: {
+        title: dto.title ?? annonce.title,
         description: dto.description ?? annonce.description,
-        galleryImages: dto.galleryImages ?? annonce.galleryImages,
+        galleryImages: dto.galleryImages?.length ? dto.galleryImages : annonce.galleryImages,
         status: nextStatus,
         publishedAt:
           nextStatus === AnnonceStatus.ACTIVE ? (annonce.publishedAt ?? new Date()) : null,

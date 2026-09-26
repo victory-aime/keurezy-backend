@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
+import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
   LeadStatus,
@@ -21,7 +21,7 @@ import * as crypto from 'crypto';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { getAuthInstance } from '../../lib/auth';
 import { UsersService } from '../users/users.service';
-import { PaymentService } from '../common/services/payment.service';
+import { PaymentService } from '../payments/services/payment.service';
 import { HttpError } from '../../config/http.error';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 
@@ -123,7 +123,7 @@ export class AgencyService {
   // ─────────────────────────────────────────
 
   async createAgency(
-    data: createAgencyOwnerDto,
+    data: CreateAgencyOwnerDto,
   ): Promise<{ message: string } | { checkout_url: string; order_id: string }> {
     try {
       const existingUser = await this.userService.findUser({
@@ -241,7 +241,7 @@ export class AgencyService {
   // MISE À JOUR
   // ─────────────────────────────────────────
 
-  async updateAgency(data: updateAgencyDto, userId: string): Promise<{ message: string }> {
+  async updateAgency(data: UpdateAgencyDto, userId: string): Promise<{ message: string }> {
     try {
       const agency = await this.findAgency(data.agencyId, userId);
       await this.prismaService.agency.update({

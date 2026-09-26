@@ -1,31 +1,49 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { LandPaymentType, LandStatus } from '../../../prisma/generated/enums';
-import { IPaginationDto } from '../../config/pagination.dto';
+import { PaginationDto } from '../../config/pagination.dto';
 
 export class LandDto {
   @ApiProperty({ example: 'Terrain Almadies', description: 'Titre du terrain' })
+  @IsString()
   title: string;
 
   @ApiProperty({ example: 15000000, description: "Prix d'achat du terrain (en FCFA)" })
+  @Type(() => Number)
+  @IsNumber()
   purchasePrice: number;
 
   @ApiProperty({ example: 500, description: 'Superficie du terrain en m²' })
+  @Type(() => Number)
+  @IsNumber()
   area: number;
 
   @ApiProperty({ example: 'Dakar', description: 'Ville où se situe le terrain' })
+  @IsString()
   city: string;
 
   @ApiPropertyOptional({ example: 'Almadies', description: 'Quartier ou district du terrain' })
+  @IsOptional()
+  @IsString()
   district?: string;
 
+  @ApiPropertyOptional({ example: 'Route de Ngor', description: 'Adresse du terrain' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
   @ApiPropertyOptional({ example: 'Mamadou Diallo', description: 'Propriétaire du terrain' })
-  landOwner?: string;
+  @IsOptional()
+  @IsString()
+  landOwner?: string | null;
 
   @ApiProperty({
     enum: LandStatus,
     example: LandStatus.AVAILABLE,
     description: 'Statut du terrain',
   })
+  @IsEnum(LandStatus)
   status: LandStatus;
 
   @ApiProperty({
@@ -33,36 +51,33 @@ export class LandDto {
     example: LandPaymentType.CASH,
     description: 'Type de paiement',
   })
+  @IsEnum(LandPaymentType)
   paymentType: LandPaymentType;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: ['https://res.cloudinary.com/example/doc.pdf'],
-    description: 'URLs des documents du terrain',
+    description: 'URLs des documents — injectées après upload',
     type: [String],
   })
-  documents: string[];
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  documents?: string[];
 
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
+  @IsString()
   agencyId: string;
-
-  @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
-  userId: string;
 }
 
-export class CreateLandDto extends LandDto {
-  @ApiProperty({ example: 'uuid-du-proprietaire', description: 'Identifiant du propriétaire' })
-  ownerId: string;
-}
+export class CreateLandDto extends LandDto {}
 
 export class UpdateLandDto extends LandDto {
   @ApiProperty({
     example: 'uuid-du-terrain',
     description: 'Identifiant du terrain à mettre à jour',
   })
+  @IsString()
   id: string;
-
-  @ApiProperty({ example: 'uuid-du-proprietaire', description: 'Identifiant du propriétaire' })
-  ownerId: string;
 }
 
 export class LandResponseDto extends LandDto {
@@ -73,4 +88,16 @@ export class LandResponseDto extends LandDto {
   batiments: any[];
 }
 
-export interface LandFilterDto extends IPaginationDto, LandDto {}
+export class LandFilterDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsEnum(LandStatus)
+  status?: LandStatus;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+}

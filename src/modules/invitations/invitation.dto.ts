@@ -1,14 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsEmail,
-  IsEnum,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsString, ValidateNested } from 'class-validator';
 import { AgencyRole } from '../../../prisma/generated/enums';
 
 export class InvitationPermissionDto {
@@ -56,16 +48,6 @@ export class InvitationPayloadDto {
 }
 
 export class CreateInvitationDto {
-  // Renseigné côté serveur depuis la session (User.id de l'expéditeur).
-  @IsOptional()
-  @IsString()
-  adminId: string;
-
-  // Renseigné côté serveur depuis la session (profil agence de l'expéditeur).
-  @IsOptional()
-  @IsString()
-  userId: string;
-
   @ApiProperty({ example: 'uuid-de-l-agence', description: "Identifiant de l'agence" })
   @IsString()
   agencyId: string;

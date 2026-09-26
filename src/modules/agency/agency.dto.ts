@@ -1,17 +1,29 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
-  IsObject,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { BillingCycle } from '../../../prisma/generated/enums';
 
-export class createAgencyOwnerDto {
+export class PlanSelectionDto {
+  @ApiProperty({ example: 'uuid-du-plan', description: 'Identifiant du plan choisi' })
+  @IsString()
+  planId: string;
+
+  @ApiPropertyOptional({ enum: BillingCycle, example: BillingCycle.MONTHLY })
+  @IsOptional()
+  @IsEnum(BillingCycle)
+  billingCycle?: BillingCycle;
+}
+
+export class CreateAgencyOwnerDto {
   @IsString()
   @ApiProperty({ example: 'NANA Beauty Salon', description: "Nom de l'agence" })
   name: string;
@@ -36,7 +48,8 @@ export class createAgencyOwnerDto {
   description: string;
 
   @ApiProperty({ description: "Accepter les conditions d'utilisation", example: true })
-  @Transform(({ value }) => value === 'true')
+  // Accepte le booléen (JSON) comme la chaîne 'true' (champ de formulaire)
+  @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   acceptTerms: boolean;
 
@@ -50,15 +63,10 @@ export class createAgencyOwnerDto {
   })
   documents?: string[] | File[] | any;
 
-  @IsObject()
-  @ApiProperty({
-    description: "Plan choisi à l'onboarding",
-    example: { planId: 'uuid-du-plan', billingCycle: 'MONTHLY' },
-  })
-  plan: {
-    planId: string;
-    billingCycle: BillingCycle;
-  };
+  @ValidateNested()
+  @Type(() => PlanSelectionDto)
+  @ApiProperty({ type: PlanSelectionDto, description: "Plan choisi à l'onboarding" })
+  plan: PlanSelectionDto;
 
   @IsEmail()
   @ApiProperty({ example: 'owner@example.com', description: 'Email du compte propriétaire' })
@@ -78,7 +86,7 @@ export class createAgencyOwnerDto {
   password: string;
 }
 
-export class updateAgencyDto {
+export class UpdateAgencyDto {
   @IsUUID()
   @ApiProperty({
     example: 'uuid-de-l-agence',

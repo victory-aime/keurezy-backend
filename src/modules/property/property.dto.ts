@@ -2,9 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PropertyStatus, PropertyType, PropertyFeature } from '../../../prisma/generated/enums';
-import { IPaginationDto } from '../../config/pagination.dto';
+import { PaginationDto } from '../../config/pagination.dto';
 
-export class propertyDto {
+export class PropertyDto {
   @ApiProperty({
     description: 'Identifiant unique de la propriété',
     example: 'ckx123abc',
@@ -19,11 +19,6 @@ export class propertyDto {
   })
   @IsString()
   agencyId: string;
-
-  // Renseigné côté serveur depuis la session (toute valeur envoyée par le client est écrasée).
-  @IsOptional()
-  @IsString()
-  userId: string;
 
   @IsOptional()
   @IsString()
@@ -158,7 +153,7 @@ export class propertyDto {
   status?: PropertyStatus;
 }
 
-export class PropertyFilterDto extends IPaginationDto {
+export class PropertyFilterDto extends PaginationDto {
   @IsOptional()
   @IsString()
   title?: string;

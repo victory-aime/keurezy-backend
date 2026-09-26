@@ -9,7 +9,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { propertyDto, PropertyFilterDto } from './property.dto';
+import { PropertyDto, PropertyFilterDto } from './property.dto';
 import { PropertyService } from './property.service';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { PermissionGuard, RequirePermission } from '../../guard/permission.guard';
@@ -28,7 +28,7 @@ export class PropertyController {
   @ApiOkResponse({ description: 'Liste des propriétés récupérée avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async allProperties(@Query() data: PropertyFilterDto, @AgencyProfileId() userId: string) {
-    return this.propertyService.getAllPropertyByAgency({ ...data, userId });
+    return this.propertyService.getAllPropertyByAgency(data, userId);
   }
 
   @Get(API_URL.PROPERTY.ALL_PROPERTIES_PUBLIC)
@@ -44,25 +44,25 @@ export class PropertyController {
   @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission('create_property')
   @ApiOperation({ summary: 'Créer une nouvelle propriété' })
-  @ApiBody({ type: propertyDto })
+  @ApiBody({ type: PropertyDto })
   @ApiOkResponse({ description: 'Propriété ajoutée avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async createProperty(@Body() data: propertyDto, @AgencyProfileId() userId: string) {
-    return this.propertyService.createProperty({ ...data, userId });
+  async createProperty(@Body() data: PropertyDto, @AgencyProfileId() userId: string) {
+    return this.propertyService.createProperty(data, userId);
   }
 
   @Post(API_URL.PROPERTY.UPDATE_PROPERTY)
   @ApiOperation({ summary: 'Mettre a jour une propriété' })
-  @ApiBody({ type: propertyDto })
+  @ApiBody({ type: PropertyDto })
   @ApiQuery({ name: 'appartId', required: true, description: 'Identifiant de la propriété' })
   @ApiOkResponse({ description: 'Propriété mise a jour avec success' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async updateProperty(
-    @Body() data: propertyDto,
+    @Body() data: PropertyDto,
     @Query('appartId') appartId: string,
     @AgencyProfileId() userId: string,
   ) {
-    return this.propertyService.updateProperty(appartId, { ...data, userId });
+    return this.propertyService.updateProperty(appartId, data, userId);
   }
 
   @Get(API_URL.PROPERTY.OCCUPATION_RATE_BY_PROPERTY_TYPE)

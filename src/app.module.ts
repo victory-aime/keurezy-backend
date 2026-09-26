@@ -14,7 +14,7 @@ import { PackModule } from './modules/packs/pack.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuildingModule } from './modules/building/building.module';
 import { LandModule } from './modules/land/land.module';
-import { CommonModule } from './modules/common/common.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { InvitationModule } from './modules/invitations/invitation.module';
 import { AnnounceModule } from './modules/annonce/annonce.module';
 import { TeamModule } from './modules/team/team.module';
@@ -65,7 +65,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     BuildingModule,
     PackModule,
     LandModule,
-    CommonModule,
+    PaymentsModule,
     AnnounceModule,
     InvitationModule,
     TeamModule,

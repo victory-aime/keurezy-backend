@@ -10,7 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { Role, FeatureCategory } from '../../../prisma/generated/enums';
-import { FeaturesAdminService } from './services/features-admin.service';
+import { FeaturesAdminService } from './features-admin.service';
 import { API_URL } from '../../config/api';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 

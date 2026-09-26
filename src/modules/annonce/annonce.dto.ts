@@ -6,18 +6,21 @@ import { IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'cla
 
 export class CreateAnnonceDto {
   @ApiProperty({ example: 'Appartement F3 Almadies', description: "Titre de l'annonce" })
+  @IsString()
   title: string;
 
   @ApiProperty({
     example: 'uuid-de-la-propriete',
     description: 'Identifiant de la propriété concernée',
   })
+  @IsString()
   propertyId: string;
 
   @ApiProperty({
     example: 'Bel appartement lumineux avec vue sur mer...',
     description: "Description détaillée de l'annonce",
   })
+  @IsString()
   description: string;
 
   @ApiPropertyOptional({
@@ -27,13 +30,17 @@ export class CreateAnnonceDto {
     type: [String],
     isArray: true,
   })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   galleryImages?: string[];
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'uuid-de-l-agence',
     description: "Identifiant de l'agence publiant l'annonce",
   })
-  agencyId?: string;
+  @IsString()
+  agencyId: string;
 
   @ApiPropertyOptional({
     enum: AnnonceStatus,
@@ -41,11 +48,14 @@ export class CreateAnnonceDto {
     example: AnnonceStatus.ACTIVE,
     description: "Statut de l'annonce",
   })
+  @IsOptional()
+  @IsEnum(AnnonceStatus)
   status?: AnnonceStatus;
 }
 
 export class UpdateAnnonceDto extends PartialType(CreateAnnonceDto) {
   @ApiProperty({ example: 'uuid-de-l-annonce', description: "Identifiant de l'annonce à modifier" })
+  @IsString()
   id: string;
 }
 

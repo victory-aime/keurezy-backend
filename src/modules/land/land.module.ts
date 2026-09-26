@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { CommonModule } from '../common/common.module';
+import { PackModule } from '../packs/pack.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { AgencyModule } from '../agency/agency.module';
 import { LandController } from './land.controller';
 import { LandService } from './land.service';
 
 @Module({
-  imports: [CloudinaryModule, AgencyModule, CommonModule],
+  imports: [CloudinaryModule, AgencyModule, PackModule],
   controllers: [LandController],
   providers: [LandService],
 })

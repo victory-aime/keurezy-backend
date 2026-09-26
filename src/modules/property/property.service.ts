@@ -1,12 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { propertyDto, PropertyFilterDto } from './property.dto';
+import { PropertyDto, PropertyFilterDto } from './property.dto';
 import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
 import { FeatureCommercial } from '../../config/enum';
-import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 
 @Injectable()
 export class PropertyService {
@@ -16,7 +16,7 @@ export class PropertyService {
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
-  async getAllPropertyByAgency(query: PropertyFilterDto) {
+  async getAllPropertyByAgency(query: PropertyFilterDto, userId: string) {
     if (!query.agencyId) {
       throw new HttpError(
         "L'identifiant de l'agence est requis",
@@ -24,7 +24,7 @@ export class PropertyService {
         'AGENCY_ID_REQUIRED',
       );
     }
-    await this.agencyService.agencyAccessControl(query.agencyId, query.userId);
+    await this.agencyService.agencyAccessControl(query.agencyId, userId);
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
@@ -78,8 +78,8 @@ export class PropertyService {
     });
   }
 
-  async createProperty(data: propertyDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+  async createProperty(data: PropertyDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
     const currentProperties = await this.prisma.annonce.count({
@@ -157,15 +157,17 @@ export class PropertyService {
       }
     }
 
-    const { userId, ...extractValues } = data;
-
-    await this.prisma.property.create({ data: { ...extractValues } });
+    await this.prisma.property.create({ data });
 
     return { message: 'Propriété créée avec succès' };
   }
 
-  async updateProperty(propertyId: string, data: propertyDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+  async updateProperty(
+    propertyId: string,
+    data: PropertyDto,
+    userId: string,
+  ): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId },
     });
@@ -234,7 +236,7 @@ export class PropertyService {
       }
     }
 
-    const { agencyId, batimentId, userId, ...safeValues } = data;
+    const { agencyId, batimentId, ...safeValues } = data;
 
     await this.prisma.property.update({
       where: { id: propertyId },

@@ -23,6 +23,7 @@ import { AgencyService } from '../agency/agency.service';
 import { BuildingService } from './building.service';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { API_URL } from '../../config/api';
+import { MultipartJson } from '../../config/multipart-json.decorator';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { BuildingFilterDto, CreateBuildingDto, UpdateBuildingDto } from './building.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
@@ -42,28 +43,26 @@ export class BuildingController {
   @ApiOkResponse({ description: 'Liste des bâtiments récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getBuildingByAgency(@Query() data: BuildingFilterDto, @AgencyProfileId() userId: string) {
-    return this.buildingService.getAllBuildingByAgency({ ...data, userId });
+    return this.buildingService.getAllBuildingByAgency(data, userId);
   }
 
   @Post(API_URL.BUILDING.CREATE_BUILDING)
   @ApiOperation({ summary: 'Créer un nouveau bâtiment' })
-  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateBuildingDto })
   @ApiOkResponse({ description: 'Bâtiment créé avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async createBuilding(
-    @Body('data') rawData: string,
+    @MultipartJson('data', CreateBuildingDto) data: CreateBuildingDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: CreateBuildingDto = { ...(JSON.parse(rawData) as CreateBuildingDto), userId };
     let cloudinaryDocumentsFilesUrl: string[] = [];
-    const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
+    const getAgencyName = await this.agencyService.findAgency(data.agencyId, userId);
     if (files?.documents?.length) {
       const uploads = await Promise.all(
         files.documents.map((document) =>
@@ -76,32 +75,30 @@ export class BuildingController {
       );
       cloudinaryDocumentsFilesUrl = uploads.map((file) => file.secure_url);
     }
-    return this.buildingService.createBuilding({
-      ...data,
-      documents: cloudinaryDocumentsFilesUrl,
-    });
+    return this.buildingService.createBuilding(
+      { ...data, documents: cloudinaryDocumentsFilesUrl },
+      userId,
+    );
   }
 
   @Post(API_URL.BUILDING.UPDATE)
   @ApiOperation({ summary: 'Mettre à jour un bâtiment existant' })
-  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UpdateBuildingDto })
   @ApiOkResponse({ description: 'Bâtiment mis à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async updateBuilding(
-    @Body('data') rawData: string,
+    @MultipartJson('data', UpdateBuildingDto) data: UpdateBuildingDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: UpdateBuildingDto = { ...(JSON.parse(rawData) as UpdateBuildingDto), userId };
-
-    let cloudinaryDocumentsFilesUrl: string[] = [];
-    const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
+    // Sans nouvel upload, les documents existants sont conservés (undefined ≠ [])
+    let cloudinaryDocumentsFilesUrl: string[] | undefined;
+    const getAgencyName = await this.agencyService.findAgency(data.agencyId, userId);
     if (files?.documents?.length) {
       const uploads = await Promise.all(
         files.documents.map((document) =>
@@ -115,14 +112,15 @@ export class BuildingController {
       cloudinaryDocumentsFilesUrl = uploads.map((file) => file.secure_url);
     }
 
-    return this.buildingService.updateBuilding({ ...data, documents: cloudinaryDocumentsFilesUrl });
+    return this.buildingService.updateBuilding(
+      { ...data, documents: cloudinaryDocumentsFilesUrl },
+      userId,
+    );
   }
 
   @Delete(API_URL.BUILDING.DELETE)
   @ApiOperation({ summary: 'Supprimer un bâtiment' })
-  @ApiQuery({ name: 'ownerId', required: true, description: 'Identifiant du propriétaire' })
   @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bâtiment à supprimer' })
-  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Bâtiment supprimé avec succès' })
   @ApiBadRequestResponse({ description: 'Bâtiment introuvable ou erreur serveur' })
   async deleteBuilding(@Query('id') id: string, @AgencyProfileId() userId: string) {

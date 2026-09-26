@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Logger,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import {
   ApiBadRequestResponse,
@@ -18,21 +8,20 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { PermissionsService } from './services/permissions.service';
-import { CommonService } from './common.service';
-import { PaymentService } from './services/payment.service';
 import { API_URL } from '../../config/api';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
-import { NabooSignatureGuard } from '../../guard/naboo.guard';
+import { AgencyProfileId } from '../../guard/current-user.decorator';
+import { AgencyService } from '../agency/agency.service';
+import { PermissionsService } from './permissions.service';
+import { PackService } from './pack.service';
 
-@ApiTags('Common')
+@ApiTags('Plans')
 @Controller()
-export class CommonController {
-  private readonly logger = new Logger(CommonController.name);
+export class PackController {
   constructor(
     private readonly permissionService: PermissionsService,
-    private readonly commonService: CommonService,
-    private readonly paymentService: PaymentService,
+    private readonly packService: PackService,
+    private readonly agencyService: AgencyService,
   ) {}
 
   @Get(API_URL.COMMON.PERMS)
@@ -42,7 +31,8 @@ export class CommonController {
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Liste des permissions récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
-  async getAllPerms(@Query('agencyId') agencyId: string) {
+  async getAllPerms(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
     return this.permissionService.getAssignableFeatures(agencyId);
   }
 
@@ -52,25 +42,6 @@ export class CommonController {
   @ApiOkResponse({ description: 'Liste des plans récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getAllPacks() {
-    return this.commonService.getAllPlans();
-  }
-
-  @AllowAnonymous()
-  @Post('webhooks/naboo')
-  @UseGuards(NabooSignatureGuard)
-  @HttpCode(HttpStatus.OK)
-  handleWebhook(@Body() payload: any) {
-    setImmediate(() => {
-      this.paymentService.handleWebhook(payload).catch((err) => {
-        this.logger.error('Erreur traitement webhook:', err.message, err.stack);
-      });
-    });
-    return { received: true };
-  }
-
-  @AllowAnonymous()
-  @Get(API_URL.COMMON.PAYMENT_POLLING)
-  getPaymentStatus(@Query('orderId') orderId: string) {
-    return this.paymentService.getPaymentStatus(orderId);
+    return this.packService.getAllPlans();
   }
 }

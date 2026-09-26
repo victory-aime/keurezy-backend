@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
-export class CommonService {
+export class PackService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAllPlans() {

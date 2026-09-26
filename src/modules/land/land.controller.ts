@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -25,7 +24,7 @@ import { API_URL } from '../../config/api';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
-import { convertToInteger } from '../../config/convert';
+import { MultipartJson } from '../../config/multipart-json.decorator';
 
 @ApiTags('Land')
 @ApiBearerAuth()
@@ -42,7 +41,7 @@ export class LandController {
   @ApiOkResponse({ description: 'Liste des terrains récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getAllLands(@Query() data: LandFilterDto, @AgencyProfileId() userId: string) {
-    return this.landService.getAllLandByAgency({ ...data, userId });
+    return this.landService.getAllLandByAgency(data, userId);
   }
 
   @Post(API_URL.LAND.CREATE_LAND)
@@ -53,17 +52,15 @@ export class LandController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async createLand(
-    @Body('data') rawData: string,
+    @MultipartJson('data', CreateLandDto) data: CreateLandDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: CreateLandDto = { ...(JSON.parse(rawData) as CreateLandDto), userId };
-
     let cloudinaryDocumentsFilesUrl: string[] = [];
-    const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data.userId);
+    const getAgencyName = await this.agencyService.findAgency(data.agencyId, userId);
     if (files?.documents?.length) {
       const uploads = await Promise.all(
         files.documents.map((document) =>
@@ -77,12 +74,7 @@ export class LandController {
 
       cloudinaryDocumentsFilesUrl = uploads.map((file) => file.secure_url);
     }
-    return this.landService.createLand({
-      ...data,
-      area: convertToInteger(data?.area),
-      purchasePrice: convertToInteger(data?.purchasePrice),
-      documents: cloudinaryDocumentsFilesUrl,
-    });
+    return this.landService.createLand({ ...data, documents: cloudinaryDocumentsFilesUrl }, userId);
   }
 
   @Post(API_URL.LAND.UPDATE)
@@ -93,18 +85,17 @@ export class LandController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 4 }]))
   async updateLand(
-    @Body('data') rawData: string,
+    @MultipartJson('data', UpdateLandDto) data: UpdateLandDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: UpdateLandDto = { ...(JSON.parse(rawData) as UpdateLandDto), userId };
+    // Sans nouvel upload, les documents existants sont conservés (undefined ≠ [])
+    let cloudinaryDocumentsFilesUrl: string[] | undefined;
 
-    let cloudinaryDocumentsFilesUrl: string[] = [];
-
-    const getAgencyName = await this.agencyService.findAgency(data?.agencyId, data?.userId);
+    const getAgencyName = await this.agencyService.findAgency(data.agencyId, userId);
 
     if (files?.documents?.length) {
       const uploads = await Promise.all(
@@ -119,12 +110,7 @@ export class LandController {
 
       cloudinaryDocumentsFilesUrl = uploads.map((file) => file.secure_url);
     }
-    return this.landService.updateLand({
-      ...data,
-      area: convertToInteger(data?.area),
-      purchasePrice: convertToInteger(data?.purchasePrice),
-      documents: cloudinaryDocumentsFilesUrl,
-    });
+    return this.landService.updateLand({ ...data, documents: cloudinaryDocumentsFilesUrl }, userId);
   }
 
   @Delete(API_URL.LAND.DELETE)

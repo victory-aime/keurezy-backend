@@ -2,7 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AgencyService } from '../agency/agency.service';
-import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
 import { convertToInteger } from '../../config/convert';
 import { FeatureCommercial } from '../../config/enum';
@@ -16,8 +16,8 @@ export class LandService {
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
-  async getAllLandByAgency(query: LandFilterDto) {
-    await this.agencyService.agencyAccessControl(query?.agencyId, query?.userId);
+  async getAllLandByAgency(query: LandFilterDto, userId: string) {
+    await this.agencyService.agencyAccessControl(query?.agencyId, userId);
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
@@ -61,8 +61,8 @@ export class LandService {
     };
   }
 
-  async createLand(data: CreateLandDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data?.userId);
+  async createLand(data: CreateLandDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
@@ -86,7 +86,6 @@ export class LandService {
       );
     }
 
-    const { userId, ...safeValues } = data;
     const uniqueName = await this.prisma.land.findUnique({
       where: {
         title_agencyId: { title: data?.title, agencyId: data?.agencyId },
@@ -101,21 +100,17 @@ export class LandService {
       );
     }
 
-    await this.prisma.land.create({
-      data: {
-        ...safeValues,
-      },
-    });
+    await this.prisma.land.create({ data });
 
     return {
       message: 'Terrain créée avec succès',
     };
   }
 
-  async updateLand(data: UpdateLandDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data?.userId);
+  async updateLand(data: UpdateLandDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
 
-    const { userId, agencyId, ...safeValues } = data;
+    const { agencyId, ...safeValues } = data;
 
     const land = await this.prisma.land.findUnique({
       where: { id: data?.id },

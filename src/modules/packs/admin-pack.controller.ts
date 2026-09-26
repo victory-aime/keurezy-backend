@@ -13,7 +13,7 @@ import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { AuthorizeRoles, MiddlewareGuard } from '../../guard/middleware.guard';
 import { Role } from '../../../prisma/generated/enums';
 import { PackAdminService } from './pack-admin.service';
-import { CreatePlanInput, UpdatePlanInput } from './pack.dto';
+import { CreatePlanDto, UpdatePlanDto } from './pack.dto';
 import { API_URL } from '../../config/api';
 
 @ApiTags('Super Admin - Plans')
@@ -38,10 +38,10 @@ export class AdminPackController {
   @Post(API_URL.PLANS_ADMIN.CREATE)
   @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Créer un nouveau plan' })
-  @ApiBody({ type: CreatePlanInput })
+  @ApiBody({ type: CreatePlanDto })
   @ApiOkResponse({ description: 'Plan créé avec succès' })
   @ApiBadRequestResponse({ description: 'Plan déjà existant ou features introuvables' })
-  async createPlan(@Body() dto: CreatePlanInput) {
+  async createPlan(@Body() dto: CreatePlanDto) {
     return this.packAdminService.createPlan(dto);
   }
 
@@ -50,10 +50,10 @@ export class AdminPackController {
   @AuthorizeRoles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Mettre à jour un plan et ses features/limites' })
   @ApiQuery({ name: 'id', description: 'Identifiant du plan' })
-  @ApiBody({ type: UpdatePlanInput })
+  @ApiBody({ type: UpdatePlanDto })
   @ApiOkResponse({ description: 'Plan mis à jour avec succès' })
   @ApiBadRequestResponse({ description: 'Plan introuvable ou features invalides' })
-  async updatePlan(@Query('id') id: string, @Body() dto: UpdatePlanInput) {
+  async updatePlan(@Query('id') id: string, @Body() dto: UpdatePlanDto) {
     return this.packAdminService.updatePlan(id, dto);
   }
 

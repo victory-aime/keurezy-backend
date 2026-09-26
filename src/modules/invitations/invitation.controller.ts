@@ -45,7 +45,7 @@ export class InvitationController {
     @CurrentUserId() adminId: string,
     @AgencyProfileId() userId: string,
   ) {
-    return this.invitationService.createInvitation({ ...data, adminId, userId });
+    return this.invitationService.createInvitation(data, { adminId, userId });
   }
 
   @Post(API_URL.INVITATION.ACCEPT_INVITE)

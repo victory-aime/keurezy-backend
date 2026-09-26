@@ -2,13 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { LeadStatus } from '../../../prisma/generated/enums';
 
-class ILeadsDto {
+// L'agence est toujours déduite du lead côté serveur
+class LeadReferenceDto {
   @IsUUID()
   leadId: string;
-  // Conservé pour compatibilité client : l'agence est déduite du lead côté serveur.
-  @IsOptional()
-  @IsUUID()
-  agencyId?: string;
 }
 
 // ─── 1. Créer un lead (client connecté uniquement) ────────────────
@@ -30,7 +27,7 @@ export class CreateLeadDto {
 }
 
 // ─── 2. Changer le statut du lead (pipeline CRM) ─────────────────
-export class UpdateLeadStatusDto extends ILeadsDto {
+export class UpdateLeadStatusDto extends LeadReferenceDto {
   @ApiProperty({
     enum: LeadStatus,
     example: LeadStatus.CONTACTED,
@@ -46,7 +43,7 @@ export class UpdateLeadStatusDto extends ILeadsDto {
 }
 
 // ─── 3. Assigner un agent au lead ────────────────────────────────
-export class AssignLeadDto extends ILeadsDto {
+export class AssignLeadDto extends LeadReferenceDto {
   @ApiProperty({
     example: 'uuid-du-staff',
     description: "UUID de l'agent à assigner au lead",

@@ -1,19 +1,11 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString } from 'class-validator';
 
-export class IPaginationDto {
+/** Pagination des listes d'une agence. L'identité de l'appelant vient de la session, jamais d'ici. */
+export class PaginationDto {
   @IsOptional()
   @IsString()
   agencyId: string;
-
-  @IsOptional()
-  @IsString()
-  ownerId?: string;
-
-  // Renseigné côté serveur depuis la session (toute valeur envoyée par le client est écrasée).
-  @IsOptional()
-  @IsString()
-  userId: string;
 
   // Les query strings arrivent en chaîne : conversion explicite en nombre
   @IsOptional()

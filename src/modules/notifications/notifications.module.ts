@@ -3,10 +3,10 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
 import { PushNotificationController } from './push-notification.controller';
-import { CommonModule } from '../common/common.module';
+import { FirebaseModule } from '../firebase/firebase.module';
 
 @Module({
-  imports: [CommonModule],
+  imports: [FirebaseModule],
   controllers: [NotificationsController, PushNotificationController],
   providers: [NotificationsService, PushNotificationService],
   exports: [NotificationsService, PushNotificationService],

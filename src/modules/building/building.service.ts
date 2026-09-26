@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AgencyService } from '../agency/agency.service';
 import { BuildingFilterDto, CreateBuildingDto, UpdateBuildingDto } from './building.dto';
@@ -16,8 +16,8 @@ export class BuildingService {
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
-  async getAllBuildingByAgency(query: BuildingFilterDto) {
-    await this.agencyService.agencyAccessControl(query?.agencyId, query.userId);
+  async getAllBuildingByAgency(query: BuildingFilterDto, userId: string) {
+    await this.agencyService.agencyAccessControl(query?.agencyId, userId);
 
     const pageInitial = convertToInteger(query?.initialPage) || 1;
     const limitPage = convertToInteger(query?.limitPerPage) || 10;
@@ -69,8 +69,8 @@ export class BuildingService {
     };
   }
 
-  async createBuilding(data: CreateBuildingDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+  async createBuilding(data: CreateBuildingDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
@@ -106,12 +106,10 @@ export class BuildingService {
       );
     }
 
-    const { userId, ...values } = data;
-
     await this.prisma.batiment.create({
       data: {
-        ...values,
-        landId: values.landId && values.landId !== '' ? values.landId : undefined,
+        ...data,
+        landId: data.landId && data.landId !== '' ? data.landId : undefined,
       },
     });
 
@@ -120,8 +118,8 @@ export class BuildingService {
     };
   }
 
-  async updateBuilding(data: UpdateBuildingDto): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(data.agencyId, data.userId);
+  async updateBuilding(data: UpdateBuildingDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(data.agencyId, userId);
 
     const building = await this.prisma.batiment.findUnique({
       where: { id: data.id },
@@ -161,7 +159,7 @@ export class BuildingService {
     }
 
     // 5. Clean payload
-    const { id, agencyId, userId, landId, ...values } = data;
+    const { id, agencyId, landId, ...values } = data;
 
     // 6. Update
     await this.prisma.batiment.update({

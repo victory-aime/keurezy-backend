@@ -4,10 +4,10 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { PropertyController } from './property.controller';
 import { PropertyService } from './property.service';
 import { AgencyModule } from '../agency/agency.module';
-import { CommonModule } from '../common/common.module';
+import { PackModule } from '../packs/pack.module';
 
 @Module({
-  imports: [DatabaseModule, CloudinaryModule, AgencyModule, CommonModule],
+  imports: [DatabaseModule, CloudinaryModule, AgencyModule, PackModule],
   controllers: [PropertyController],
   providers: [PropertyService],
 })

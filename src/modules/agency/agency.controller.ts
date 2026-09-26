@@ -11,13 +11,14 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { createAgencyOwnerDto, updateAgencyDto } from './agency.dto';
+import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import { AgencyService } from './agency.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
+import { MultipartJson } from '../../config/multipart-json.decorator';
 
 @ApiTags('Agency')
 @Controller()
@@ -64,7 +65,7 @@ export class AgencyController {
       properties: {
         data: {
           type: 'string',
-          description: 'JSON sérialisé (createAgencyOwnerDto)',
+          description: 'JSON sérialisé (CreateAgencyOwnerDto)',
           example:
             '{"name": "NANA Beauty Salon", "email": "contact@nana.sn", "address": "123 Avenue Habib Bourguiba", "phone": "+221 77 000 00 00", "description": "Agence spécialisée en location résidentielle", "acceptTerms": true, "userEmail": "owner@example.com", "username": "mamadou.diallo", "password": "motdepasse123456", "plan": {"planId": "uuid-du-plan", "billingCycle": "MONTHLY"}}',
         },
@@ -81,13 +82,12 @@ export class AgencyController {
   @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 5 }]))
   async createAgency(
-    @Body('data') rawData: string,
+    @MultipartJson('data', CreateAgencyOwnerDto) data: CreateAgencyOwnerDto,
     @UploadedFiles()
     files: {
       documents?: Express.Multer.File[];
     },
   ) {
-    const data: createAgencyOwnerDto = JSON.parse(rawData);
     return this.agencyService.createAgency({
       ...data,
       documents: files?.documents,
@@ -105,7 +105,7 @@ export class AgencyController {
       properties: {
         data: {
           type: 'string',
-          description: 'JSON sérialisé (updateAgencyDto)',
+          description: 'JSON sérialisé (UpdateAgencyDto)',
           example:
             '{"agencyId": "uuid-de-l-agence", "userId": "uuid-du-user", "name": "Nouveau nom"}',
         },
@@ -123,7 +123,7 @@ export class AgencyController {
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'agencyLogo', maxCount: 1 }]))
   async updateAgency(
-    @Body() data: updateAgencyDto,
+    @Body() data: UpdateAgencyDto,
     @AgencyProfileId() userId: string,
     @UploadedFiles()
     files: {

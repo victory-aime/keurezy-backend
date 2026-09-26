@@ -2,7 +2,7 @@ import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { AgencyService } from '../agency/agency.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ResendService } from '../mail/resend.service';
-import { PlanFeaturePolicyService } from '../common/services/plan-feature-policy.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { CreateInvitationDto } from './invitation.dto';
 import { EXPIRE_TIME, FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
@@ -30,7 +30,11 @@ export class InvitationService {
     });
   }
 
-  async createInvitation({ adminId, userId, agencyId, payload }: CreateInvitationDto) {
+  async createInvitation(
+    { agencyId, payload }: CreateInvitationDto,
+    actor: { adminId: string; userId: string },
+  ) {
+    const { adminId, userId } = actor;
     await this.agencyService.agencyAccessControl(agencyId, userId);
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(agencyId);
