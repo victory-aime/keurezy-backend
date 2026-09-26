@@ -1,8 +1,24 @@
-import { AnnonceStatus, PropertyFeature, PropertyType } from '../../../prisma/generated/enums';
+import {
+  AnnonceStatus,
+  PropertyFeature,
+  PropertyType,
+  RentalType,
+} from '../../../prisma/generated/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
+import { CALENDAR_DATE } from '../rentals/calendar-date';
 
 export class CreateAnnonceDto {
   @ApiProperty({ example: 'Appartement F3 Almadies', description: "Titre de l'annonce" })
@@ -94,6 +110,16 @@ export class FilterAnnonceDto {
   type?: PropertyType;
 
   @ApiPropertyOptional({
+    enum: RentalType,
+    enumName: 'RentalType',
+    description:
+      'Filtrer par type de location ; minPrice/maxPrice portent alors sur le prix de cette modalité',
+  })
+  @IsOptional()
+  @IsEnum(RentalType)
+  rentalType?: RentalType;
+
+  @ApiPropertyOptional({
     example: 150000,
     description: 'Prix minimum (en FCFA)',
     minimum: 0,
@@ -132,4 +158,55 @@ export class FilterAnnonceDto {
   @IsArray()
   @IsEnum(PropertyFeature, { each: true })
   features?: PropertyFeature[];
+}
+
+export class FindAnnonceDto {
+  @ApiProperty({ example: 'uuid-de-l-annonce', description: "Identifiant de l'annonce" })
+  @IsUUID()
+  id: string;
+}
+
+export class AnnonceAvailabilityDto extends FindAnnonceDto {
+  @ApiProperty({ enum: RentalType, enumName: 'RentalType', example: RentalType.NIGHTLY })
+  @IsEnum(RentalType)
+  rentalType: RentalType;
+
+  @ApiPropertyOptional({
+    example: '2026-10-01',
+    description: 'Début de la recherche (défaut : aujourd’hui)',
+  })
+  @IsOptional()
+  @Matches(CALENDAR_DATE, { message: 'from doit être au format AAAA-MM-JJ' })
+  from?: string;
+
+  @ApiPropertyOptional({
+    example: '2027-03-31',
+    description: 'Fin de la recherche, incluse (défaut : horizon du type)',
+  })
+  @IsOptional()
+  @Matches(CALENDAR_DATE, { message: 'to doit être au format AAAA-MM-JJ' })
+  to?: string;
+}
+
+export class AnnonceQuoteDto {
+  @ApiProperty({ example: 'uuid-de-l-annonce', description: "Identifiant de l'annonce" })
+  @IsUUID()
+  annonceId: string;
+
+  @ApiProperty({ enum: RentalType, enumName: 'RentalType', example: RentalType.NIGHTLY })
+  @IsEnum(RentalType)
+  rentalType: RentalType;
+
+  @ApiProperty({ example: '2026-10-05', description: 'Premier jour de la location' })
+  @Matches(CALENDAR_DATE, { message: 'startDate doit être au format AAAA-MM-JJ' })
+  startDate: string;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Nombre d’unités : jours, nuits, mois ou années selon le type',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  duration: number;
 }

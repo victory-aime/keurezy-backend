@@ -5,9 +5,10 @@ import { PackModule } from '../packs/pack.module';
 import { DatabaseModule } from '../../database/database.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { AgencyModule } from '../agency/agency.module';
+import { RentalsModule } from '../rentals/rentals.module';
 
 @Module({
-  imports: [DatabaseModule, CloudinaryModule, AgencyModule, PackModule],
+  imports: [DatabaseModule, CloudinaryModule, AgencyModule, PackModule, RentalsModule],
   controllers: [AnnonceController],
   providers: [AnnounceService],
 })

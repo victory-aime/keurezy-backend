@@ -15,7 +15,9 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiConsumes,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -26,7 +28,14 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { AgencyService } from '../agency/agency.service';
-import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
+import {
+  AnnonceAvailabilityDto,
+  AnnonceQuoteDto,
+  CreateAnnonceDto,
+  FilterAnnonceDto,
+  FindAnnonceDto,
+  UpdateAnnonceDto,
+} from './annonce.dto';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { MultipartJson } from '../../config/multipart-json.decorator';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
@@ -107,6 +116,40 @@ export class AnnonceController {
   @ApiBadRequestResponse({ description: 'Paramètres de filtrage invalides' })
   async findAll(@Body() data: FilterAnnonceDto) {
     return this.announceService.findAllAnnounces(data);
+  }
+
+  @AllowAnonymous()
+  @Get(API_URL.ANNONCE.FIND_ONE)
+  @ApiOperation({ summary: 'Détail public d’une annonce active, avec ses modalités de location' })
+  @ApiOkResponse({ description: 'Annonce, bien, bâtiment, agence et offres de location' })
+  @ApiNotFoundResponse({ description: 'Annonce introuvable ou inactive' })
+  async findOne(@Query() query: FindAnnonceDto) {
+    return this.announceService.findPublicAnnonce(query.id);
+  }
+
+  @AllowAnonymous()
+  @Get(API_URL.ANNONCE.AVAILABILITY)
+  @ApiOperation({
+    summary: 'Créneaux libres d’une annonce pour un type de location',
+    description:
+      'Périodes de disponibilité moins les réservations confirmées. Les demandes en attente ne bloquent pas les dates.',
+  })
+  @ApiOkResponse({ description: 'Plages libres au format AAAA-MM-JJ, bornes incluses' })
+  @ApiNotFoundResponse({ description: 'Annonce introuvable ou type de location non proposé' })
+  async availability(@Query() query: AnnonceAvailabilityDto) {
+    return this.announceService.getAnnonceAvailability(query);
+  }
+
+  @AllowAnonymous()
+  @Post(API_URL.ANNONCE.QUOTE)
+  @ApiOperation({ summary: 'Devis d’une location : durée, disponibilité et montant' })
+  @ApiBody({ type: AnnonceQuoteDto })
+  @ApiOkResponse({ description: 'Dates retenues, prix unitaire, total et caution' })
+  @ApiBadRequestResponse({ description: 'Durée hors limites ou date invalide' })
+  @ApiNotFoundResponse({ description: 'Annonce introuvable ou type de location non proposé' })
+  @ApiConflictResponse({ description: 'Dates déjà réservées ou hors disponibilité' })
+  async quote(@Body() dto: AnnonceQuoteDto) {
+    return this.announceService.quoteAnnonce(dto);
   }
 
   @ApiBearerAuth()

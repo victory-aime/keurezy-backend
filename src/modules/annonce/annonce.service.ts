@@ -5,8 +5,74 @@ import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { HttpError } from '../../config/http.error';
-import { CreateAnnonceDto, FilterAnnonceDto, UpdateAnnonceDto } from './annonce.dto';
+import {
+  AnnonceAvailabilityDto,
+  AnnonceQuoteDto,
+  CreateAnnonceDto,
+  FilterAnnonceDto,
+  UpdateAnnonceDto,
+} from './annonce.dto';
+import {
+  PUBLIC_RENTAL_OFFERS_INCLUDE,
+  toPublicRentalOffer,
+} from '../rentals/rental-config.service';
+import { RentalAvailabilityService } from '../rentals/rental-availability.service';
+import { RentalQuoteService } from '../rentals/rental-quote.service';
 import { FeatureCommercial } from '../../config/enum';
+
+const PUBLIC_ANNONCE_INCLUDE = {
+  property: {
+    include: {
+      batiment: true,
+      rentalConfigs: PUBLIC_RENTAL_OFFERS_INCLUDE,
+    },
+  },
+} satisfies Prisma.AnnonceInclude;
+
+type PublicAnnonceRecord = Prisma.AnnonceGetPayload<{ include: typeof PUBLIC_ANNONCE_INCLUDE }>;
+
+/** Représentation publique d'une annonce (liste et détail), modalités actives comprises. */
+const toPublicAnnonce = (annonce: PublicAnnonceRecord) => ({
+  id: annonce.id,
+  title: annonce.title,
+  propertyId: annonce.propertyId,
+  description: annonce.description,
+  galleryImages: annonce.galleryImages,
+  status: annonce.status,
+  publishedAt: annonce.publishedAt,
+  createdAt: annonce.createdAt,
+  updatedAt: annonce.updatedAt,
+
+  property: {
+    id: annonce.property.id,
+    title: annonce.property.title,
+    type: annonce.property.type,
+    // Prix/caution de référence conservés pour les clients existants
+    price: annonce.property.price,
+    propertyOwner: annonce.property.propertyOwner,
+    address: annonce.property.address,
+    city: annonce.property.city,
+    district: annonce.property.district,
+    caution: annonce.property.caution,
+    rooms: annonce.property.rooms,
+    bathrooms: annonce.property.bathrooms,
+    area: annonce.property.area,
+    status: annonce.property.status,
+    features: annonce.property.features,
+  },
+
+  rentalOffers: annonce.property.rentalConfigs.map(toPublicRentalOffer),
+
+  batiment: annonce.property.batiment
+    ? {
+        id: annonce.property.batiment.id,
+        name: annonce.property.batiment.name,
+        address: annonce.property.batiment.address,
+        city: annonce.property.batiment.city,
+        district: annonce.property.batiment.district,
+      }
+    : null,
+});
 
 @Injectable()
 export class AnnounceService {
@@ -14,6 +80,8 @@ export class AnnounceService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
+    private readonly rentalAvailability: RentalAvailabilityService,
+    private readonly rentalQuote: RentalQuoteService,
   ) {}
 
   // Vérification centralisée
@@ -129,16 +197,25 @@ export class AnnounceService {
       propertyFilter.type = payload.type;
     }
 
-    if (payload.minPrice !== undefined || payload.maxPrice !== undefined) {
-      propertyFilter.price = {
-        ...(payload.minPrice !== undefined && {
-          gte: new Prisma.Decimal(payload.minPrice),
-        }),
+    const priceFilter: Prisma.DecimalFilter | undefined =
+      payload.minPrice !== undefined || payload.maxPrice !== undefined
+        ? {
+            ...(payload.minPrice !== undefined && { gte: new Prisma.Decimal(payload.minPrice) }),
+            ...(payload.maxPrice !== undefined && { lte: new Prisma.Decimal(payload.maxPrice) }),
+          }
+        : undefined;
 
-        ...(payload.maxPrice !== undefined && {
-          lte: new Prisma.Decimal(payload.maxPrice),
-        }),
+    if (payload.rentalType) {
+      // Le prix comparé est celui de la modalité demandée (unités homogènes)
+      propertyFilter.rentalConfigs = {
+        some: {
+          rentalType: payload.rentalType,
+          isActive: true,
+          ...(priceFilter && { price: priceFilter }),
+        },
       };
+    } else if (priceFilter) {
+      propertyFilter.price = priceFilter;
     }
 
     if (payload.rooms !== undefined) {
@@ -163,13 +240,7 @@ export class AnnounceService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.annonce.findMany({
         where: filterOptions,
-        include: {
-          property: {
-            include: {
-              batiment: true,
-            },
-          },
-        },
+        include: PUBLIC_ANNONCE_INCLUDE,
         orderBy: {
           createdAt: 'desc',
         },
@@ -182,50 +253,66 @@ export class AnnounceService {
       }),
     ]);
     return {
-      content: data.map((annonce) => ({
-        id: annonce.id,
-        title: annonce.title,
-        propertyId: annonce.propertyId,
-        description: annonce.description,
-        galleryImages: annonce.galleryImages,
-        status: annonce.status,
-        publishedAt: annonce.publishedAt,
-        createdAt: annonce.createdAt,
-        updatedAt: annonce.updatedAt,
-
-        property: {
-          id: annonce.property.id,
-          title: annonce.property.title,
-          type: annonce.property.type,
-          price: annonce.property.price,
-          propertyOwner: annonce.property.propertyOwner,
-          address: annonce.property.address,
-          city: annonce.property.city,
-          district: annonce.property.district,
-          caution: annonce.property.caution,
-          rooms: annonce.property.rooms,
-          bathrooms: annonce.property.bathrooms,
-          area: annonce.property.area,
-          status: annonce.property.status,
-          features: annonce.property.features,
-        },
-
-        batiment: annonce.property.batiment
-          ? {
-              id: annonce.property.batiment.id,
-              name: annonce.property.batiment.name,
-              address: annonce.property.batiment.address,
-              city: annonce.property.batiment.city,
-              district: annonce.property.batiment.district,
-            }
-          : null,
-      })),
+      content: data.map(toPublicAnnonce),
       totalDataPerPages: limitPage,
       totalItems: total,
       currentPage: pageInitial,
       totalPages: Math.ceil(total / limitPage),
     };
   }
+
+  // 2b. DETAIL PUBLIC
+  async findPublicAnnonce(id: string) {
+    const annonce = await this.prisma.annonce.findFirst({
+      where: { id, status: AnnonceStatus.ACTIVE },
+      include: {
+        ...PUBLIC_ANNONCE_INCLUDE,
+        property: {
+          include: {
+            ...PUBLIC_ANNONCE_INCLUDE.property.include,
+            agency: { select: { id: true, name: true, phone: true, isVerified: true } },
+          },
+        },
+      },
+    });
+
+    if (!annonce) {
+      throw new HttpError('Annonce introuvable', HttpStatus.NOT_FOUND, 'ANNONCE_NOT_FOUND');
+    }
+
+    return { ...toPublicAnnonce(annonce), agency: annonce.property.agency };
+  }
+
+  // 2c. CRÉNEAUX LIBRES D'UNE ANNONCE
+  async getAnnonceAvailability(query: AnnonceAvailabilityDto) {
+    const propertyId = await this.findPublicPropertyId(query.id);
+    return this.rentalAvailability.getFreeRanges(
+      propertyId,
+      query.rentalType,
+      query.from,
+      query.to,
+    );
+  }
+
+  // 2d. DEVIS D'UNE ANNONCE
+  async quoteAnnonce(dto: AnnonceQuoteDto) {
+    const propertyId = await this.findPublicPropertyId(dto.annonceId);
+    return this.rentalQuote.quote(propertyId, dto);
+  }
+
+  /** Bien d'une annonce publiée ; seules les annonces actives sont réservables. */
+  private async findPublicPropertyId(annonceId: string): Promise<string> {
+    const annonce = await this.prisma.annonce.findFirst({
+      where: { id: annonceId, status: AnnonceStatus.ACTIVE },
+      select: { propertyId: true },
+    });
+
+    if (!annonce) {
+      throw new HttpError('Annonce introuvable', HttpStatus.NOT_FOUND, 'ANNONCE_NOT_FOUND');
+    }
+    return annonce.propertyId;
+  }
+
   // 3. LIST BY AGENCY
   async findAnnoncesByAgency(agencyId: string, userId: string): Promise<Annonce[]> {
     await this.agencyService.agencyAccessControl(agencyId, userId);

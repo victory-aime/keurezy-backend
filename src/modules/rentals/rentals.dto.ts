@@ -12,9 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { RentalType } from '../../../prisma/generated/enums';
-
-// Date calendaire sans heure : évite tout décalage de fuseau horaire
-const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+import { CALENDAR_DATE } from './calendar-date';
 
 export class RentalAvailabilityDto {
   @ApiProperty({ example: '2026-08-01', description: 'Premier jour disponible (inclus)' })

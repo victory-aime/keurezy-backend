@@ -1,8 +1,32 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma } from '../../../prisma/generated/client';
+import { Prisma, PropertyRentalConfig } from '../../../prisma/generated/client';
 import { HttpError } from '../../config/http.error';
 import { RentalType } from '../../../prisma/generated/enums';
 import { RentalAvailabilityDto, RentalConfigDto } from './rentals.dto';
+import { addRentalUnits, parseCalendarDate } from './calendar-date';
+
+/** Offre de location publique : modalité active, montants en nombres. */
+export interface PublicRentalOffer {
+  rentalType: RentalType;
+  price: number;
+  deposit: number;
+  minDuration: number | null;
+  maxDuration: number | null;
+}
+
+/** Modalités actives d'un bien, dans l'ordre canonique des types (enum Postgres). */
+export const PUBLIC_RENTAL_OFFERS_INCLUDE = {
+  where: { isActive: true },
+  orderBy: { rentalType: 'asc' },
+} satisfies Prisma.Property$rentalConfigsArgs;
+
+export const toPublicRentalOffer = (config: PropertyRentalConfig): PublicRentalOffer => ({
+  rentalType: config.rentalType,
+  price: config.price.toNumber(),
+  deposit: config.deposit.toNumber(),
+  minDuration: config.minDuration,
+  maxDuration: config.maxDuration,
+});
 
 /** Relations à inclure pour exposer les modalités de location d'un bien. */
 export const RENTAL_INCLUDE = {
@@ -11,17 +35,10 @@ export const RENTAL_INCLUDE = {
 } satisfies Prisma.PropertyInclude;
 
 /**
- * Durée minimale d'une période de disponibilité selon le type de location :
- * la date de fin doit être au moins à « début + 1 unité » (elle peut être le jour de départ).
+ * Durée minimale d'une période de disponibilité : la date de fin doit être au moins
+ * à « début + 1 unité » (elle peut être le jour de départ).
  * Journalière / nocturne : 2 jours ; mensuelle : 1 mois ; annuelle : 1 an.
  */
-export const MIN_AVAILABILITY_SPAN: Record<RentalType, { days?: number; months?: number }> = {
-  [RentalType.DAILY]: { days: 1 },
-  [RentalType.NIGHTLY]: { days: 1 },
-  [RentalType.MONTHLY]: { months: 1 },
-  [RentalType.YEARLY]: { months: 12 },
-};
-
 const MIN_AVAILABILITY_LABEL: Record<RentalType, string> = {
   [RentalType.DAILY]: '2 jours',
   [RentalType.NIGHTLY]: '2 jours',
@@ -143,7 +160,7 @@ export class RentalConfigService {
           'INVALID_AVAILABILITY_RANGE',
         );
       }
-      if (range.end < this.minAvailabilityEnd(rentalType, range.start)) {
+      if (range.end < addRentalUnits(rentalType, range.start, 1)) {
         throw new HttpError(
           `Une période de disponibilité doit couvrir au moins ${MIN_AVAILABILITY_LABEL[rentalType]} pour ce type de location`,
           HttpStatus.BAD_REQUEST,
@@ -161,20 +178,10 @@ export class RentalConfigService {
     });
   }
 
-  /** Date de fin minimale : début + 1 unité, ramenée au dernier jour du mois si besoin (31/01 → 28/02). */
-  private minAvailabilityEnd(rentalType: RentalType, start: Date): Date {
-    const { days = 0, months = 0 } = MIN_AVAILABILITY_SPAN[rentalType];
-    const year = start.getUTCFullYear();
-    const month = start.getUTCMonth() + months;
-    const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    const day = Math.min(start.getUTCDate(), lastDayOfMonth) + days;
-    return new Date(Date.UTC(year, month, day));
-  }
-
   /** Convertit AAAA-MM-JJ en date UTC minuit ; rejette les dates impossibles (ex. 2026-02-30). */
   private toCalendarDate(value: string): Date {
-    const date = new Date(`${value}T00:00:00.000Z`);
-    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    const date = parseCalendarDate(value);
+    if (!date) {
       throw new HttpError(`Date invalide : ${value}`, HttpStatus.BAD_REQUEST, 'INVALID_DATE');
     }
     return date;

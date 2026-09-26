@@ -9,6 +9,8 @@ import { CreateLandDto, LandFilterDto, UpdateLandDto } from '../modules/land/lan
 import { PropertyFilterDto, PropertyDto } from '../modules/property/property.dto';
 import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from '../modules/visits/visits.dto';
 import {
+  AnnonceAvailabilityDto,
+  AnnonceQuoteDto,
   CreateAnnonceDto,
   FilterAnnonceDto,
   UpdateAnnonceDto,
@@ -175,7 +177,19 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
         maxPrice: 900000,
         rooms: 2,
         features: ['KITCHEN'],
+        rentalType: 'NIGHTLY',
       },
+    ],
+    [
+      'AnnonceAvailabilityDto',
+      AnnonceAvailabilityDto,
+      { id: uuid, rentalType: 'MONTHLY', from: '2026-10-01', to: '2027-09-30' },
+      'query',
+    ],
+    [
+      'AnnonceQuoteDto',
+      AnnonceQuoteDto,
+      { annonceId: uuid, rentalType: 'NIGHTLY', startDate: '2026-10-05', duration: 3 },
     ],
     [
       'CreateInvitationDto',
