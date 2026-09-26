@@ -20,6 +20,7 @@ import { AnnounceModule } from './modules/annonce/annonce.module';
 import { TeamModule } from './modules/team/team.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { VisitsModule } from './modules/visits/visits.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -67,6 +68,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     LandModule,
     PaymentsModule,
     AnnounceModule,
+    BookingsModule,
     InvitationModule,
     TeamModule,
     LeadsModule,

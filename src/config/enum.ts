@@ -18,6 +18,7 @@ enum APIS_URL_GLOBAL_PATH {
   ANNONCES = 'announces',
   LEADS = 'leads',
   VISITS = 'visits',
+  BOOKINGS = 'bookings',
   PUSH_NOTIF = 'push-notification',
   INTEGRATIONS = 'integrations',
 }

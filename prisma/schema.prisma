@@ -412,6 +412,8 @@ model Booking {
   rentalType         RentalType
   startDate          DateTime      @db.Date
   endDate            DateTime      @db.Date
+  // Nombre d'unités réservées (jours, nuits, mois ou années selon rentalType)
+  duration           Int           @default(1)
   totalAmount        Decimal       @db.Decimal(10, 2)
   depositAmount      Decimal       @default(0) @db.Decimal(10, 2)
   status             BookingStatus @default(PENDING)
@@ -430,6 +432,7 @@ model Booking {
 
   @@index([propertyId, startDate, endDate])
   @@index([agencyId, status])
+  @@index([clientId])
   @@map("booking")
 }
 
@@ -1043,6 +1046,7 @@ enum AgencyStatus {
 }
 
 enum NotificationType {
+  BOOKING
   LEAD
   VISIT
   TICKET

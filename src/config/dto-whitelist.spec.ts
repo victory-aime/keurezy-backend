@@ -15,6 +15,12 @@ import {
   FilterAnnonceDto,
   UpdateAnnonceDto,
 } from '../modules/annonce/annonce.dto';
+import {
+  AgencyBookingsQueryDto,
+  CancelBookingDto,
+  CreateBookingDto,
+  RejectBookingDto,
+} from '../modules/bookings/bookings.dto';
 import { CreateInvitationDto } from '../modules/invitations/invitation.dto';
 import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
@@ -184,6 +190,25 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
       'AnnonceAvailabilityDto',
       AnnonceAvailabilityDto,
       { id: uuid, rentalType: 'MONTHLY', from: '2026-10-01', to: '2027-09-30' },
+      'query',
+    ],
+    [
+      'CreateBookingDto',
+      CreateBookingDto,
+      {
+        annonceId: uuid,
+        rentalType: 'MONTHLY',
+        startDate: '2026-10-01',
+        duration: 3,
+        notes: 'Arrivée le matin',
+      },
+    ],
+    ['RejectBookingDto', RejectBookingDto, { reason: 'Travaux prévus' }],
+    ['CancelBookingDto', CancelBookingDto, { reason: 'Changement de programme' }],
+    [
+      'AgencyBookingsQueryDto',
+      AgencyBookingsQueryDto,
+      { agencyId: uuid, status: 'PENDING' },
       'query',
     ],
     [
