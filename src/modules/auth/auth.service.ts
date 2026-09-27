@@ -1,4 +1,5 @@
 import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
+import { OTP_SETTINGS } from '../../config/otp';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../database/prisma.service';
 import {
@@ -11,10 +12,9 @@ import {
 } from './auth.dto';
 import { getAuthInstance } from '../../lib/auth';
 import { HttpError } from '../../config/http.error';
-import { EXPIRE_TIME } from '../../config/enum';
 
 // Délai minimal entre deux envois de code (vérification d'email ou mot de passe oublié)
-const OTP_RESEND_COOLDOWN_MS = EXPIRE_TIME._2_MINUTES * 1000;
+const OTP_RESEND_COOLDOWN_MS = OTP_SETTINGS.resendCooldown * 1000;
 
 // Refus du plugin emailOTP traduits pour les clients
 const OTP_ERROR_MESSAGES: Record<string, string> = {
@@ -88,8 +88,8 @@ export class AuthService {
         email: response.user.email,
         // Durées en secondes, alignées sur la configuration emailOTP
         otp: {
-          expireOtp: EXPIRE_TIME._3_MINUTES,
-          retryIn: EXPIRE_TIME._2_MINUTES,
+          expireOtp: OTP_SETTINGS.expiresIn,
+          retryIn: OTP_SETTINGS.resendCooldown,
         },
       };
     } catch (error) {
@@ -282,7 +282,7 @@ export class AuthService {
 
     return {
       message: 'Si un compte existe pour cet email, un code de réinitialisation a été envoyé.',
-      otp: { expireOtp: EXPIRE_TIME._3_MINUTES, retryIn: EXPIRE_TIME._2_MINUTES },
+      otp: { expireOtp: OTP_SETTINGS.expiresIn, retryIn: OTP_SETTINGS.resendCooldown },
     };
   }
 

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { OTP_SETTINGS } from '../config/otp';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { EXPIRE_TIME } from '../config/enum';
@@ -87,14 +88,14 @@ const createAuth = (prisma: PrismaClient) => {
       enabled: true,
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
-      // Lien web et codes OTP (web ou mobile) : 3 minutes
-      resetPasswordTokenExpiresIn: EXPIRE_TIME._3_MINUTES,
+      // Lien web et codes OTP (web ou mobile) : même validité configurable
+      resetPasswordTokenExpiresIn: OTP_SETTINGS.expiresIn,
       sendResetPassword: async ({ user, token }) => {
         await authEmailBridge.sendResetPassword({
           name: user.name,
           email: user.email,
           url: `${process.env.FRONTEND_RESET_PASSWORD_URL}/?token=${token}`,
-          expireTime: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
+          expireTime: formatExpiresIn(OTP_SETTINGS.expiresIn),
         });
       },
     },
@@ -141,9 +142,9 @@ const createAuth = (prisma: PrismaClient) => {
       passkey(),
       expo(),
       emailOTP({
-        // Code à 6 chiffres, valable 3 minutes (vérification d'email et mot de passe oublié)
+        // Code à 6 chiffres ; validité configurable (OTP_EXPIRES_IN_SECONDS)
         otpLength: 6,
-        expiresIn: EXPIRE_TIME._3_MINUTES,
+        expiresIn: OTP_SETTINGS.expiresIn,
         disableSignUp: true,
         allowedAttempts: 5,
         async sendVerificationOTP({ email, otp, type }) {

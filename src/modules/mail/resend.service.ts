@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OTP_SETTINGS } from '../../config/otp';
 import { Resend } from 'resend';
 import { EMAIL_TEMPLATE_ID, EMAIL_TEMPLATE_RUNTIME_ID } from './utils/mail';
 import {
@@ -97,7 +98,7 @@ export class ResendService {
       variables: {
         USERNAME: username,
         RESET_LINK: resetLink,
-        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
+        EXPIRE_TIME: formatExpiresIn(OTP_SETTINGS.expiresIn),
         APP_NAME: process.env.APP_NAME,
       },
     });
@@ -183,7 +184,7 @@ export class ResendService {
         FROM_CLIENT_EMAIL: this.fromAddress,
         SUBJECT: subject,
         // Durée identique à la configuration emailOTP de Better Auth
-        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
+        EXPIRE_TIME: formatExpiresIn(OTP_SETTINGS.expiresIn),
         OTP: otp,
         APP_NAME: process.env.APP_NAME,
       },
