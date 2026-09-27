@@ -97,7 +97,7 @@ export class ResendService {
       variables: {
         USERNAME: username,
         RESET_LINK: resetLink,
-        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._5_MINUTES),
+        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
         APP_NAME: process.env.APP_NAME,
       },
     });
@@ -165,15 +165,25 @@ export class ResendService {
     });
   }
 
-  async sendVerificationOTP(to: string, otp: string): Promise<EmailResult> {
+  async sendVerificationOTP(
+    to: string,
+    otp: string,
+    purpose: 'email-verification' | 'forget-password' = 'email-verification',
+  ): Promise<EmailResult> {
+    const subject =
+      purpose === 'forget-password'
+        ? 'Code de réinitialisation de votre mot de passe'
+        : 'Code de vérification de votre adresse email';
+
     return this.sendTemplateEmail({
       to,
-      subject: 'Verification Email',
+      subject,
       template: EMAIL_TEMPLATE_ID.OTP_VERIFY,
       variables: {
         FROM_CLIENT_EMAIL: this.fromAddress,
-        SUBJECT: 'Verification Email',
-        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._5_MINUTES),
+        SUBJECT: subject,
+        // Durée identique à la configuration emailOTP de Better Auth
+        EXPIRE_TIME: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
         OTP: otp,
         APP_NAME: process.env.APP_NAME,
       },

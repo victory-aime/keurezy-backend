@@ -6,11 +6,35 @@ import {
   ForgotPasswordDto,
   ResendVerificationDto,
   ResetPasswordDto,
+  ResetPasswordOtpDto,
   VerifyOtpDto,
 } from './auth.dto';
 import { getAuthInstance } from '../../lib/auth';
 import { HttpError } from '../../config/http.error';
 import { EXPIRE_TIME } from '../../config/enum';
+
+// Délai minimal entre deux envois de code (vérification d'email ou mot de passe oublié)
+const OTP_RESEND_COOLDOWN_MS = EXPIRE_TIME._2_MINUTES * 1000;
+
+// Refus du plugin emailOTP traduits pour les clients
+const OTP_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_OTP: 'Code incorrect.',
+  OTP_EXPIRED: 'Ce code a expiré. Demandez-en un nouveau.',
+  TOO_MANY_ATTEMPTS: 'Trop de tentatives. Demandez un nouveau code.',
+  // Email inconnu : même réponse qu'un code faux, pour ne pas révéler l'existence du compte
+  USER_NOT_FOUND: 'Code incorrect.',
+};
+
+/** Convertit une erreur Better Auth liée à un code OTP en erreur métier lisible. */
+const toOtpHttpError = (error: unknown): HttpError | null => {
+  const code = (error as { body?: { code?: string } })?.body?.code;
+  if (!code || !(code in OTP_ERROR_MESSAGES)) return null;
+  return new HttpError(
+    OTP_ERROR_MESSAGES[code],
+    HttpStatus.BAD_REQUEST,
+    code === 'USER_NOT_FOUND' ? 'INVALID_OTP' : code,
+  );
+};
 
 @Injectable()
 export class AuthService {
@@ -64,7 +88,7 @@ export class AuthService {
         email: response.user.email,
         // Durées en secondes, alignées sur la configuration emailOTP
         otp: {
-          expireOtp: EXPIRE_TIME._15_MINUTES,
+          expireOtp: EXPIRE_TIME._3_MINUTES,
           retryIn: EXPIRE_TIME._2_MINUTES,
         },
       };
@@ -102,7 +126,7 @@ export class AuthService {
       },
     });
     if (verification) {
-      const COOLDOWN_MS = EXPIRE_TIME._2_MINUTES * 1000;
+      const COOLDOWN_MS = OTP_RESEND_COOLDOWN_MS;
       const elapsed = Date.now() - verification.createdAt.getTime();
       const remainingMs = COOLDOWN_MS - elapsed;
 
@@ -139,12 +163,16 @@ export class AuthService {
       throw new HttpError('Service indisponible', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    const response = await getAuthInstance().api.verifyEmailOTP({
-      body: {
-        email: data.email,
-        otp: data.otp,
-      },
-    });
+    const response = await getAuthInstance()
+      .api.verifyEmailOTP({
+        body: {
+          email: data.email,
+          otp: data.otp,
+        },
+      })
+      .catch((error: unknown) => {
+        throw toOtpHttpError(error) ?? error;
+      });
 
     if (!response?.user) {
       throw new HttpError(
@@ -226,6 +254,62 @@ export class AuthService {
       console.error('Erreur resetPassword:', error);
       throw new HttpError('Lien invalide ou expiré.', HttpStatus.BAD_REQUEST, 'INVALID_TOKEN');
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // MOT DE PASSE OUBLIÉ PAR CODE OTP (mobile) — le web garde le lien par email
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Envoie un code de réinitialisation. La réponse ne dépend jamais de l'existence du compte
+   * (Better Auth n'envoie rien pour un email inconnu) ; un envoi récent n'est pas répété.
+   */
+  async requestPasswordResetOtp(email: string) {
+    const normalizedEmail = email.toLowerCase();
+    const lastCode = await this.prisma.verification.findFirst({
+      where: { identifier: `forget-password-otp-${normalizedEmail}` },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    const inCooldown =
+      !!lastCode && Date.now() - lastCode.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS;
+
+    if (!inCooldown) {
+      await getAuthInstance().api.requestPasswordResetEmailOTP({
+        body: { email: normalizedEmail },
+      });
+    }
+
+    return {
+      message: 'Si un compte existe pour cet email, un code de réinitialisation a été envoyé.',
+      otp: { expireOtp: EXPIRE_TIME._3_MINUTES, retryIn: EXPIRE_TIME._2_MINUTES },
+    };
+  }
+
+  /** Vérifie le code sans le consommer : l'app peut ensuite demander le nouveau mot de passe. */
+  async verifyPasswordResetOtp(data: VerifyOtpDto) {
+    await getAuthInstance()
+      .api.checkVerificationOTP({
+        body: { email: data.email.toLowerCase(), otp: data.otp, type: 'forget-password' },
+      })
+      .catch((error: unknown) => {
+        throw toOtpHttpError(error) ?? error;
+      });
+
+    return { success: true };
+  }
+
+  /** Change le mot de passe ; Better Auth ferme alors toutes les sessions de l'utilisateur. */
+  async resetPasswordWithOtp(data: ResetPasswordOtpDto) {
+    await getAuthInstance()
+      .api.resetPasswordEmailOTP({
+        body: { email: data.email.toLowerCase(), otp: data.otp, password: data.newPassword },
+      })
+      .catch((error: unknown) => {
+        throw toOtpHttpError(error) ?? error;
+      });
+
+    return { message: 'Votre mot de passe a été modifié. Vous pouvez vous connecter.' };
   }
 
   async checkUserEmail(email: string): Promise<boolean> {

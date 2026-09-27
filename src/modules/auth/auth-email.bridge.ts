@@ -11,7 +11,13 @@ type EmailHandler = (payload: {
   expireTime: string;
 }) => Promise<void>;
 
-type SendOTPEmailHandler = (payload: { email: string; otp: string }) => Promise<void>;
+export type OtpPurpose = 'email-verification' | 'forget-password';
+
+type SendOTPEmailHandler = (payload: {
+  email: string;
+  otp: string;
+  purpose: OtpPurpose;
+}) => Promise<void>;
 
 class AuthEmailBridge {
   private verificationHandler: EmailHandler | null = null;

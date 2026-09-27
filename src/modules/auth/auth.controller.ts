@@ -6,6 +6,7 @@ import {
   LoginDto,
   ResendVerificationDto,
   ResetPasswordDto,
+  ResetPasswordOtpDto,
   VerifyOtpDto,
 } from './auth.dto';
 import { API_URL } from '../../config/api';
@@ -42,6 +43,44 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Aucun compte associé à cet email' })
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body);
+  }
+
+  // ─── Mot de passe oublié par code OTP (mobile) ─────────────────
+
+  @Post(API_URL.AUTH.FORGOT_PASSWORD_OTP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Envoyer un code de réinitialisation (mobile)',
+    description:
+      'Réponse identique que le compte existe ou non. Un code déjà envoyé il y a moins de 2 minutes n’est pas renvoyé.',
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOkResponse({ description: 'Si le compte existe, un code à 6 chiffres a été envoyé' })
+  async forgotPasswordOtp(@Body() body: ForgotPasswordDto) {
+    return this.authService.requestPasswordResetOtp(body.email);
+  }
+
+  @Post(API_URL.AUTH.VERIFY_RESET_OTP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Vérifier un code de réinitialisation sans le consommer (mobile)' })
+  @ApiBody({ type: VerifyOtpDto })
+  @ApiOkResponse({ description: 'Code valide' })
+  @ApiBadRequestResponse({ description: 'Code incorrect, expiré ou trop de tentatives' })
+  async verifyResetOtp(@Body() body: VerifyOtpDto) {
+    return this.authService.verifyPasswordResetOtp(body);
+  }
+
+  @Post(API_URL.AUTH.RESET_PASSWORD_OTP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Définir un nouveau mot de passe avec le code (mobile)',
+    description: 'Toutes les sessions de l’utilisateur sont fermées après le changement.',
+  })
+  @ApiBody({ type: ResetPasswordOtpDto })
+  @ApiOkResponse({ description: 'Mot de passe réinitialisé' })
+  @ApiBadRequestResponse({ description: 'Code incorrect, expiré ou trop de tentatives' })
+  async resetPasswordOtp(@Body() body: ResetPasswordOtpDto) {
+    return this.authService.resetPasswordWithOtp(body);
   }
 
   @Post(API_URL.AUTH.SEND_VERIFICATION)

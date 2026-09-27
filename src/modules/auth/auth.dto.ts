@@ -70,3 +70,14 @@ export class LoginDto {
   @MinLength(8)
   password: string;
 }
+
+export class ResetPasswordOtpDto extends VerifyOtpDto {
+  @ApiProperty({
+    example: 'NouveauMotDePasse2026',
+    description: 'Nouveau mot de passe (min. 12 caractères)',
+    minLength: 12,
+  })
+  @IsString()
+  @MinLength(12)
+  newPassword: string;
+}

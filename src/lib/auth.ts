@@ -87,13 +87,14 @@ const createAuth = (prisma: PrismaClient) => {
       enabled: true,
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
-      resetPasswordTokenExpiresIn: EXPIRE_TIME._5_MINUTES,
+      // Lien web et codes OTP (web ou mobile) : 3 minutes
+      resetPasswordTokenExpiresIn: EXPIRE_TIME._3_MINUTES,
       sendResetPassword: async ({ user, token }) => {
         await authEmailBridge.sendResetPassword({
           name: user.name,
           email: user.email,
           url: `${process.env.FRONTEND_RESET_PASSWORD_URL}/?token=${token}`,
-          expireTime: formatExpiresIn(EXPIRE_TIME._5_MINUTES),
+          expireTime: formatExpiresIn(EXPIRE_TIME._3_MINUTES),
         });
       },
     },
@@ -140,21 +141,14 @@ const createAuth = (prisma: PrismaClient) => {
       passkey(),
       expo(),
       emailOTP({
-        // Code à 6 chiffres, valable 15 minutes (durée renvoyée au mobile à l'inscription)
+        // Code à 6 chiffres, valable 3 minutes (vérification d'email et mot de passe oublié)
         otpLength: 6,
-        expiresIn: EXPIRE_TIME._15_MINUTES,
+        expiresIn: EXPIRE_TIME._3_MINUTES,
         disableSignUp: true,
         allowedAttempts: 5,
         async sendVerificationOTP({ email, otp, type }) {
-          if (type === 'email-verification') {
-            await authEmailBridge.sendOTP({
-              email,
-              otp,
-            });
-          } else if (type === 'forget-password') {
-            // Send the OTP for password reset
-          } else {
-            return;
+          if (type === 'email-verification' || type === 'forget-password') {
+            await authEmailBridge.sendOTP({ email, otp, purpose: type });
           }
         },
       }),

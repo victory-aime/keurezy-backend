@@ -21,6 +21,7 @@ import {
   CreateBookingDto,
   RejectBookingDto,
 } from '../modules/bookings/bookings.dto';
+import { ResetPasswordOtpDto, VerifyOtpDto } from '../modules/auth/auth.dto';
 import { CreateInvitationDto } from '../modules/invitations/invitation.dto';
 import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
@@ -210,6 +211,12 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
       AgencyBookingsQueryDto,
       { agencyId: uuid, status: 'PENDING' },
       'query',
+    ],
+    ['VerifyOtpDto', VerifyOtpDto, { email: 'awa@example.com', otp: '482913' }],
+    [
+      'ResetPasswordOtpDto',
+      ResetPasswordOtpDto,
+      { email: 'awa@example.com', otp: '482913', newPassword: 'NouveauMotDePasse2026' },
     ],
     [
       'AnnonceQuoteDto',

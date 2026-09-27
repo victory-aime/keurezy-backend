@@ -78,6 +78,8 @@ export class EmailTemplatePayload {
 export class OTPTemplatePayload {
   sendTo: string;
   otp: string;
+  /** Objet du code : vérification d'email (défaut) ou mot de passe oublié */
+  purpose?: 'email-verification' | 'forget-password';
 }
 
 export class SendInviteEmailPayload {

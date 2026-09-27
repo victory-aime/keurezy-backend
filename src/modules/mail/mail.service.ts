@@ -38,9 +38,9 @@ export class EmailService {
   }
 
   async sendVerificationOTP(data: OTPTemplatePayload): Promise<void> {
-    const { sendTo, otp } = data;
+    const { sendTo, otp, purpose } = data;
     try {
-      await this.resendService.sendVerificationOTP(sendTo, otp);
+      await this.resendService.sendVerificationOTP(sendTo, otp, purpose);
     } catch (error) {
       throw new Error(`Error sending email: ${error}`);
     }
