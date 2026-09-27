@@ -27,7 +27,11 @@ import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
 import { MultipartJson } from './multipart-json.decorator';
 import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from '../modules/leads/leads.dto';
-import { CreateConversationDto } from '../modules/chat/chat.dto';
+import {
+  OpenBookingConversationDto,
+  OpenPropertyConversationDto,
+  SendMessageDto,
+} from '../modules/chat/chat.dto';
 import {
   CreateUserDto,
   ForgotPasswordDto,
@@ -271,7 +275,13 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
     ['CreateLeadDto', CreateLeadDto, { propertyId: uuid, message: 'Intéressé' }],
     ['UpdateLeadStatusDto', UpdateLeadStatusDto, { leadId: uuid, status: 'CONTACTED' }],
     ['AssignLeadDto', AssignLeadDto, { leadId: uuid, staffId: uuid }],
-    ['CreateConversationDto', CreateConversationDto, { leadId: uuid }],
+    ['OpenPropertyConversationDto', OpenPropertyConversationDto, { annonceId: uuid }],
+    ['OpenBookingConversationDto', OpenBookingConversationDto, { bookingId: uuid }],
+    [
+      'SendMessageDto',
+      SendMessageDto,
+      { conversationId: uuid, content: 'Bonjour', tempId: 'temp-1', durationMs: 4000 },
+    ],
     [
       'CreateUserDto',
       CreateUserDto,

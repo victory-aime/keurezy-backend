@@ -1,572 +1,738 @@
-import { Injectable, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
-import { SendMessageDto, GetMessagesDto, MessagePayload, CreateConversationDto } from './chat.dto';
-import { ConversationType, MessageStatus, Role } from '../../../prisma/generated/enums';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Prisma } from '../../../prisma/generated/client';
+import {
+  AnnonceStatus,
+  AttachmentKind,
+  MessageStatus,
+  MessageType,
+  Role,
+} from '../../../prisma/generated/enums';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { HttpError } from '../../config/http.error';
 import { PrismaService } from '../../database/prisma.service';
-import { UsersService } from '../users/users.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { formatCalendarDate } from '../rentals/calendar-date';
+import { ChatAccessService, ConversationAccess } from './chat-access.service';
+import { CloudinaryResourceType, ValidatedChatFile, validateChatFiles } from './chat-files';
+import {
+  AttachmentPayload,
+  ConversationsQueryDto,
+  GetMessagesDto,
+  MessagePayload,
+  SendMessageDto,
+} from './chat.dto';
 
-const DEFAULT_PAGE_SIZE = 30;
+const DEFAULT_MESSAGES_PAGE = 30;
+const DEFAULT_CONVERSATIONS_PAGE = 20;
+const SIGNED_URL_TTL_SECONDS = 3600;
 
+const STATUS_RANK: Record<MessageStatus, number> = {
+  [MessageStatus.SENT]: 0,
+  [MessageStatus.DELIVERED]: 1,
+  [MessageStatus.READ]: 2,
+};
+
+const CONVERSATION_INCLUDE = {
+  client: { select: { id: true, phone: true, userId: true, user: { select: { name: true } } } },
+  agency: { select: { id: true, name: true, phone: true, agencyLogo: true } },
+  property: {
+    select: {
+      id: true,
+      title: true,
+      annonces: {
+        where: { status: AnnonceStatus.ACTIVE },
+        select: { id: true, galleryImages: true },
+        take: 1,
+      },
+    },
+  },
+  booking: {
+    select: { id: true, status: true, rentalType: true, startDate: true, endDate: true },
+  },
+  messages: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    select: {
+      id: true,
+      senderId: true,
+      content: true,
+      type: true,
+      createdAt: true,
+      _count: { select: { attachments: true } },
+    },
+  },
+} satisfies Prisma.ConversationInclude;
+
+type ConversationRecord = Prisma.ConversationGetPayload<{ include: typeof CONVERSATION_INCLUDE }>;
+
+const MESSAGE_INCLUDE = {
+  sender: { select: { id: true, name: true } },
+  attachments: { orderBy: { createdAt: 'asc' } },
+} satisfies Prisma.MessageInclude;
+
+type MessageRecord = Prisma.MessageGetPayload<{ include: typeof MESSAGE_INCLUDE }>;
+
+interface ConversationContext {
+  clientId: string;
+  agencyId: string;
+  propertyId: string;
+}
+
+/** Résultat d'un envoi : le message et les utilisateurs à qui le diffuser. */
+export interface SentMessage {
+  message: MessagePayload;
+  recipientIds: string[];
+  conversation: ConversationAccess['conversation'] & { bookingId: string | null };
+  /** Nom présenté aux destinataires : l'agence parle d'une seule voix auprès du client */
+  senderDisplayName: string | null;
+}
+
+const emptyMessage = () =>
+  new HttpError(
+    'Le message doit contenir du texte ou une pièce jointe',
+    HttpStatus.BAD_REQUEST,
+    'CHAT_EMPTY_MESSAGE',
+  );
+
+const isUniqueViolation = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+
+/**
+ * Chat client ↔ agence. Une conversation est unique par (client, agence, bien) ;
+ * la réservation n'est qu'un contexte. Les droits sont vérifiés par ChatAccessService.
+ */
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly userService: UsersService,
+    private readonly access: ChatAccessService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
+  // ─────────────────────────────────────────────────────────────────
+  // OUVERTURE (récupération ou création idempotente)
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Le client contacte l'agence depuis une annonce. */
+  async openPropertyConversation(userId: string, annonceId: string) {
+    const client = await this.prisma.client.findUnique({ where: { userId }, select: { id: true } });
+    if (!client) {
+      throw new HttpError(
+        'Seul un compte client peut contacter une agence',
+        HttpStatus.FORBIDDEN,
+        'CLIENT_NOT_FOUND',
+      );
+    }
+
+    const annonce = await this.prisma.annonce.findFirst({
+      where: { id: annonceId, status: AnnonceStatus.ACTIVE },
+      select: { property: { select: { id: true, agencyId: true } } },
+    });
+    if (!annonce) {
+      throw new HttpError('Annonce introuvable', HttpStatus.NOT_FOUND, 'ANNONCE_NOT_FOUND');
+    }
+
+    const conversationId = await this.findOrCreate({
+      clientId: client.id,
+      agencyId: annonce.property.agencyId,
+      propertyId: annonce.property.id,
+    });
+    return this.getConversationDetail(userId, conversationId);
+  }
+
+  /** Conversation d'une réservation : ouverte par son client ou par l'agence. */
+  async openBookingConversation(userId: string, bookingId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        agencyId: true,
+        propertyId: true,
+        clientId: true,
+        client: { select: { userId: true } },
+      },
+    });
+    if (!booking) {
+      throw new HttpError('Réservation introuvable', HttpStatus.NOT_FOUND, 'BOOKING_NOT_FOUND');
+    }
+    if (!booking.clientId || !booking.client) {
+      throw new HttpError(
+        'Le client de cette réservation n’a plus de compte',
+        HttpStatus.CONFLICT,
+        'CHAT_CLIENT_UNAVAILABLE',
+      );
+    }
+    if (booking.client.userId !== userId) {
+      await this.access.assertAgencyAccess(booking.agencyId, userId, 'read');
+    }
+
+    const conversationId = await this.findOrCreate(
+      { clientId: booking.clientId, agencyId: booking.agencyId, propertyId: booking.propertyId },
+      booking.id,
+    );
+    return this.getConversationDetail(userId, conversationId);
+  }
+
   /**
-   * Point d'entrée UNIQUE pour le front (web + client).
-   * Détermine en interne s'il s'agit d'un DIRECT (agent ↔ client) ou
-   * d'un LEAD (résolution via Lead.assignedToId), sans que le front
-   * ait besoin de connaître cette distinction.
+   * Retourne la conversation existante ou la crée. Deux ouvertures simultanées
+   * sont départagées par la contrainte d'unicité : la seconde relit la première.
    */
-  async findOrCreateConversation(currentUserId: string, dto: CreateConversationDto) {
-    if (dto.leadId) {
-      return this.findOrCreateLeadConversation(dto.leadId, currentUserId);
+  private async findOrCreate(context: ConversationContext, bookingId?: string): Promise<string> {
+    const where = { clientId_agencyId_propertyId: context };
+    let conversation = await this.prisma.conversation.findUnique({
+      where,
+      select: { id: true, bookingId: true },
+    });
+
+    if (!conversation) {
+      try {
+        conversation = await this.prisma.conversation.create({
+          data: { ...context, bookingId: bookingId ?? null },
+          select: { id: true, bookingId: true },
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        conversation = await this.prisma.conversation.findUniqueOrThrow({
+          where,
+          select: { id: true, bookingId: true },
+        });
+      }
     }
 
-    if (dto.recipientId) {
-      return this.findOrCreateDirectConversation(currentUserId, dto.recipientId);
+    if (bookingId && conversation.bookingId !== bookingId) {
+      await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { bookingId },
+      });
     }
 
-    throw new ForbiddenException('recipientId ou leadId requis');
+    await this.syncParticipants(conversation.id, context.clientId, context.agencyId);
+    return conversation.id;
   }
 
-  // chat.service.ts — getUserConversations avec statut consolidé du dernier message
-  // Plus de receipts bruts (instables) — on calcule le statut une fois, stable.
+  // ─────────────────────────────────────────────────────────────────
+  // LECTURE
+  // ─────────────────────────────────────────────────────────────────
 
-  async getUserConversations(userId: string) {
-    const conversations = await this.prisma.conversation.findMany({
-      where: {
-        participants: { some: { userId, leftAt: null } },
-      },
-      include: {
-        participants: {
-          where: { leftAt: null },
-          include: { user: { select: { id: true, name: true } } },
-        },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+  /**
+   * Conversations du client connecté, ou d'une agence (`agencyId`) pour son owner / staff habilité.
+   * Seules les conversations ayant au moins un message sont listées.
+   */
+  async getConversations(userId: string, query: ConversationsQueryDto) {
+    const limit = query.limit ?? DEFAULT_CONVERSATIONS_PAGE;
 
-    // Hydrate le statut consolidé uniquement pour les derniers messages
-    // envoyés par l'utilisateur courant (les seuls qui affichent une icône statut)
-    const myLastMessageIds = conversations
-      .map((conv) => conv.messages[0])
-      .filter((msg) => msg?.senderId === userId)
-      .map((msg) => msg.id);
+    if (query.agencyId) {
+      await this.access.assertAgencyAccess(query.agencyId, userId, 'read');
+    }
+    const scope: Prisma.ConversationWhereInput = query.agencyId
+      ? { agencyId: query.agencyId }
+      : { client: { userId } };
 
-    const statusMap =
-      myLastMessageIds.length > 0
-        ? await this.hydrateMessageStatuses(myLastMessageIds)
-        : new Map<string, MessageStatus>();
+    const search = query.search?.trim();
+    const where: Prisma.ConversationWhereInput = {
+      ...scope,
+      lastMessageAt: { not: null },
+      ...(query.unreadOnly && {
+        participants: { some: { userId, unreadCount: { gt: 0 } } },
+      }),
+      ...(search && {
+        OR: [
+          { property: { title: { contains: search, mode: 'insensitive' } } },
+          { client: { user: { name: { contains: search, mode: 'insensitive' } } } },
+          { agency: { name: { contains: search, mode: 'insensitive' } } },
+        ],
+      }),
+    };
 
-    return conversations.map((conv) => ({
-      ...conv,
-      messages: conv.messages.map((msg) => ({
-        ...msg,
-        metadata: msg.metadata as Record<string, string[]> | null,
-        status: msg.senderId === userId ? (statusMap.get(msg.id) ?? MessageStatus.SENT) : null,
-      })),
-    }));
+    const [conversations, unread] = await Promise.all([
+      this.prisma.conversation.findMany({
+        where,
+        include: CONVERSATION_INCLUDE,
+        orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        ...(query.cursor && { cursor: { id: query.cursor }, skip: 1 }),
+      }),
+      this.prisma.conversationParticipant.aggregate({
+        where: { userId, conversation: scope },
+        _sum: { unreadCount: true },
+      }),
+    ]);
+
+    const hasMore = conversations.length > limit;
+    const page = hasMore ? conversations.slice(0, limit) : conversations;
+    const items = await this.toConversationItems(page, userId);
+
+    return {
+      items,
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+      unreadTotal: unread._sum.unreadCount ?? 0,
+    };
   }
-  async sendMessage(senderId: string, dto: SendMessageDto): Promise<MessagePayload> {
-    await this.assertActiveParticipant(senderId, dto.conversationId);
 
-    const message = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.message.create({
-        data: {
-          conversationId: dto.conversationId,
-          senderId,
-          content: dto.content,
-        },
-      });
-
-      await tx.conversation.update({
-        where: { id: dto.conversationId },
-        data: { updatedAt: new Date(), lastMessageAt: new Date() },
-      });
-
-      return msg;
+  async getConversationDetail(userId: string, conversationId: string) {
+    await this.access.assertConversationAccess(conversationId, userId, 'read');
+    const conversation = await this.prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      include: CONVERSATION_INCLUDE,
     });
-
-    return this.toMessagePayload({
-      ...message,
-      status: MessageStatus.SENT,
-      metadata: message.metadata as Record<string, string[]> | null,
-    });
+    const [item] = await this.toConversationItems([conversation], userId);
+    return item;
   }
 
   async getMessages(userId: string, dto: GetMessagesDto) {
-    const { conversationId, cursor, limit = DEFAULT_PAGE_SIZE } = dto;
-    await this.assertParticipant(userId, conversationId);
+    const { conversationId, cursor } = dto;
+    const limit = dto.limit ?? DEFAULT_MESSAGES_PAGE;
+    await this.access.assertConversationAccess(conversationId, userId, 'read');
+
+    const cursorMessage = cursor
+      ? await this.prisma.message.findFirst({
+          where: { id: cursor, conversationId },
+          select: { createdAt: true },
+        })
+      : null;
 
     const messages = await this.prisma.message.findMany({
       where: {
         conversationId,
         deletedAt: null,
-        ...(cursor && {
-          createdAt: {
-            lt: (await this.prisma.message.findUnique({ where: { id: cursor } }))?.createdAt,
-          },
-        }),
+        ...(cursorMessage && { createdAt: { lt: cursorMessage.createdAt } }),
       },
+      include: MESSAGE_INCLUDE,
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
     });
 
     const hasMore = messages.length > limit;
     const items = hasMore ? messages.slice(0, limit) : messages;
-
-    const statusMap = await this.hydrateMessageStatuses(items.map((m) => m.id));
-
-    console.log('statusMap', statusMap);
+    const clientUserId = await this.getClientUserId(conversationId);
+    const statuses = await this.hydrateMessageStatuses(items, clientUserId);
 
     return {
-      items: items.map((value) => ({
-        ...value,
-        metadata: value.metadata as Record<string, string[]> | null,
-        status: statusMap.get(value.id) ?? MessageStatus.SENT,
-      })),
+      items: items.map((message) =>
+        this.toMessagePayload(message, statuses.get(message.id) ?? MessageStatus.SENT),
+      ),
       nextCursor: hasMore ? items[items.length - 1].id : null,
     };
   }
 
-  async unreadCount(dto: { conversationId: string; recipientId: string }) {
-    await this.prisma.conversationParticipant.update({
-      where: {
-        conversationId_userId: {
-          conversationId: dto.conversationId,
-          userId: dto.recipientId,
-        },
-      },
-      data: {
-        unreadCount: { increment: 1 },
-      },
-    });
-  }
-
-  async getActiveRecipientIds(conversationId: string, excludeUserId: string): Promise<string[]> {
-    const participants = await this.prisma.conversationParticipant.findMany({
-      where: { conversationId, leftAt: null, userId: { not: excludeUserId } },
-      select: { userId: true },
-    });
-    return participants.map((p) => p.userId);
-  }
+  // ─────────────────────────────────────────────────────────────────
+  // ENVOI
+  // ─────────────────────────────────────────────────────────────────
 
   /**
-   * Crée un MessageReceipt SENT pour chaque destinataire actif au moment
-   * de la création du message. Appelé juste après message.create.
+   * Enregistre un message (texte, pièces jointes ou note vocale), crée les accusés
+   * des destinataires et retourne ce qu'il faut diffuser.
    */
-  async createReceiptsForMessage(
-    messageId: string,
-    conversationId: string,
+  async sendMessage(
     senderId: string,
-  ): Promise<void> {
-    const recipientIds = await this.getActiveRecipientIds(conversationId, senderId);
+    dto: SendMessageDto,
+    files: Express.Multer.File[] = [],
+  ): Promise<SentMessage> {
+    const access = await this.access.assertConversationAccess(
+      dto.conversationId,
+      senderId,
+      'reply',
+    );
 
-    if (!recipientIds.length) return;
+    const content = dto.content?.trim() ?? '';
+    const validated = validateChatFiles(files, dto.durationMs);
+    if (!content && !validated.length) throw emptyMessage();
 
-    await this.prisma.messageReceipt.createMany({
-      data: recipientIds.map((userId) => ({
-        messageId,
-        userId,
-        status: MessageStatus.SENT,
-      })),
+    const uploaded = await this.uploadAttachments(dto.conversationId, validated);
+
+    let message: MessageRecord;
+    let bookingId: string | null;
+    try {
+      const now = new Date();
+      [message, { bookingId }] = await this.prisma.$transaction([
+        this.prisma.message.create({
+          data: {
+            conversationId: dto.conversationId,
+            senderId,
+            content,
+            type: this.messageTypeFor(validated),
+            attachments: {
+              create: uploaded.map((file) => ({
+                kind: file.kind,
+                mimeType: file.mimeType,
+                fileName: file.fileName,
+                fileSize: file.fileSize,
+                storageKey: file.storageKey,
+                resourceType: file.resourceType,
+                durationMs: file.kind === AttachmentKind.AUDIO ? (dto.durationMs ?? null) : null,
+              })),
+            },
+          },
+          include: MESSAGE_INCLUDE,
+        }),
+        this.prisma.conversation.update({
+          where: { id: dto.conversationId },
+          data: { lastMessageAt: now },
+          select: { bookingId: true },
+        }),
+      ]);
+    } catch (error) {
+      // Pas de fichier orphelin si l'enregistrement échoue
+      await Promise.allSettled(
+        uploaded.map((file) =>
+          this.cloudinary.deletePrivateFile(file.storageKey, file.resourceType),
+        ),
+      );
+      throw error;
+    }
+
+    const { clientUserId, agencyReaders } = await this.syncParticipants(
+      dto.conversationId,
+      access.conversation.clientId,
+      access.conversation.agencyId,
+      { userId: senderId, role: access.role },
+    );
+    const recipientIds = [clientUserId, ...agencyReaders.map((reader) => reader.userId)].filter(
+      (id, index, all) => id !== senderId && all.indexOf(id) === index,
+    );
+
+    if (recipientIds.length) {
+      await this.prisma.messageReceipt.createMany({
+        data: recipientIds.map((userId) => ({ messageId: message.id, userId })),
+        skipDuplicates: true,
+      });
+    }
+
+    const agency =
+      access.side === 'AGENCY'
+        ? await this.prisma.agency.findUnique({
+            where: { id: access.conversation.agencyId },
+            select: { name: true },
+          })
+        : null;
+
+    return {
+      message: this.toMessagePayload(message, MessageStatus.SENT),
+      recipientIds,
+      conversation: { ...access.conversation, bookingId },
+      senderDisplayName: agency?.name ?? message.sender?.name ?? null,
+    };
+  }
+
+  private messageTypeFor(files: ValidatedChatFile[]): MessageType {
+    if (!files.length) return MessageType.TEXT;
+    if (files.some((file) => file.kind === AttachmentKind.AUDIO)) return MessageType.AUDIO;
+    if (files.every((file) => file.kind === AttachmentKind.IMAGE)) return MessageType.IMAGE;
+    return MessageType.FILE;
+  }
+
+  private async uploadAttachments(conversationId: string, files: ValidatedChatFile[]) {
+    const folder = `${CLOUDINARY_FOLDER_NAME.CHAT}/${conversationId}`;
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        // Cloudinary ajoute l'extension des images et de l'audio, pas celle des fichiers « raw »
+        const publicId =
+          file.resourceType === 'raw' ? `${randomUUID()}.${file.extension}` : randomUUID();
+        const result = await this.cloudinary.uploadPrivateFile(
+          file.buffer,
+          publicId,
+          folder,
+          file.resourceType,
+        );
+        return { ...file, storageKey: result.public_id };
+      }),
+    );
+
+    const failed = results.some((result) => result.status === 'rejected');
+    const uploaded = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    if (failed) {
+      await Promise.allSettled(
+        uploaded.map((file) =>
+          this.cloudinary.deletePrivateFile(file.storageKey, file.resourceType),
+        ),
+      );
+      throw new HttpError(
+        'Envoi des pièces jointes impossible, réessayez',
+        HttpStatus.BAD_GATEWAY,
+        'CHAT_UPLOAD_FAILED',
+      );
+    }
+    return uploaded;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // PARTICIPANTS, ACCUSÉS ET NON-LUS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Garantit une ligne participant (compteur de non-lus) pour le client et chaque membre
+   * habilité de l'agence. Les droits restent vérifiés à chaque accès.
+   */
+  private async syncParticipants(
+    conversationId: string,
+    clientId: string,
+    agencyId: string,
+    sender?: { userId: string; role: Role },
+  ) {
+    const [client, agencyReaders] = await Promise.all([
+      this.prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { userId: true } }),
+      this.access.getAgencyReaderIds(agencyId),
+    ]);
+
+    const rows = [{ userId: client.userId, role: Role.USER }, ...agencyReaders];
+    if (sender && !rows.some((row) => row.userId === sender.userId)) rows.push(sender);
+
+    await this.prisma.conversationParticipant.createMany({
+      data: rows.map((row) => ({ conversationId, userId: row.userId, role: row.role })),
       skipDuplicates: true,
     });
+
+    return { clientUserId: client.userId, agencyReaders };
   }
 
-  /**
-   * Met à jour le statut d'un receipt — appelé quand on sait que le
-   * destinataire est online (DELIVERED) ou qu'il vient d'ouvrir la
-   * conversation (READ).
-   */
-  async updateReceiptStatus(
-    messageId: string,
-    userId: string,
-    status: MessageStatus,
-  ): Promise<void> {
+  /** Utilisateurs concernés par la conversation (client + membres habilités de l'agence). */
+  async getConversationUserIds(conversationId: string): Promise<string[]> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { agencyId: true, client: { select: { userId: true } } },
+    });
+    if (!conversation) return [];
+    const readers = await this.access.getAgencyReaderIds(conversation.agencyId);
+    return [...new Set([conversation.client.userId, ...readers.map((reader) => reader.userId)])];
+  }
+
+  /** Interlocuteurs d'un utilisateur, pour lui diffuser les changements de présence. */
+  async getContactUserIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.conversationParticipant.findMany({
+      where: { userId: { not: userId }, conversation: { participants: { some: { userId } } } },
+      distinct: ['userId'],
+      select: { userId: true },
+      take: 500,
+    });
+    return rows.map((row) => row.userId);
+  }
+
+  async updateReceiptStatus(messageId: string, userId: string, status: MessageStatus) {
     await this.prisma.messageReceipt.updateMany({
-      where: {
-        messageId,
-        userId,
-        status: { not: status === 'READ' ? undefined : MessageStatus.READ },
-      },
+      // Un accusé ne régresse jamais (READ reste READ)
+      where: { messageId, userId, status: { not: MessageStatus.READ } },
       data: {
         status,
+        ...(status === MessageStatus.DELIVERED && { deliveredAt: new Date() }),
         ...(status === MessageStatus.READ && { readAt: new Date() }),
       },
     });
   }
 
-  /**
-   * Marque TOUS les messages non-lus d'une conversation comme READ pour
-   * cet utilisateur — appelé à l'ouverture de la conversation (conversation:join)
-   * ET au moment de l'envoi si le destinataire a déjà la conv ouverte.
-   *
-   * Retourne messageIds effectivement passés à READ, pour notifier
-   * précisément les expéditeurs concernés (pas un broadcast générique).
-   */
-  async markAllAsRead(conversationId: string, userId: string): Promise<string[]> {
-    const unreadReceipts = await this.prisma.messageReceipt.findMany({
-      where: {
-        userId,
-        status: { not: MessageStatus.READ },
-        message: { conversationId },
-      },
-      select: { id: true, messageId: true },
-    });
-
-    await Promise.all([
-      unreadReceipts.length > 0
-        ? this.prisma.messageReceipt.updateMany({
-            where: { id: { in: unreadReceipts.map((r) => r.id) } },
-            data: { status: MessageStatus.READ, readAt: new Date() },
-          })
-        : Promise.resolve(),
-
-      this.prisma.conversationParticipant.update({
-        where: { conversationId_userId: { conversationId, userId } },
-        data: { unreadCount: 0, lastReadAt: new Date() },
-      }),
-    ]);
-
-    return unreadReceipts.map((r) => r.messageId);
-  }
-
-  async incrementUnreadCount(conversationId: string, recipientId: string): Promise<void> {
-    await this.prisma.conversationParticipant.update({
-      where: { conversationId_userId: { conversationId, userId: recipientId } },
+  async incrementUnreadCount(conversationId: string, userIds: string[]) {
+    if (!userIds.length) return;
+    await this.prisma.conversationParticipant.updateMany({
+      where: { conversationId, userId: { in: userIds } },
       data: { unreadCount: { increment: 1 } },
     });
   }
+
   /**
-   * Calcule le statut "consolidé" d'un message pour l'affichage sender —
-   * le meilleur statut parmi tous ses receipts (READ > DELIVERED > SENT).
+   * Marque les messages reçus comme lus pour cet utilisateur et remet son compteur à zéro.
+   * Retourne les messages passés à READ.
    */
-  async getMessageConsolidatedStatus(messageId: string): Promise<MessageStatus> {
-    const receipts = await this.prisma.messageReceipt.findMany({
-      where: { messageId },
-      select: { status: true },
+  async markAllAsRead(conversationId: string, userId: string): Promise<string[]> {
+    const access = await this.access.assertConversationAccess(conversationId, userId, 'read');
+
+    const unreadReceipts = await this.prisma.messageReceipt.findMany({
+      where: { userId, status: { not: MessageStatus.READ }, message: { conversationId } },
+      select: { id: true, messageId: true },
     });
 
-    if (!receipts.length) return MessageStatus.SENT;
-    if (receipts.every((r) => r.status === MessageStatus.READ)) return MessageStatus.READ;
-    if (receipts.some((r) => r.status !== MessageStatus.SENT)) return MessageStatus.DELIVERED;
-    return MessageStatus.SENT;
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.messageReceipt.updateMany({
+        where: { id: { in: unreadReceipts.map((receipt) => receipt.id) } },
+        data: { status: MessageStatus.READ, readAt: now },
+      }),
+      this.prisma.conversationParticipant.upsert({
+        where: { conversationId_userId: { conversationId, userId } },
+        update: { unreadCount: 0, lastReadAt: now },
+        create: { conversationId, userId, role: access.role, lastReadAt: now },
+      }),
+    ]);
+
+    return unreadReceipts.map((receipt) => receipt.messageId);
+  }
+
+  async getConsolidatedStatus(messageId: string): Promise<MessageStatus> {
+    const message = await this.prisma.message.findUniqueOrThrow({
+      where: { id: messageId },
+      select: { id: true, senderId: true, conversationId: true },
+    });
+    const clientUserId = await this.getClientUserId(message.conversationId);
+    const statuses = await this.hydrateMessageStatuses([message], clientUserId);
+    return statuses.get(messageId) ?? MessageStatus.SENT;
   }
 
   /**
-   * Hydrate le statut de plusieurs messages d'un coup (pour getMessages,
-   * évite N+1 queries).
+   * Statut affiché à l'expéditeur : meilleur accusé du côté opposé.
+   * Message du client → lu dès qu'un membre de l'agence l'a lu ; message de l'agence → lu par le client.
    */
-  async hydrateMessageStatuses(messageIds: string[]): Promise<Map<string, MessageStatus>> {
-    if (!messageIds.length) return new Map();
+  private async hydrateMessageStatuses(
+    messages: { id: string; senderId: string }[],
+    clientUserId: string | null,
+  ): Promise<Map<string, MessageStatus>> {
+    if (!messages.length) return new Map();
 
     const receipts = await this.prisma.messageReceipt.findMany({
-      where: { messageId: { in: messageIds } },
-      select: { messageId: true, status: true },
+      where: { messageId: { in: messages.map((message) => message.id) } },
+      select: { messageId: true, userId: true, status: true },
     });
-
-    const byMessage = new Map<string, MessageStatus[]>();
-    for (const r of receipts) {
-      const list = byMessage.get(r.messageId) ?? [];
-      list.push(r.status);
-      byMessage.set(r.messageId, list);
-    }
+    const senderOf = new Map(messages.map((message) => [message.id, message.senderId]));
 
     const result = new Map<string, MessageStatus>();
-    for (const [messageId, statuses] of byMessage) {
-      const best = statuses.every((s) => s === MessageStatus.READ)
-        ? MessageStatus.READ
-        : statuses.some((s) => s !== MessageStatus.SENT)
-          ? MessageStatus.DELIVERED
-          : MessageStatus.SENT;
-      result.set(messageId, best);
-    }
+    for (const receipt of receipts) {
+      const fromClient = senderOf.get(receipt.messageId) === clientUserId;
+      const isOppositeSide = fromClient
+        ? receipt.userId !== clientUserId
+        : receipt.userId === clientUserId;
+      if (!isOppositeSide) continue;
 
+      const current = result.get(receipt.messageId) ?? MessageStatus.SENT;
+      if (STATUS_RANK[receipt.status] > STATUS_RANK[current]) {
+        result.set(receipt.messageId, receipt.status);
+      }
+    }
     return result;
   }
 
-  private async assertParticipant(userId: string, conversationId: string): Promise<void> {
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
+  private async getClientUserId(conversationId: string): Promise<string | null> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { client: { select: { userId: true } } },
     });
-    if (!participant) throw new ForbiddenException('Accès à cette conversation refusé');
+    return conversation?.client.userId ?? null;
   }
 
-  private async assertActiveParticipant(userId: string, conversationId: string): Promise<void> {
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
+  // ─────────────────────────────────────────────────────────────────
+  // MAPPERS
+  // ─────────────────────────────────────────────────────────────────
+
+  private async toConversationItems(conversations: ConversationRecord[], viewerId: string) {
+    const ids = conversations.map((conversation) => conversation.id);
+    const [participants, statuses] = await Promise.all([
+      this.prisma.conversationParticipant.findMany({
+        where: { conversationId: { in: ids }, userId: viewerId },
+        select: { conversationId: true, unreadCount: true },
+      }),
+      Promise.all(
+        conversations.map(async (conversation) => {
+          const [last] = conversation.messages;
+          if (!last || last.senderId !== viewerId) return null;
+          const map = await this.hydrateMessageStatuses([last], conversation.client.userId);
+          return [last.id, map.get(last.id) ?? MessageStatus.SENT] as const;
+        }),
+      ),
+    ]);
+    const unreadBy = new Map(participants.map((row) => [row.conversationId, row.unreadCount]));
+    const statusBy = new Map(statuses.filter((entry) => entry !== null));
+
+    return conversations.map((conversation) => {
+      const [annonce] = conversation.property.annonces;
+      const [last] = conversation.messages;
+      return {
+        id: conversation.id,
+        createdAt: conversation.createdAt,
+        lastMessageAt: conversation.lastMessageAt,
+        unreadCount: unreadBy.get(conversation.id) ?? 0,
+        agency: {
+          id: conversation.agency.id,
+          name: conversation.agency.name,
+          phone: conversation.agency.phone,
+          logo: conversation.agency.agencyLogo,
+        },
+        client: {
+          id: conversation.client.id,
+          userId: conversation.client.userId,
+          name: conversation.client.user.name,
+          phone: conversation.client.phone,
+        },
+        property: {
+          id: conversation.property.id,
+          title: conversation.property.title,
+          annonceId: annonce?.id ?? null,
+          coverImage: annonce?.galleryImages[0] ?? null,
+        },
+        booking: conversation.booking
+          ? {
+              id: conversation.booking.id,
+              status: conversation.booking.status,
+              rentalType: conversation.booking.rentalType,
+              startDate: formatCalendarDate(conversation.booking.startDate),
+              endDate: formatCalendarDate(conversation.booking.endDate),
+            }
+          : null,
+        lastMessage: last
+          ? {
+              id: last.id,
+              senderId: last.senderId,
+              content: last.content,
+              type: last.type,
+              attachmentsCount: last._count.attachments,
+              createdAt: last.createdAt,
+              status: statusBy.get(last.id) ?? null,
+            }
+          : null,
+      };
     });
-    if (!participant || participant.leftAt) {
-      throw new ForbiddenException('Vous ne faites plus partie de cette conversation');
-    }
   }
 
-  private toMessagePayload(message: MessagePayload) {
+  private toMessagePayload(message: MessageRecord, status: MessageStatus): MessagePayload {
     return {
       id: message.id,
       conversationId: message.conversationId,
       senderId: message.senderId,
+      sender: message.sender,
       content: message.content,
       type: message.type,
-      metadata: message.metadata ?? null,
-      status: message.status,
+      attachments: message.attachments.map((attachment) => this.toAttachmentPayload(attachment)),
+      status,
       createdAt: message.createdAt,
     };
   }
 
-  /**
-   * Synchronise les participants de la conversation après réassignation d'un Lead.
-   *
-   * Comportement
-   *   - Retire (soft, via leftAt) l'ancien staff/owner responsable
-   *   - Ajoute le nouveau responsable (staff assigné, ou owner si désassigné)
-   *   Client n'est jamais affecté
-   *   - Idempotent : si le nouveau responsable est déjà le bon, ne fait rien
-   */
-  async handleLeadReassignment(leadId: string, newAssignedToUserId: string | null): Promise<void> {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { leadId },
-      include: { participants: { where: { leftAt: null } } },
-    });
-
-    if (!conversation) {
-      this.logger.log(`Pas de conversation pour lead=${leadId} — rien à réassigner`);
-      return;
-    }
-
-    const currentResponsible = conversation.participants.find(
-      (p) => p.role === Role.AGENT || p.role === Role.OWNER,
-    );
-
-    const lead = await this.prisma.lead.findUniqueOrThrow({
-      where: { id: leadId },
-      include: { agency: { include: { owner: { include: { user: true } } } } },
-    });
-
-    const newUserId = newAssignedToUserId ?? lead.agency.owner?.user.id;
-
-    if (!newUserId) {
-      this.logger.log(`Réassignation impossible — pas de fallback owner pour lead=${leadId}`);
-      return;
-    }
-
-    if (currentResponsible?.userId === newUserId) {
-      this.logger.log(`Lead=${leadId} déjà assigné à userId=${newUserId} — no-op`);
-      return;
-    }
-
-    const newRole = newAssignedToUserId ? Role.AGENT : Role.OWNER;
-
-    await this.prisma.$transaction(async (tx) => {
-      if (currentResponsible) {
-        await tx.conversationParticipant.update({
-          where: { id: currentResponsible.id },
-          data: { leftAt: new Date() },
-        });
-      }
-
-      await tx.conversationParticipant.upsert({
-        where: {
-          conversationId_userId: { conversationId: conversation.id, userId: newUserId },
-        },
-        update: { leftAt: null, role: newRole },
-        create: {
-          conversationId: conversation.id,
-          userId: newUserId,
-          role: newRole,
-        },
-      });
-    });
-
-    this.logger.log(
-      `Conversation ${conversation.id} réassignée — lead=${leadId} nouveau responsable=${newUserId} (${newRole})`,
-    );
-  }
-
-  /**
-   * Vérifie que la paire est valide pour une conversation DIRECT :
-   * un agent (OWNER ou STAFF) ↔ un CLIENT. Jamais agent-agent, jamais client-client.
-   */
-
-  private async findOrCreateDirectConversation(currentUserId: string, recipientId: string) {
-    if (currentUserId === recipientId) {
-      throw new ForbiddenException('Impossible de créer une conversation avec soi-même');
-    }
-
-    const [user, recipient] = await Promise.all([
-      this.userService.findUser({ id: currentUserId }),
-      this.userService.findUser({ id: recipientId }),
-    ]);
-
-    if (!user || !recipient) {
-      throw new NotFoundException('Utilisateur introuvable');
-    }
-
-    await this.assertValidDirectPair(user, recipient);
-
-    const existing = await this.prisma.conversation.findFirst({
-      where: {
-        type: ConversationType.DIRECT,
-        participants: { every: { userId: { in: [currentUserId, recipientId] } } },
-      },
-      include: this.conversationInclude(),
-    });
-
-    if (existing) return existing;
-
-    return this.prisma.conversation.create({
-      data: {
-        type: ConversationType.DIRECT,
-        participants: {
-          createMany: {
-            data: [
-              { userId: currentUserId, role: user.role },
-              { userId: recipientId, role: recipient.role },
-            ],
-          },
-        },
-      },
-      include: this.conversationInclude(),
-    });
-  }
-
-  /**
-   * Valide la paire pour une conversation DIRECT. Deux cas autorisés :
-   *   1. Agent (OWNER/STAFF) ↔ CLIENT — peu importe l'agence
-   *   2. OWNER ↔ STAFF — uniquement s'ils appartiennent à la même agence
-   */
-  private async assertValidDirectPair(
-    user: { id: string; role: string },
-    recipient: { id: string; role: string },
-  ): Promise<void> {
-    const isAgent = (r: string) => r === Role.OWNER || r === Role.AGENT;
-    const isClient = (r: string) => r === Role.USER;
-    const isOwner = (r: string) => r === Role.OWNER;
-    const isStaff = (r: string) => r === Role.AGENT;
-
-    const isAgentClientPair =
-      (isAgent(user.role) && isClient(recipient.role)) ||
-      (isClient(user.role) && isAgent(recipient.role));
-
-    if (isAgentClientPair) return;
-
-    const isOwnerStaffPair =
-      (isOwner(user.role) && isStaff(recipient.role)) ||
-      (isStaff(user.role) && isOwner(recipient.role));
-
-    if (isOwnerStaffPair) {
-      const sameAgency = await this.assertSameAgency(user.id, recipient.id);
-      if (sameAgency) return;
-
-      throw new ForbiddenException(
-        "Un owner ne peut discuter qu'avec le staff de sa propre agence",
-      );
-    }
-
-    throw new ForbiddenException(
-      'Une conversation directe est autorisée uniquement entre un agent et un client, ou un owner et son staff',
-    );
-  }
-
-  /**
-   * Vérifie que les deux users appartiennent à la même agence,
-   * peu importe lequel est owner et lequel est staff.
-   */
-  private async assertSameAgency(userIdA: string, userIdB: string): Promise<boolean> {
-    const [ownerRecord, staffRecord] = await Promise.all([
-      this.prisma.owner.findFirst({
-        where: { userId: { in: [userIdA, userIdB] } },
-        select: { userId: true, agency: true },
-      }),
-      this.prisma.staff.findFirst({
-        where: { userId: { in: [userIdA, userIdB] } },
-        select: { userId: true, agencyId: true },
-      }),
-    ]);
-
-    if (!ownerRecord || !staffRecord) return false;
-
-    return ownerRecord.agency?.id === staffRecord.agencyId;
-  }
-  private async findOrCreateLeadConversation(leadId: string, requesterId: string) {
-    const existing = await this.prisma.conversation.findUnique({
-      where: { leadId },
-      include: this.conversationInclude(),
-    });
-    if (existing) {
-      // Une conversation existante n'est renvoyée qu'à ses participants actifs
-      if (!existing.participants.some((p) => p.userId === requesterId)) {
-        throw new ForbiddenException("Vous n'êtes pas autorisé à accéder à cette conversation");
-      }
-      return existing;
-    }
-
-    const lead = await this.prisma.lead.findUnique({
-      where: { id: leadId },
-      include: {
-        client: { include: { user: true } },
-        agency: { include: { owner: { include: { user: true } } } },
-        assignedTo: { include: { user: true } },
-      },
-    });
-    if (!lead) throw new NotFoundException('Lead introuvable');
-
-    const { staffUserId, role } = this.resolveResponsible(lead);
-
-    // FIX : le requester doit être SOIT le client du lead, SOIT le responsable
-    // résolu (staff assigné ou owner fallback) — jamais un tiers.
-    const isClientRequester = lead.client.userId === requesterId;
-    const isResponsibleRequester = staffUserId === requesterId;
-
-    if (!isClientRequester && !isResponsibleRequester) {
-      throw new ForbiddenException("Vous n'êtes pas autorisé à démarrer cette conversation");
-    }
-
-    return this.prisma.conversation.create({
-      data: {
-        type: ConversationType.LEAD,
-        leadId,
-        participants: {
-          createMany: {
-            data: [
-              { userId: lead.client.userId, role: Role.USER },
-              { userId: staffUserId, role },
-            ],
-          },
-        },
-      },
-      include: this.conversationInclude(),
-    });
-  }
-
-  private resolveResponsible(lead: {
-    assignedTo: { user: { id: string } } | null;
-    agency: { owner: { user: { id: string } } | null };
-  }): { staffUserId: string; role: Role } {
-    if (lead.assignedTo) {
-      return { staffUserId: lead.assignedTo.user.id, role: Role.AGENT };
-    }
-    if (!lead.agency.owner) {
-      throw new NotFoundException('Aucun owner trouvé pour cette agence');
-    }
-    return { staffUserId: lead.agency.owner.user.id, role: Role.OWNER };
-  }
-
-  private conversationInclude() {
+  private toAttachmentPayload(attachment: MessageRecord['attachments'][number]): AttachmentPayload {
+    const resourceType = attachment.resourceType as CloudinaryResourceType;
+    const format = attachment.fileName.split('.').pop()?.toLowerCase() ?? '';
     return {
-      participants: {
-        where: { leftAt: null },
-        include: { user: { select: { id: true, name: true } } },
-      },
-      messages: { orderBy: { createdAt: 'desc' as const }, take: 1 },
+      id: attachment.id,
+      kind: attachment.kind,
+      mimeType: attachment.mimeType,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      durationMs: attachment.durationMs,
+      // URL temporaire : générée uniquement pour un utilisateur déjà autorisé
+      url: this.cloudinary.getSignedUrl(
+        attachment.storageKey,
+        resourceType,
+        this.formatFor(attachment.mimeType, format),
+        SIGNED_URL_TTL_SECONDS,
+      ),
     };
+  }
+
+  private formatFor(mimeType: string, fallback: string): string {
+    switch (mimeType) {
+      case 'image/png':
+        return 'png';
+      case 'image/jpeg':
+      case 'image/jpg':
+        return 'jpg';
+      case 'audio/aac':
+        return 'aac';
+      case 'audio/mp4':
+      case 'audio/m4a':
+      case 'audio/x-m4a':
+        return 'm4a';
+      default:
+        return fallback;
+    }
   }
 }

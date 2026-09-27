@@ -2,14 +2,17 @@ import { Module } from '@nestjs/common';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { UsersModule } from '../users/users.module';
-import { WsBetterAuthGuard } from '../../guard/ws.guard';
+import { ChatAccessService } from './chat-access.service';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
+/**
+ * Chat client ↔ agence. Ne dépend pas des notifications : les nouveaux messages
+ * sont publiés sur le bus d'événements (`chat.message.created`).
+ */
 @Module({
-  imports: [NotificationsModule, UsersModule],
-  providers: [ChatGateway, ChatService, WsBetterAuthGuard],
+  imports: [CloudinaryModule],
+  providers: [ChatGateway, ChatService, ChatAccessService],
   controllers: [ChatController],
-  exports: [ChatService, ChatGateway],
+  exports: [ChatService],
 })
 export class ChatModule {}

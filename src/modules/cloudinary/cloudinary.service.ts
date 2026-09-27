@@ -46,6 +46,60 @@ export class CloudinaryService {
     });
   }
 
+  /**
+   * Upload d'un fichier privé (livraison « authenticated ») : il n'est accessible
+   * qu'au travers d'une URL signée générée par `getSignedUrl`.
+   */
+  async uploadPrivateFile(
+    buffer: Buffer,
+    publicId: string,
+    folderPath: string,
+    resourceType: 'image' | 'raw' | 'video',
+  ): Promise<UploadApiResponse> {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          type: 'authenticated',
+          public_id: publicId,
+          folder: folderPath,
+          overwrite: false,
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          if (result) resolve(result);
+          else reject(new Error('UploadApiResponse is undefined'));
+        },
+      );
+
+      const readable = new Readable();
+      readable.push(buffer);
+      readable.push(null);
+      readable.pipe(stream);
+    });
+  }
+
+  /** URL de téléchargement signée et temporaire d'un fichier privé. */
+  getSignedUrl(
+    publicId: string,
+    resourceType: 'image' | 'raw' | 'video',
+    format: string,
+    expiresInSeconds = 3600,
+  ): string {
+    return cloudinary.utils.private_download_url(publicId, resourceType === 'raw' ? '' : format, {
+      resource_type: resourceType,
+      type: 'authenticated',
+      expires_at: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    });
+  }
+
+  async deletePrivateFile(publicId: string, resourceType: 'image' | 'raw' | 'video') {
+    return cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      type: 'authenticated',
+    });
+  }
+
   async listFiles(folderPath: string) {
     const prefix = folderPath.replace(/\/$/, '');
 

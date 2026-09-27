@@ -25,10 +25,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { DomainEventsModule } from './modules/events/domain-events';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    DomainEventsModule,
     WinstonModule.forRoot({
       transports: [
         new winston.transports.Console({

@@ -4,11 +4,12 @@ import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
 import { PushNotificationController } from './push-notification.controller';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { ChatNotificationListener } from './chat-notification.listener';
 
 @Module({
   imports: [FirebaseModule],
   controllers: [NotificationsController, PushNotificationController],
-  providers: [NotificationsService, PushNotificationService],
+  providers: [NotificationsService, PushNotificationService, ChatNotificationListener],
   exports: [NotificationsService, PushNotificationService],
 })
 export class NotificationsModule {}

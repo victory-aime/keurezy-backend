@@ -65,6 +65,10 @@ export class PushNotificationsDto {
   @IsNotEmpty()
   @IsString()
   body: string;
+
+  /** Données complémentaires (ex. conversationId) pour la navigation à l'ouverture */
+  @IsOptional()
+  data?: Record<string, string>;
 }
 
 export class RegisterPushNotificationTokenDto {

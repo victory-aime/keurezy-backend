@@ -13,13 +13,14 @@ Résumé des évolutions structurantes depuis `main`. Le détail est dans l'hist
 
 Le projet utilisait `db push`. `prisma/migrations` est maintenant versionné :
 
-| Migration                           | Contenu                                                                     |
-| ----------------------------------- | --------------------------------------------------------------------------- |
-| `0_init`                            | Référence du schéma existant (baseline)                                     |
-| `1_cleanup_legacy_rentals`          | Suppression des anciennes tables de location, vides, idempotente            |
-| `2_rental_configs_and_bookings`     | Modalités, disponibilités, réservations, contraintes `CHECK`                |
-| `3_backfill_monthly_rental_configs` | Modalité mensuelle créée pour les biens existants (prix et caution actuels) |
-| `4_bookings`                        | Type de notification `BOOKING`, durée réservée, index client                |
+| Migration                           | Contenu                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| `0_init`                            | Référence du schéma existant (baseline)                                       |
+| `1_cleanup_legacy_rentals`          | Suppression des anciennes tables de location, vides, idempotente              |
+| `2_rental_configs_and_bookings`     | Modalités, disponibilités, réservations, contraintes `CHECK`                  |
+| `3_backfill_monthly_rental_configs` | Modalité mensuelle créée pour les biens existants (prix et caution actuels)   |
+| `4_bookings`                        | Type de notification `BOOKING`, durée réservée, index client                  |
+| `5_chat_property_context`           | Chat client ↔ agence lié au bien, pièces jointes (à appliquer sur table vide) |
 
 **Première mise en place sur un environnement existant** (UAT, production) :
 
@@ -77,3 +78,26 @@ Règles :
 - **Web** : le parcours par lien (`forgot-password` et `reset-password`) est inchangé.
 - **Messages d'erreur** : les refus de Better Auth sont traduits en français, et un email inconnu reçoit la même réponse qu'un code incorrect.
 - **Inscription** : le profil client est créé avant l'envoi du code. La vérification est validée par `VerifyOtpDto`, et le délai avant renvoi est corrigé.
+
+## 7. Chat client ↔ agence (`modules/chat`)
+
+L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation relie **un client, une agence et un bien**, avec la dernière réservation concernée en contexte (`bookingId`).
+
+- **Unicité** : `@@unique([clientId, agencyId, propertyId])`. Contacter l'agence depuis l'annonce ou depuis une réservation ouvre la même conversation ; deux ouvertures simultanées sont départagées par la contrainte.
+- **Accès** (`ChatAccessService`, source unique) : le client de la conversation, l'owner de l'agence, et le staff actif ayant `view_conversations` (lecture) ou `reply_conversations` (réponse). Feature `manage_conversations`, catégorie `MESSAGING`, incluse dans tous les plans actifs (`db:seed:*-feature`).
+- **Pièces jointes** : 3 fichiers maximum, 2 Mo chacun, PDF / JPG / PNG ; ou une note vocale seule (m4a / aac, 2 minutes). Type MIME en liste blanche **et** signature binaire vérifiée. Stockage Cloudinary privé (`authenticated`), servi par URL signée valable 1 h.
+- **Routes** :
+
+  | Route                              | Rôle                                                          |
+  | ---------------------------------- | ------------------------------------------------------------- |
+  | `POST chat/conversations/property` | Client : conversation du bien (récupérée ou créée)            |
+  | `POST chat/conversations/booking`  | Client ou agence : même conversation, réservation en contexte |
+  | `GET chat/conversations`           | Liste paginée ; `agencyId` pour la vue agence ; `unreadTotal` |
+  | `GET chat/conversations/detail`    | Agence, client, bien, réservation                             |
+  | `GET chat/conversations/messages`  | Messages paginés, pièces jointes signées                      |
+  | `POST chat/conversations/messages` | Multipart `data` + `files` (pièces jointes, note vocale)      |
+  | `PATCH chat/conversations/read`    | Marquer comme lu sans socket                                  |
+
+- **WebSocket** (`/chat`) : participation vérifiée sur `conversation:join`, frappe relayée aux seuls sockets de la conversation, payloads validés, accusé `{ ok, message | error }` sur `message:send`, présence diffusée aux seuls interlocuteurs. Authentification par le cookie de session, ou par le jeton de session transmis à la connexion (`auth.token`) quand le frontend et l'API sont sur des domaines différents.
+- **Notifications** : le chat publie `chat.message.created` sur le bus interne (`modules/events`). `ChatNotificationListener` (module notifications) envoie le push FCM aux destinataires hors ligne avec `type: MESSAGE` et `conversationId`. Le push mobile (Expo) se branchera sur cet écouteur.
+- **Leads** : l'assignation d'un lead ne touche plus au chat.

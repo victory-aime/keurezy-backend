@@ -139,6 +139,14 @@ export const API_URL = {
     CONFIRM: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.BOOKINGS}/confirm`,
     REJECT: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.BOOKINGS}/reject`,
   },
+  CHAT: {
+    OPEN_PROPERTY: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/property`,
+    OPEN_BOOKING: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/booking`,
+    CONVERSATIONS: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations`,
+    DETAIL: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/detail`,
+    MESSAGES: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/messages`,
+    READ: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/read`,
+  },
   PAYMENT_ADMIN: {
     LIST: `${BASE_APIS_URL.SECURED}/admin/payments`,
     DETAIL: `${BASE_APIS_URL.SECURED}/admin/payments/detail`,

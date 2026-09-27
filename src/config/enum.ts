@@ -19,6 +19,7 @@ enum APIS_URL_GLOBAL_PATH {
   LEADS = 'leads',
   VISITS = 'visits',
   BOOKINGS = 'bookings',
+  CHAT = 'chat',
   PUSH_NOTIF = 'push-notification',
   INTEGRATIONS = 'integrations',
 }
@@ -31,6 +32,7 @@ enum CLOUDINARY_FOLDER_NAME {
   USERS = 'USERS',
   ANNONCE = 'annonces',
   TEMP = 'temporary_files',
+  CHAT = 'chat',
 }
 
 enum SWAGGER_TAGS {

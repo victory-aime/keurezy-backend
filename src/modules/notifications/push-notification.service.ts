@@ -78,6 +78,7 @@ export class PushNotificationService {
       await this.firebaseService.getMessaging().send({
         token,
         data: {
+          ...payload.data,
           title: payload.title ?? '',
           body: payload.body,
           notificationId: payload.notificationId ?? '',

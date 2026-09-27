@@ -5,7 +5,6 @@ import { LeadStatus } from '../../../prisma/generated/enums';
 // Dépendances mockées : évite de charger Better Auth (ESM) dans Jest
 jest.mock('../agency/agency.service', () => ({ AgencyService: class {} }));
 jest.mock('../notifications/notifications.service', () => ({ NotificationsService: class {} }));
-jest.mock('../chat/chat.service', () => ({ ChatService: class {} }));
 
 describe('LeadsService — contrôle d’accès', () => {
   const prisma = {
@@ -17,7 +16,6 @@ describe('LeadsService — contrôle d’accès', () => {
     prisma as never,
     agencyService as never,
     { notifyStaff: jest.fn() } as never,
-    { handleLeadReassignment: jest.fn() } as never,
   );
 
   const denied = new HttpError('Accès refusé à cette agence', 403, 'AGENCY_ACCESS_DENIED');

@@ -8,22 +8,46 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
-import { ChatService } from './chat.service';
-import { SendMessageDto, TypingPayload } from './chat.dto';
-import { MessageStatus, NotificationType } from '../../../prisma/generated/enums';
-import { PushNotificationService } from '../notifications/push-notification.service';
+import { HttpException, Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { ChatService, SentMessage } from './chat.service';
+import { ChatAccessService } from './chat-access.service';
+import {
+  SendMessageAck,
+  SendMessageDto,
+  TypingDto,
+  TypingPayload,
+  ConversationIdDto,
+} from './chat.dto';
+import { MessageStatus, MessageType } from '../../../prisma/generated/enums';
+import { DomainEventBus } from '../events/domain-events';
 import { getAuthInstance } from '../../lib/auth';
+
+// Présence en mémoire : valable pour une seule instance (adapter Redis à prévoir en multi-instance)
+interface SocketData {
+  userId?: string;
+}
+
+/** Utilisateur authentifié du socket (renseigné à la connexion). */
+const userIdOf = (client: Socket): string => (client.data as SocketData).userId ?? '';
 
 const connectedUsers = new Map<string, Set<string>>();
 const openConversationByUser = new Map<string, string>();
 
-interface SendMessageWithTempId extends SendMessageDto {
-  tempId?: string;
-}
+const PREVIEW_BY_TYPE: Partial<Record<MessageType, string>> = {
+  [MessageType.AUDIO]: '🎤 Note vocale',
+  [MessageType.IMAGE]: '📷 Photo',
+  [MessageType.FILE]: '📎 Pièce jointe',
+};
 
-type SendMessageAck = (response: { success: boolean; message?: any; error?: string }) => void;
+const toAckError = (error: unknown): SendMessageAck => {
+  if (error instanceof HttpException) {
+    const response = error.getResponse() as { message?: string; errorCode?: string };
+    return { ok: false, error: response.message ?? error.message, errorCode: response.errorCode };
+  }
+  return { ok: false, error: 'Envoi impossible, réessayez' };
+};
 
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @WebSocketGateway({
   cors: { origin: process.env.FRONTEND_URL, credentials: true },
   namespace: '/chat',
@@ -36,43 +60,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly pushService: PushNotificationService,
+    private readonly access: ChatAccessService,
+    private readonly events: DomainEventBus,
   ) {}
 
+  /** Authentification par la session Better Auth (cookie du web, ou header Cookie du mobile). */
   async handleConnection(client: Socket) {
-    this.logger.log(`Connexion tentée — socketId: ${client.id}`);
-
     try {
-      const rawHeaders = client.handshake.headers;
       const headers = new Headers();
-      Object.entries(rawHeaders).forEach(([key, value]) => {
+      Object.entries(client.handshake.headers).forEach(([key, value]) => {
         if (typeof value === 'string') headers.append(key, value);
         else if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
       });
 
-      const auth = getAuthInstance();
-      const session = await auth.api.getSession({ headers });
-
-      if (!session?.user?.id) {
-        this.logger.warn(`Session introuvable — socketId: ${client.id}`);
+      // Cookie de session (mobile, web sur le même domaine), sinon jeton transmis à la connexion
+      const session = await getAuthInstance().api.getSession({ headers });
+      const handshakeToken = (client.handshake.auth as { token?: unknown } | undefined)?.token;
+      const userId =
+        session?.user?.id ??
+        (typeof handshakeToken === 'string'
+          ? await this.access.getUserIdFromSessionToken(handshakeToken)
+          : null);
+      if (!userId) {
+        this.logger.warn(`Connexion chat refusée : session introuvable (socket ${client.id})`);
         client.disconnect();
         return;
       }
 
-      const userId = session.user.id;
-      client.data.userId = userId;
-      client.data.user = session.user;
+      (client.data as SocketData).userId = userId;
+      await client.join(`user:${userId}`);
 
-      client.join(`user:${userId}`);
-
-      if (!connectedUsers.has(userId)) connectedUsers.set(userId, new Set());
+      const wasOffline = !connectedUsers.has(userId);
+      if (wasOffline) connectedUsers.set(userId, new Set());
       connectedUsers.get(userId)!.add(client.id);
 
-      this.logger.log(
-        `User connecté: ${userId} — socketId: ${client.id} — total sockets actifs: ${connectedUsers.get(userId)!.size}`,
-      );
-
-      this.server.emit('presence:update', { userId, online: true });
+      if (wasOffline) await this.broadcastPresence(userId, true);
     } catch (error) {
       this.logger.error(`Erreur résolution session WS: ${error}`);
       client.disconnect();
@@ -80,151 +102,180 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   async handleDisconnect(client: Socket) {
-    const userId = client.data.userId;
+    const userId = userIdOf(client);
     if (!userId) return;
 
     const sockets = connectedUsers.get(userId);
     sockets?.delete(client.id);
-
-    this.logger.log(`Déconnexion — userId: ${userId} — sockets restants: ${sockets?.size ?? 0}`);
-
     if (!sockets?.size) {
       connectedUsers.delete(userId);
       openConversationByUser.delete(userId);
-      this.server.emit('presence:update', { userId, online: false });
+      await this.broadcastPresence(userId, false);
     }
   }
 
+  /** Envoi d'un message texte. Les pièces jointes passent par l'API REST (multipart). */
   @SubscribeMessage('message:send')
   async handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() dto: SendMessageWithTempId,
-  ) {
-    const senderId = client.data.userId;
-    if (!senderId) {
-      client.disconnect();
-      return;
-    }
-
+    @MessageBody() dto: SendMessageDto,
+  ): Promise<SendMessageAck> {
+    const senderId = userIdOf(client);
     try {
-      const message = await this.chatService.sendMessage(senderId, dto);
-      await this.chatService.createReceiptsForMessage(message.id, dto.conversationId, senderId);
-
-      const recipientIds = await this.chatService.getActiveRecipientIds(
-        dto.conversationId,
-        senderId,
-      );
-
-      for (const recipientId of recipientIds) {
-        const isOnline = connectedUsers.has(recipientId);
-        const hasConversationOpen = openConversationByUser.get(recipientId) === dto.conversationId;
-
-        if (isOnline) {
-          const status = hasConversationOpen ? MessageStatus.READ : MessageStatus.DELIVERED;
-          await this.chatService.updateReceiptStatus(message.id, recipientId, status);
-
-          // FIX : pas de compteur si la conv est ouverte (status = READ, pas de pastille)
-          if (!hasConversationOpen) {
-            await this.chatService.incrementUnreadCount(dto.conversationId, recipientId);
-          }
-
-          this.server.to(`user:${recipientId}`).emit('message:receive', { ...message, status });
-        } else {
-          await this.chatService.incrementUnreadCount(dto.conversationId, recipientId);
-          try {
-            await this.pushService.sendToUser(recipientId, {
-              title: 'Nouveau message',
-              body:
-                message.content.length > 60 ? `${message.content.slice(0, 60)}…` : message.content,
-              notificationId: message.id,
-              type: NotificationType.LEAD,
-            });
-          } catch (pushError) {
-            this.logger.error(`Échec push FCM à ${recipientId}: ${pushError}`);
-          }
-        }
-      }
-      const bestStatus = await this.chatService.getMessageConsolidatedStatus(message.id);
-      this.server.to(`user:${senderId}`).emit('message:sent', {
-        ...message,
-        status: bestStatus,
-        tempId: dto.tempId,
-      });
+      const sent = await this.chatService.sendMessage(senderId, dto);
+      const message = await this.dispatchMessage(sent, senderId, dto.tempId);
+      return { ok: true, message };
     } catch (error) {
-      this.logger.error(`Échec traitement message:send: ${error}`);
+      this.logger.warn(`message:send refusé pour ${senderId}: ${error}`);
+      const ack = toAckError(error);
+      client.emit('message:error', { tempId: dto.tempId, ...ack });
+      return ack;
     }
+  }
+
+  /**
+   * Diffusion commune aux envois socket et REST : accusés DELIVERED/READ selon la présence,
+   * compteurs de non-lus, événement pour les destinataires à notifier.
+   */
+  async dispatchMessage(sent: SentMessage, senderId: string, tempId?: string) {
+    const { message, recipientIds, conversation } = sent;
+    const toNotify: string[] = [];
+    const unread: string[] = [];
+
+    for (const recipientId of recipientIds) {
+      const isOnline = connectedUsers.has(recipientId);
+      const hasConversationOpen =
+        openConversationByUser.get(recipientId) === message.conversationId;
+
+      if (isOnline) {
+        const status = hasConversationOpen ? MessageStatus.READ : MessageStatus.DELIVERED;
+        await this.chatService.updateReceiptStatus(message.id, recipientId, status);
+        this.server.to(`user:${recipientId}`).emit('message:receive', {
+          ...message,
+          bookingId: conversation.bookingId,
+          propertyId: conversation.propertyId,
+        });
+      } else {
+        toNotify.push(recipientId);
+      }
+      if (!hasConversationOpen) unread.push(recipientId);
+    }
+    await this.chatService.incrementUnreadCount(message.conversationId, unread);
+
+    if (toNotify.length) {
+      this.events.emit('chat.message.created', {
+        conversationId: message.conversationId,
+        messageId: message.id,
+        senderId,
+        senderName: sent.senderDisplayName,
+        recipientIds: toNotify,
+        agencyId: conversation.agencyId,
+        propertyId: conversation.propertyId,
+        bookingId: conversation.bookingId,
+        preview: message.content || PREVIEW_BY_TYPE[message.type] || 'Nouveau message',
+      });
+    }
+
+    const payload = {
+      ...message,
+      status: await this.chatService.getConsolidatedStatus(message.id),
+    };
+    this.server.to(`user:${senderId}`).emit('message:sent', { ...payload, tempId });
+    return payload;
   }
 
   @SubscribeMessage('typing:start')
-  handleTypingStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
-  ) {
-    const payload: TypingPayload = {
-      conversationId: data.conversationId,
-      userId: client.data.userId,
-      isTyping: true,
-    };
-    client.to(`conversation:${data.conversationId}`).emit('typing:update', payload);
+  handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: TypingDto) {
+    this.relayTyping(client, data.conversationId, true);
   }
 
   @SubscribeMessage('typing:stop')
-  handleTypingStop(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
-  ) {
-    const payload: TypingPayload = {
-      conversationId: data.conversationId,
-      userId: client.data.userId,
-      isTyping: false,
-    };
-    client.to(`conversation:${data.conversationId}`).emit('typing:update', payload);
+  handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: TypingDto) {
+    this.relayTyping(client, data.conversationId, false);
+  }
+
+  private relayTyping(client: Socket, conversationId: string, isTyping: boolean) {
+    // L'indicateur n'est relayé qu'aux sockets ayant rejoint la conversation (donc déjà autorisés)
+    if (!client.rooms.has(`conversation:${conversationId}`)) return;
+    const payload: TypingPayload = { conversationId, userId: userIdOf(client), isTyping };
+    client.to(`conversation:${conversationId}`).emit('typing:update', payload);
   }
 
   @SubscribeMessage('conversation:join')
   async handleJoinConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: ConversationIdDto,
   ) {
-    const userId = client.data.userId;
-    client.join(`conversation:${data.conversationId}`);
-    this.logger.log(`socket ${client.id} a rejoint conversation:${data.conversationId}`);
-
-    openConversationByUser.set(userId, data.conversationId);
-
-    const readMessageIds = await this.chatService.markAllAsRead(data.conversationId, userId);
-
-    this.logger.log(`conversation:join — userId=${userId} readMessageIds=${readMessageIds.length}`);
-
-    if (!readMessageIds.length) return;
-
-    const senderIds = await this.chatService.getActiveRecipientIds(data.conversationId, userId);
-
-    for (const senderId of senderIds) {
-      this.server.to(`user:${senderId}`).emit('conversation:read', {
-        conversationId: data.conversationId,
-        userId,
-        messageIds: readMessageIds,
-        lastReadAt: new Date(),
-      });
+    const userId = userIdOf(client);
+    const { conversationId } = data;
+    try {
+      await this.access.assertConversationAccess(conversationId, userId, 'read');
+    } catch {
+      client.emit('conversation:error', { conversationId, errorCode: 'CHAT_ACCESS_DENIED' });
+      return;
     }
 
-    this.server.to(`user:${userId}`).emit('unread:reset', {
-      conversationId: data.conversationId,
-    });
+    await client.join(`conversation:${conversationId}`);
+    openConversationByUser.set(userId, conversationId);
+
+    const readMessageIds = await this.chatService.markAllAsRead(conversationId, userId);
+    const others = (await this.chatService.getConversationUserIds(conversationId)).filter(
+      (id) => id !== userId,
+    );
+
+    // État de présence initial des interlocuteurs
+    for (const otherId of others) {
+      if (connectedUsers.has(otherId)) {
+        client.emit('presence:update', { userId: otherId, online: true });
+      }
+    }
+
+    await this.broadcastRead(conversationId, userId, readMessageIds, others);
   }
 
   @SubscribeMessage('conversation:leave')
-  handleLeaveConversation(
+  async handleLeaveConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: ConversationIdDto,
   ) {
-    const userId = client.data.userId;
-    client.leave(`conversation:${data.conversationId}`);
-
+    const userId = userIdOf(client);
+    await client.leave(`conversation:${data.conversationId}`);
     if (openConversationByUser.get(userId) === data.conversationId) {
       openConversationByUser.delete(userId);
     }
+  }
+
+  /**
+   * Conversation lue par `userId` : ses appareils remettent le compteur à zéro,
+   * et les interlocuteurs reçoivent l'accusé de lecture des messages concernés.
+   */
+  async broadcastRead(
+    conversationId: string,
+    userId: string,
+    messageIds: string[],
+    others?: string[],
+  ) {
+    this.server.to(`user:${userId}`).emit('unread:reset', { conversationId });
+    if (!messageIds.length) return;
+
+    const recipients =
+      others ??
+      (await this.chatService.getConversationUserIds(conversationId)).filter((id) => id !== userId);
+    for (const otherId of recipients) {
+      this.server.to(`user:${otherId}`).emit('conversation:read', {
+        conversationId,
+        userId,
+        messageIds,
+        lastReadAt: new Date(),
+      });
+    }
+  }
+
+  /** La présence n'est diffusée qu'aux interlocuteurs de l'utilisateur. */
+  private async broadcastPresence(userId: string, online: boolean) {
+    const contacts = await this.chatService.getContactUserIds(userId);
+    if (!contacts.length) return;
+    this.server.to(contacts.map((id) => `user:${id}`)).emit('presence:update', { userId, online });
   }
 
   isUserOnline(userId: string): boolean {

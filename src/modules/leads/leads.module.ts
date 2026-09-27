@@ -4,10 +4,9 @@ import { LeadsService } from './leads.service';
 import { AgencyModule } from '../agency/agency.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DatabaseModule } from '../../database/database.module';
-import { ChatModule } from '../chat/chat.module';
 
 @Module({
-  imports: [DatabaseModule, AgencyModule, NotificationsModule, ChatModule],
+  imports: [DatabaseModule, AgencyModule, NotificationsModule],
   controllers: [LeadsController],
   providers: [LeadsService],
   exports: [LeadsService],

@@ -172,9 +172,10 @@ model Client {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   phone  String?
 
-  favorites Favorite[]
-  leads     Lead[]
-  bookings  Booking[]
+  favorites     Favorite[]
+  leads         Lead[]
+  bookings      Booking[]
+  conversations Conversation[]
 
   createdAt DateTime @default(now())
 
@@ -216,6 +217,7 @@ model Agency {
   properties    Property[]
   invitations   Invitation[]
   bookings      Booking[]
+  conversations Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -334,6 +336,7 @@ model Property {
   rentalConfigs  PropertyRentalConfig[]
   availabilities PropertyAvailability[]
   bookings       Booking[]
+  conversations  Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -430,6 +433,8 @@ model Booking {
   agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
   client   Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
+  conversations Conversation[]
+
   @@index([propertyId, startDate, endDate])
   @@index([agencyId, status])
   @@index([clientId])
@@ -460,8 +465,6 @@ model Lead {
 
   visits Visit[]
   tenant Tenant? // ✅ FIX: backrelation manquante (Tenant.leadId)
-
-  conversation Conversation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -862,20 +865,29 @@ model PaymentTransaction {
 // CHAT
 // ─────────────────────────────────────────────
 
+// Conversation client ↔ agence, toujours rattachée à un bien.
+// Une seule conversation par (client, agence, bien) : l'historique est conservé avant
+// et après réservation ; `bookingId` pointe sur la dernière réservation concernée.
 model Conversation {
-  id            String           @id @default(uuid())
-  type          ConversationType @default(DIRECT)
-  leadId        String?          @unique
+  id            String    @id @default(uuid())
+  clientId      String
+  agencyId      String
+  propertyId    String
+  bookingId     String?
   lastMessageAt DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  lead         Lead?                     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  client       Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agency       Agency                    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property     Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking      Booking?                  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   participants ConversationParticipant[]
   messages     Message[]
 
-  @@index([lastMessageAt(sort: Desc)])
-  @@index([leadId])
+  @@unique([clientId, agencyId, propertyId])
+  @@index([agencyId, lastMessageAt(sort: Desc)])
+  @@index([clientId, lastMessageAt(sort: Desc)])
   @@map("conversation")
 }
 
@@ -904,20 +916,40 @@ model Message {
   id             String      @id @default(uuid())
   conversationId String
   senderId       String
-  content        String
+  content        String      @default("")
   type           MessageType @default(TEXT)
   metadata       Json?
   editedAt       DateTime?
   deletedAt      DateTime?
   createdAt      DateTime    @default(now())
 
-  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User             @relation("SentMessages", fields: [senderId], references: [id])
+  conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                @relation("SentMessages", fields: [senderId], references: [id])
   receipts     MessageReceipt[]
+  attachments  MessageAttachment[]
 
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([senderId])
   @@map("message")
+}
+
+// Fichier joint à un message (stocké en privé sur Cloudinary, servi par URL signée)
+model MessageAttachment {
+  id           String         @id @default(uuid())
+  messageId    String
+  kind         AttachmentKind
+  mimeType     String
+  fileName     String
+  fileSize     Int
+  storageKey   String // public_id Cloudinary
+  resourceType String // image | raw | video (Cloudinary)
+  durationMs   Int? // notes vocales
+  createdAt    DateTime       @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachment")
 }
 
 // Statut de livraison par destinataire (sent → delivered → read)
@@ -983,18 +1015,18 @@ enum IntegrationProviderType {
   DROPBOX
 }
 
-enum ConversationType {
-  DIRECT // staff ↔ client (1-to-1)
-  LEAD // agence, client
-  SUPPORT // lié à un ticket
-  GROUP // extensible si besoin
-}
-
 enum MessageType {
   TEXT
   IMAGE
   FILE
+  AUDIO // note vocale
   SYSTEM // messages automatiques (ex: "ticket ouvert")
+}
+
+enum AttachmentKind {
+  IMAGE
+  DOCUMENT
+  AUDIO
 }
 
 enum MessageStatus {
@@ -1047,6 +1079,7 @@ enum AgencyStatus {
 
 enum NotificationType {
   BOOKING
+  MESSAGE
   LEAD
   VISIT
   TICKET
@@ -1080,6 +1113,7 @@ enum FeatureCategory {
   TICKETS
   SUPPORT
   MARKETING
+  MESSAGING
 }
 
 enum Plan {

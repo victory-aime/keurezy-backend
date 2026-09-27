@@ -74,6 +74,19 @@ async function seed() {
     },
 
     // ─────────────────────────────────────────
+    // MESSAGERIE (chat client ↔ agence)
+    // ─────────────────────────────────────────
+    {
+      name: 'manage_conversations',
+      category: FeatureCategory.MESSAGING,
+      isCommercial: false,
+      permissions: [
+        { name: 'view_conversations', description: 'Voir les discussions avec les clients' },
+        { name: 'reply_conversations', description: 'Répondre aux clients' },
+      ],
+    },
+
+    // ─────────────────────────────────────────
     // USERS / STAFF
     // ─────────────────────────────────────────
     {
@@ -354,6 +367,7 @@ async function seed() {
           create: [
             feature('manage_properties', 6),
             feature('publish_properties', 6),
+            feature('manage_conversations'),
             feature('manage_users', 1),
             feature('premium_support', 1),
           ],
@@ -411,6 +425,7 @@ async function seed() {
           create: [
             feature('manage_properties', 20),
             feature('publish_properties', 20),
+            feature('manage_conversations'),
             feature('boost_annonces', 3),
             feature('annonce_stats'),
             feature('manage_leads'),
@@ -456,6 +471,7 @@ async function seed() {
           create: [
             feature('manage_properties'),
             feature('publish_properties'),
+            feature('manage_conversations'),
             feature('boost_annonces'),
             feature('annonce_stats'),
             feature('manage_leads'),
