@@ -48,12 +48,16 @@ const setup = () => {
       create: jest.fn().mockResolvedValue({ id: 'conv-1', bookingId: null }),
       update: jest.fn().mockResolvedValue({ bookingId: null }),
     },
-    conversationParticipant: { createMany: jest.fn(), updateMany: jest.fn() },
+    conversationParticipant: { createMany: jest.fn(), updateMany: jest.fn(), upsert: jest.fn() },
     message: {
       create: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
-    messageReceipt: { createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    messageReceipt: {
+      createMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
   };
   const access = {
@@ -235,6 +239,13 @@ describe('ChatService — envoi de messages', () => {
       skipDuplicates: true,
     });
     expect(sent.message.status).toBe(MessageStatus.SENT);
+    // Répondre vaut lecture : le compteur de l'expéditeur est remis à zéro
+    expect(prisma.conversationParticipant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { conversationId_userId: { conversationId: 'conv-1', userId: 'user-client' } },
+        update: expect.objectContaining({ unreadCount: 0 }) as unknown,
+      }),
+    );
   });
 
   it('envoie une image en fichier privé et renvoie une URL signée', async () => {

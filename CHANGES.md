@@ -21,6 +21,7 @@ Le projet utilisait `db push`. `prisma/migrations` est maintenant versionné :
 | `3_backfill_monthly_rental_configs` | Modalité mensuelle créée pour les biens existants (prix et caution actuels)   |
 | `4_bookings`                        | Type de notification `BOOKING`, durée réservée, index client                  |
 | `5_chat_property_context`           | Chat client ↔ agence lié au bien, pièces jointes (à appliquer sur table vide) |
+| `6_device_token_platform`           | Canal d'envoi des jetons push (`WEB` par défaut, `MOBILE_EXPO`)               |
 
 **Première mise en place sur un environnement existant** (UAT, production) :
 
@@ -100,6 +101,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - **WebSocket** (`/chat`) : participation vérifiée sur `conversation:join`, frappe relayée aux seuls sockets de la conversation, payloads validés, accusé `{ ok, message | error }` sur `message:send`, présence diffusée aux seuls interlocuteurs. Authentification par le cookie de session, ou par le jeton de session transmis à la connexion (`auth.token`) quand le frontend et l'API sont sur des domaines différents.
 - **Notifications** : le chat publie `chat.message.created` sur le bus interne (`modules/events`). `ChatNotificationListener` (module notifications) envoie le push FCM aux destinataires hors ligne avec `type: MESSAGE` et `conversationId`. Le push mobile (Expo) se branchera sur cet écouteur.
+- **Répondre vaut lecture** : envoyer un message remet à zéro le compteur de l'expéditeur et envoie les accusés de lecture à son interlocuteur.
 - **Leads** : l'assignation d'un lead ne touche plus au chat.
 
 ## 8. Équipe : permissions d'un membre
@@ -107,3 +109,11 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `PATCH team/update-permissions?agencyId=` (`UpdateStaffPermissionsDto` : `staffId`, `permissionIds`) remplace les permissions d'un membre.
 - **Owner uniquement** (`OWNER_ONLY`), membre de la même agence (`STAFF_NOT_FOUND`), et permissions limitées aux features du plan actif (`PERMISSIONS_NOT_ASSIGNABLE`, via `PermissionsService.getAssignablePermissionIds`).
 - Les permissions sont relues à chaque requête : elles s'appliquent à la session suivante du membre (rechargement de page).
+
+## 9. Notifications push mobiles (Expo Push)
+
+- **Jetons** : `DeviceToken.platform` (`WEB` ou `MOBILE_EXPO`). `push-notification/register-token` accepte `platform` ; un jeton mobile doit être un jeton Expo (`INVALID_PUSH_TOKEN`). Un jeton déjà connu est réattribué au compte connecté (changement de compte sur le même téléphone).
+- **Envoi** : `PushNotificationService` répartit les appareils : FCM pour le web, `ExpoPushService` (`expo-server-sdk`) pour le mobile, en un seul lot. Les jetons refusés (`DeviceNotRegistered`) sont supprimés à l'envoi et lors de la vérification des accusés (toutes les 10 minutes).
+- **Contenu mobile** : titre et texte en clair (contenu du message affiché), `data.type` et les identifiants utiles à la navigation (`conversationId`, `bookingId`), pastille = notifications + messages non lus, canaux Android `messages`, `bookings` et `default`.
+- **Configuration** : `EXPO_ACCESS_TOKEN` (facultatif, recommandé) active la sécurité renforcée des envois côté Expo. Les identifiants FCM (Android) et APNs (iOS) sont gérés par EAS.
+- **Dépendances** : le backend utilise **pnpm** (`pnpm add …`) ; npm échoue sur son arbre de dépendances.

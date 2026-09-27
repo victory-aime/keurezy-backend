@@ -141,26 +141,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { message, recipientIds, conversation } = sent;
     const toNotify: string[] = [];
     const unread: string[] = [];
+    const online: string[] = [];
 
+    // 1. Accusés et compteurs d'abord : un rechargement déclenché par la réception
+    //    du message côté client lit ainsi des compteurs déjà à jour
     for (const recipientId of recipientIds) {
-      const isOnline = connectedUsers.has(recipientId);
       const hasConversationOpen =
         openConversationByUser.get(recipientId) === message.conversationId;
 
-      if (isOnline) {
+      if (connectedUsers.has(recipientId)) {
         const status = hasConversationOpen ? MessageStatus.READ : MessageStatus.DELIVERED;
         await this.chatService.updateReceiptStatus(message.id, recipientId, status);
-        this.server.to(`user:${recipientId}`).emit('message:receive', {
-          ...message,
-          bookingId: conversation.bookingId,
-          propertyId: conversation.propertyId,
-        });
+        online.push(recipientId);
       } else {
         toNotify.push(recipientId);
       }
       if (!hasConversationOpen) unread.push(recipientId);
     }
     await this.chatService.incrementUnreadCount(message.conversationId, unread);
+
+    // 2. Diffusion aux destinataires connectés
+    for (const recipientId of online) {
+      this.server.to(`user:${recipientId}`).emit('message:receive', {
+        ...message,
+        bookingId: conversation.bookingId,
+        propertyId: conversation.propertyId,
+      });
+    }
 
     if (toNotify.length) {
       this.events.emit('chat.message.created', {
@@ -175,6 +182,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         preview: message.content || PREVIEW_BY_TYPE[message.type] || 'Nouveau message',
       });
     }
+
+    // Compteur de l'expéditeur remis à zéro, et accusés de lecture pour son interlocuteur
+    await this.broadcastRead(message.conversationId, senderId, sent.readMessageIds);
 
     const payload = {
       ...message,

@@ -87,6 +87,8 @@ export interface SentMessage {
   conversation: ConversationAccess['conversation'] & { bookingId: string | null };
   /** Nom présenté aux destinataires : l'agence parle d'une seule voix auprès du client */
   senderDisplayName: string | null;
+  /** Messages reçus que l'expéditeur a lus en répondant (accusés à diffuser) */
+  readMessageIds: string[];
 }
 
 const emptyMessage = () =>
@@ -402,6 +404,9 @@ export class ChatService {
       });
     }
 
+    // Répondre vaut lecture : l'expéditeur n'a plus de message non lu dans cette conversation
+    const readMessageIds = await this.markAllAsRead(dto.conversationId, senderId);
+
     const agency =
       access.side === 'AGENCY'
         ? await this.prisma.agency.findUnique({
@@ -415,6 +420,7 @@ export class ChatService {
       recipientIds,
       conversation: { ...access.conversation, bookingId },
       senderDisplayName: agency?.name ?? message.sender?.name ?? null,
+      readMessageIds,
     };
   }
 
