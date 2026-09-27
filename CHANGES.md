@@ -62,3 +62,18 @@ Règles :
 - **Confirmation :** elle se fait sous un verrou par bien. Les autres demandes en attente sur ces dates sont refusées automatiquement.
 - **Notifications :** le client et l'agence sont notifiés à chaque changement de statut, avec le type `BOOKING`.
 - **Évolution prévue :** ces règles changeront avec le paiement en ligne, qui bloquera probablement le créneau.
+
+## 6. Codes OTP et mot de passe oublié (mobile)
+
+- **Codes OTP** (vérification d'email et mot de passe oublié) : **6 chiffres, valables 3 minutes**, avec au plus un renvoi toutes les 2 minutes. Le lien de réinitialisation du web est lui aussi valable 3 minutes.
+- **Nouvelles routes** pour le parcours mobile de réinitialisation :
+
+  | Route                      | Rôle                                                                                    |
+  | -------------------------- | --------------------------------------------------------------------------------------- |
+  | `auth/forgot-password-otp` | Envoie le code. La réponse est identique que le compte existe ou non.                   |
+  | `auth/verify-reset-otp`    | Vérifie le code sans le consommer.                                                      |
+  | `auth/reset-password-otp`  | Enregistre le nouveau mot de passe ; toutes les sessions de l'utilisateur sont fermées. |
+
+- **Web** : le parcours par lien (`forgot-password` et `reset-password`) est inchangé.
+- **Messages d'erreur** : les refus de Better Auth sont traduits en français, et un email inconnu reçoit la même réponse qu'un code incorrect.
+- **Inscription** : le profil client est créé avant l'envoi du code. La vérification est validée par `VerifyOtpDto`, et le délai avant renvoi est corrigé.
