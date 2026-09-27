@@ -313,6 +313,7 @@ export class BookingsService {
       booking.client?.userId,
       'Réservation confirmée',
       `Votre réservation pour « ${booking.property.title} » ${period} est confirmée.`,
+      booking.id,
     );
     await Promise.all(
       rejected.map((other) =>
@@ -320,6 +321,7 @@ export class BookingsService {
           other.client?.userId,
           'Réservation non retenue',
           `Votre demande pour « ${booking.property.title} » ${period} n’a pas pu être retenue : ${AUTO_REJECTION_REASON}`,
+          other.id,
         ),
       ),
     );
@@ -339,6 +341,7 @@ export class BookingsService {
       booking.client?.userId,
       'Réservation refusée',
       `Votre demande pour « ${booking.property.title} » n’a pas été acceptée : ${reason}`,
+      booking.id,
     );
 
     return { message: 'Réservation refusée.' };
@@ -369,7 +372,12 @@ export class BookingsService {
     return booking;
   }
 
-  private async notifyClient(userId: string | undefined, title: string, content: string) {
+  private async notifyClient(
+    userId: string | undefined,
+    title: string,
+    content: string,
+    bookingId?: string,
+  ) {
     if (!userId) return;
     await this.notificationsService.createNotification({
       type: NotificationType.BOOKING,
@@ -377,6 +385,8 @@ export class BookingsService {
       title,
       content,
       recipients: [userId],
+      // Ouverture de la notification sur mobile : écran « Mes réservations »
+      ...(bookingId && { data: { bookingId } }),
     });
   }
 

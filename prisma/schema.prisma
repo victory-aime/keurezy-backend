@@ -974,11 +974,13 @@ model MessageReceipt {
 // ─────────────────────────────────────────────
 
 model DeviceToken {
-  id        String @id @default(uuid())
-  token     String @unique // le token FCM — unique pour éviter les doublons
+  id        String       @id @default(uuid())
+  token     String       @unique // FCM (web) ou Expo (mobile) — unique pour éviter les doublons
   userId    String
   deviceKey String
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Canal d'envoi : FCM pour le web, service Expo Push pour le mobile (FCM / APNs)
+  platform  PushPlatform @default(WEB)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1036,8 +1038,8 @@ enum MessageStatus {
 }
 
 enum PushPlatform {
-  MOBILE_EXPO // token Expo → FCM / APNs
-  WEB // endpoint VAPID / Service Worker
+  MOBILE_EXPO // jeton Expo → service Expo Push → FCM / APNs
+  WEB // jeton FCM du navigateur (Service Worker)
 }
 
 enum PaymentStatus {

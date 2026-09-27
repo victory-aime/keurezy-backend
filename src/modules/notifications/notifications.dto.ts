@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsEnum, IsString, IsOptional, IsUUID, Length } from 'class-validator';
-import { NotificationScope, NotificationType } from '../../../prisma/generated/enums';
+import { NotificationScope, NotificationType, PushPlatform } from '../../../prisma/generated/enums';
 
 export class NotificationsDto {
   @ApiProperty({
@@ -34,6 +34,9 @@ export class NotificationsDto {
   content: string;
 
   recipients?: string[] | undefined;
+
+  /** Données transmises au push uniquement (navigation à l'ouverture), non enregistrées */
+  data?: Record<string, string>;
 }
 
 export class PushNotificationsDto {
@@ -81,4 +84,13 @@ export class RegisterPushNotificationTokenDto {
   @IsNotEmpty()
   @Length(64, 64)
   deviceKey: string;
+
+  @ApiPropertyOptional({
+    enum: PushPlatform,
+    default: PushPlatform.WEB,
+    description: 'WEB : jeton FCM du navigateur ; MOBILE_EXPO : jeton Expo de l’application',
+  })
+  @IsOptional()
+  @IsEnum(PushPlatform)
+  platform?: PushPlatform;
 }

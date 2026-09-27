@@ -13,7 +13,7 @@ export class NotificationsService {
   ) {}
 
   async createNotification(params: NotificationsDto) {
-    const { recipients, ...data } = params;
+    const { recipients, data: pushData, ...data } = params;
 
     const cleanRecipients = (recipients ?? []).filter((id): id is string => !!id);
 
@@ -35,6 +35,7 @@ export class NotificationsService {
       body: notification.content,
       notificationId: notification.id,
       type: notification.type,
+      data: pushData,
     });
     return notification;
   }
@@ -52,7 +53,12 @@ export class NotificationsService {
     payload,
   }: {
     agencyMembers: string[];
-    payload: { type: NotificationType; content: string; title: string };
+    payload: {
+      type: NotificationType;
+      content: string;
+      title: string;
+      data?: Record<string, string>;
+    };
   }) {
     return this.createNotification({
       ...payload,
