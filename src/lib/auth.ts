@@ -140,7 +140,9 @@ const createAuth = (prisma: PrismaClient) => {
       passkey(),
       expo(),
       emailOTP({
-        expiresIn: EXPIRE_TIME._60_MINUTES,
+        // Code à 6 chiffres, valable 15 minutes (durée renvoyée au mobile à l'inscription)
+        otpLength: 6,
+        expiresIn: EXPIRE_TIME._15_MINUTES,
         disableSignUp: true,
         allowedAttempts: 5,
         async sendVerificationOTP({ email, otp, type }) {

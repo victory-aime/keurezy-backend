@@ -6,6 +6,7 @@ import {
   LoginDto,
   ResendVerificationDto,
   ResetPasswordDto,
+  VerifyOtpDto,
 } from './auth.dto';
 import { API_URL } from '../../config/api';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
@@ -63,7 +64,7 @@ export class AuthController {
   @Post(API_URL.AUTH.VERIFY_OTP)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Verifier l'email OTP" })
-  async verifyOtpEmail(@Body() body: ResendVerificationDto & { otp: string }) {
+  async verifyOtpEmail(@Body() body: VerifyOtpDto) {
     return this.authService.verifyMobileEmail(body);
   }
 

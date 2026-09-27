@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, Matches, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'Mamadou Diallo', description: "Nom complet de l'utilisateur" })
@@ -24,6 +24,12 @@ export class ResendVerificationDto {
   @ApiProperty({ example: 'user@example.com', description: 'Email du compte à vérifier' })
   @IsEmail()
   email: string;
+}
+
+export class VerifyOtpDto extends ResendVerificationDto {
+  @ApiProperty({ example: '482913', description: 'Code à 6 chiffres reçu par email' })
+  @Matches(/^\d{6}$/, { message: 'Le code doit contenir 6 chiffres' })
+  otp: string;
 }
 
 export class ForgotPasswordDto {

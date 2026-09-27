@@ -6,6 +6,7 @@ import {
   ForgotPasswordDto,
   ResendVerificationDto,
   ResetPasswordDto,
+  VerifyOtpDto,
 } from './auth.dto';
 import { getAuthInstance } from '../../lib/auth';
 import { HttpError } from '../../config/http.error';
@@ -42,13 +43,7 @@ export class AuthService {
         throw new HttpError('Erreur lors de la création du compte.');
       }
 
-      await auth.api.sendVerificationOTP({
-        body: {
-          email: response.user.email,
-          type: 'email-verification',
-        },
-      });
-
+      // Profil client créé avant l'envoi du code : un échec d'envoi se rattrape par un renvoi
       await this.prisma.client.create({
         data: {
           user: {
@@ -57,11 +52,19 @@ export class AuthService {
         },
       });
 
+      await auth.api.sendVerificationOTP({
+        body: {
+          email: response.user.email,
+          type: 'email-verification',
+        },
+      });
+
       return {
         message: 'Bienvenue ! Votre compte a été créé avec succès.',
         email: response.user.email,
+        // Durées en secondes, alignées sur la configuration emailOTP
         otp: {
-          expireOtp: EXPIRE_TIME._5_MINUTES,
+          expireOtp: EXPIRE_TIME._15_MINUTES,
           retryIn: EXPIRE_TIME._2_MINUTES,
         },
       };
@@ -99,18 +102,17 @@ export class AuthService {
       },
     });
     if (verification) {
-      const COOLDOWN_MS = 120_000;
+      const COOLDOWN_MS = EXPIRE_TIME._2_MINUTES * 1000;
       const elapsed = Date.now() - verification.createdAt.getTime();
       const remainingMs = COOLDOWN_MS - elapsed;
 
       if (remainingMs > 0) {
-        const remainingSeconds = Math.ceil(remainingMs / 1000);
         return {
           success: false,
           cooldown: {
             active: true,
-            remainingSeconds: Math.ceil(remainingSeconds / 1000),
-            retryAt: new Date(Date.now() + remainingSeconds),
+            remainingSeconds: Math.ceil(remainingMs / 1000),
+            retryAt: new Date(Date.now() + remainingMs),
           },
         };
       }
@@ -132,7 +134,7 @@ export class AuthService {
     };
   }
 
-  async verifyMobileEmail(data: ResendVerificationDto & { otp: string }) {
+  async verifyMobileEmail(data: VerifyOtpDto) {
     if (!data.email || !data.otp) {
       throw new HttpError('Service indisponible', HttpStatus.INTERNAL_SERVER_ERROR);
     }
