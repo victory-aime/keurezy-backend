@@ -101,3 +101,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **WebSocket** (`/chat`) : participation vérifiée sur `conversation:join`, frappe relayée aux seuls sockets de la conversation, payloads validés, accusé `{ ok, message | error }` sur `message:send`, présence diffusée aux seuls interlocuteurs. Authentification par le cookie de session, ou par le jeton de session transmis à la connexion (`auth.token`) quand le frontend et l'API sont sur des domaines différents.
 - **Notifications** : le chat publie `chat.message.created` sur le bus interne (`modules/events`). `ChatNotificationListener` (module notifications) envoie le push FCM aux destinataires hors ligne avec `type: MESSAGE` et `conversationId`. Le push mobile (Expo) se branchera sur cet écouteur.
 - **Leads** : l'assignation d'un lead ne touche plus au chat.
+
+## 8. Équipe : permissions d'un membre
+
+- `PATCH team/update-permissions?agencyId=` (`UpdateStaffPermissionsDto` : `staffId`, `permissionIds`) remplace les permissions d'un membre.
+- **Owner uniquement** (`OWNER_ONLY`), membre de la même agence (`STAFF_NOT_FOUND`), et permissions limitées aux features du plan actif (`PERMISSIONS_NOT_ASSIGNABLE`, via `PermissionsService.getAssignablePermissionIds`).
+- Les permissions sont relues à chaque requête : elles s'appliquent à la session suivante du membre (rechargement de page).

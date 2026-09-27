@@ -38,4 +38,22 @@ export class PermissionsService {
       orderBy: { category: 'asc' },
     });
   }
+
+  /** Permissions que l'owner peut attribuer : celles des features incluses dans le plan actif. */
+  async getAssignablePermissionIds(agencyId: string): Promise<Set<string>> {
+    const permissions = await this.prisma.permission.findMany({
+      where: {
+        feature: {
+          planFeatures: {
+            some: {
+              enabled: true,
+              plan: { subscriptions: { some: { agencyId, status: 'ACTIVE' } } },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    return new Set(permissions.map((permission) => permission.id));
+  }
 }

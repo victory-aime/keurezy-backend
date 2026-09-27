@@ -42,6 +42,7 @@ import { RegisterPushNotificationTokenDto } from '../modules/notifications/notif
 import { UpdateUserDto } from '../modules/users/dto/update-user.dto';
 import { UpdateUserStatusDto } from '../modules/users/dto/update-user-status.dto';
 import { UpdateAgencyStatusDto } from '../modules/agency/dto/update-agency-status.dto';
+import { UpdateStaffPermissionsDto } from '../modules/team/team.dto';
 
 /**
  * Garde-fou de la whitelist globale : chaque DTO reçoit un payload identique à celui
@@ -275,6 +276,11 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
     ['CreateLeadDto', CreateLeadDto, { propertyId: uuid, message: 'Intéressé' }],
     ['UpdateLeadStatusDto', UpdateLeadStatusDto, { leadId: uuid, status: 'CONTACTED' }],
     ['AssignLeadDto', AssignLeadDto, { leadId: uuid, staffId: uuid }],
+    [
+      'UpdateStaffPermissionsDto',
+      UpdateStaffPermissionsDto,
+      { staffId: uuid, permissionIds: [uuid] },
+    ],
     ['OpenPropertyConversationDto', OpenPropertyConversationDto, { annonceId: uuid }],
     ['OpenBookingConversationDto', OpenBookingConversationDto, { bookingId: uuid }],
     [

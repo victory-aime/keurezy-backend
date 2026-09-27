@@ -1,11 +1,14 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { TeamService } from './team.service';
+import { UpdateStaffPermissionsDto } from './team.dto';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -55,5 +58,25 @@ export class TeamController {
     @Body() data: { status: boolean; id: string },
   ) {
     return this.teamService.enableOrDisabledAccount(data, agencyId, ownerId);
+  }
+
+  @Patch(API_URL.TEAM.UPDATE_PERMISSIONS)
+  @ApiOperation({
+    summary: "Mettre à jour les permissions d'un membre (Owner uniquement)",
+    description:
+      'La liste envoyée remplace les permissions du membre. Seules les permissions du plan actif sont acceptées.',
+  })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiBody({ type: UpdateStaffPermissionsDto })
+  @ApiOkResponse({ description: 'Permissions mises à jour ; retourne le membre' })
+  @ApiBadRequestResponse({ description: 'PERMISSIONS_NOT_ASSIGNABLE : hors du plan' })
+  @ApiForbiddenResponse({ description: "OWNER_ONLY : réservé au propriétaire de l'agence" })
+  @ApiNotFoundResponse({ description: "STAFF_NOT_FOUND : membre d'une autre agence ou inexistant" })
+  async updatePermissions(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() profileId: string,
+    @Body() dto: UpdateStaffPermissionsDto,
+  ) {
+    return this.teamService.updateMemberPermissions(dto, agencyId, profileId);
   }
 }
