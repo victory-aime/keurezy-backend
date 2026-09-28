@@ -33,6 +33,7 @@ export class VisitsService {
         throw new HttpError('Bien introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
       }
 
+      let agentUserId: string | undefined;
       if (dto.agentId) {
         const agent = await this.prisma.staff.findFirst({
           where: { id: dto.agentId, agencyId, isActive: true },
@@ -40,6 +41,7 @@ export class VisitsService {
         if (!agent) {
           throw new HttpError('Agent introuvable', HttpStatus.NOT_FOUND, 'AGENT_NOT_FOUND');
         }
+        agentUserId = agent.userId;
       }
       const now = new Date();
 
@@ -87,9 +89,17 @@ export class VisitsService {
 
       const clientUserId = lead.client?.user?.id;
 
-      const agencyMemberIds = actor.type === 'OWNER' ? actor.userStaffId : actor.userOwnerId;
+      // Côté agence : le propriétaire et l'agent assigné, sauf l'auteur de la planification
+      const agency = await this.prisma.agency.findUnique({
+        where: { id: agencyId },
+        select: { owner: { select: { userId: true } } },
+      });
+      const actorUserId = actor.userOwnerId ?? actor.userStaffId;
+      const agencyMemberIds = [...new Set([agency?.owner.userId, agentUserId])].filter(
+        (id): id is string => !!id && id !== actorUserId,
+      );
 
-      if (clientUserId && agencyMemberIds) {
+      if (clientUserId) {
         const date = new Date(dto.scheduledAt).toLocaleDateString('fr-FR');
         const scope = NotificationScope.USER;
         await Promise.all([
@@ -106,7 +116,7 @@ export class VisitsService {
             scope,
             title: 'Nouvelle visite',
             content: `Une visite a été planifiée pour le bien "${property.title}" le ${date}.`,
-            recipients: [agencyMemberIds],
+            recipients: agencyMemberIds,
           }),
         ]);
       }

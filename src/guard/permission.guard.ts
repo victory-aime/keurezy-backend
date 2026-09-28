@@ -25,12 +25,12 @@ export class PermissionGuard implements CanActivate {
 
     if (session.user?.role === 'OWNER') return true;
 
-    const hasPermission = session.session?.permissions.some(
-      (p: any) => p.name === requiredPermission,
-    );
+    const permissions = (session.session.permissions ?? []) as { name?: string }[];
+    const hasPermission = permissions.some((p) => p.name === requiredPermission);
 
     if (!hasPermission) {
-      throw new ForbiddenException(`Permission manquante : ${requiredPermission}`);
+      // Message générique : la permission requise n'est pas exposée au client
+      throw new ForbiddenException('Accès non autorisé');
     }
 
     return true;

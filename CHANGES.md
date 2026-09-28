@@ -128,3 +128,18 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Envoi** : `PushNotificationService` ne pousse que vers les destinataires qui acceptent la catégorie (web et mobile) ; la notification reste dans le centre de notifications.
 - **E-mail de réservation** : confirmation ou refus (y compris refus automatique), via l'événement `booking.status.changed` et `BookingEmailListener`. Modèle Resend `BOOKING_STATUS` (variables `SUBJECT`, `USERNAME`, `STATUS_LABEL`, `PROPERTY_TITLE`, `PERIOD`, `MESSAGE`, `APP_NAME`), identifiant dans `RESEND_TEMPLATE_BOOKING_STATUS_ID` ; sans lui, l'e-mail est ignoré.
 - **Nouvelles annonces** : à la mise en ligne d'une annonce (création en ligne ou passage en ligne), l'événement `annonce.published` déclenche la notification `LISTING` des clients abonnés, par lots de 500, avec `annonceId`.
+
+## 11. Accès agence : permissions, statut et quotas
+
+- **Permissions staff appliquées** : `PermissionGuard` est global (après `AuthGuard`) ; `@RequirePermission` protège les routes agence. L'owner passe toujours ; un staff doit avoir la permission accordée (sinon 403).
+  - Leads : `view_leads` (liste, détail), `update_lead`, `assign_lead`, `delete_lead`.
+  - Visites : `schedule_visit`, `view_visits`, `update_visit` (modification, affectation), `cancel_visit`.
+  - Annonces : `publish_property` (création, modification), `view_properties` (liste), `unpublish_property` (suppression).
+  - Terrains : `manage_land` ; bâtiments : `manage_batiment` ; propriétés : `update_property`, `view_properties` (taux d'occupation).
+  - Équipe et invitations : `view_users` (listes), `send_invitation`, `cancel_invitation`.
+  - Non concernés : réservations (aucune permission seedée), routes `agency/*` (infos, stats, abonnement), statut et permissions des membres (déjà réservés à l'owner).
+- **Garde** : refus avec le message générique « Accès non autorisé » (la permission requise n'est pas exposée) ; une session sans liste de permissions renvoie 403 au lieu d'une erreur 500.
+- **Agence fermée** : `agencyAccessControl` et `isAgencyMember` refusent une agence `CLOSE` (`AGENCY_CLOSED`). `PENDING` reste autorisé (statut avant validation par l'admin).
+- **Abonnement inactif** : les créations soumises au plan sont refusées (`SUBSCRIPTION_INACTIVE`). L'expiration (`currentPeriodEnd`) sera appliquée avec le renouvellement.
+- **Quotas** : propriétés, terrains et bâtiments sont comptés ensemble contre la limite de biens (`countPropertyAssets`) ; les invitations en attente non expirées comptent dans les places utilisateurs (`countUserSeats`).
+- **Visites** : la notification « Nouvelle visite » part vers l'owner et l'agent assigné (hors auteur) ; elle n'était jamais envoyée. Le cron de fin de visite notifie le compte de l'agent (et non son identifiant Staff).

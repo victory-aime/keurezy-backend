@@ -10,6 +10,7 @@ import { PropertyModule } from './modules/property/property.module';
 import { BetterAuthModule } from './lib/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { SessionThrottlerGuard } from './guard/throttler.guard';
+import { PermissionGuard } from './guard/permission.guard';
 import { PackModule } from './modules/packs/pack.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuildingModule } from './modules/building/building.module';
@@ -84,6 +85,8 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
 
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
+    // Après l'authentification : applique les @RequirePermission des routes agence
+    { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: SessionThrottlerGuard },
   ],
 })

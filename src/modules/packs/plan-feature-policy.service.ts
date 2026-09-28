@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { HttpError } from '../../config/http.error';
+import { InvitationStatus, SubscriptionStatus } from '../../../prisma/generated/enums';
 
 export interface FeatureCapacityCheck {
   feature: string;
@@ -34,6 +36,7 @@ export class PlanFeaturePolicyService {
         agencyId,
       },
       select: {
+        status: true,
         plan: {
           select: {
             id: true,
@@ -65,6 +68,15 @@ export class PlanFeaturePolicyService {
       throw new NotFoundException('Aucun abonnement trouvé');
     }
 
+    // ponytail: l'expiration (currentPeriodEnd) n'est pas vérifiée tant que le renouvellement n'existe pas
+    if (subscription.status !== SubscriptionStatus.ACTIVE) {
+      throw new HttpError(
+        "L'abonnement de l'agence n'est pas actif",
+        HttpStatus.FORBIDDEN,
+        'SUBSCRIPTION_INACTIVE',
+      );
+    }
+
     const features = new Map();
 
     for (const item of subscription.plan.planFeatures) {
@@ -78,6 +90,27 @@ export class PlanFeaturePolicyService {
       planId: subscription.plan.id,
       features,
     };
+  }
+
+  /** Biens de l'agence (propriétés, terrains, bâtiments), soumis à la même limite du plan. */
+  async countPropertyAssets(agencyId: string): Promise<number> {
+    const counts = await Promise.all([
+      this.prisma.property.count({ where: { agencyId } }),
+      this.prisma.land.count({ where: { agencyId } }),
+      this.prisma.batiment.count({ where: { agencyId } }),
+    ]);
+    return counts.reduce((total, count) => total + count, 0);
+  }
+
+  /** Places utilisateurs occupées : membres de l'équipe et invitations en attente encore valides. */
+  async countUserSeats(agencyId: string): Promise<number> {
+    const [staff, pendingInvitations] = await Promise.all([
+      this.prisma.staff.count({ where: { agencyId } }),
+      this.prisma.invitation.count({
+        where: { agencyId, status: InvitationStatus.PENDING, expiresAt: { gt: new Date() } },
+      }),
+    ]);
+    return staff + pendingInvitations;
   }
 
   /**

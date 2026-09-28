@@ -1,0 +1,56 @@
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { PermissionGuard } from './permission.guard';
+
+const contextWith = (session: unknown) =>
+  ({
+    getHandler: () => undefined,
+    getClass: () => undefined,
+    switchToHttp: () => ({ getRequest: () => ({ session }) }),
+  }) as unknown as ExecutionContext;
+
+describe('PermissionGuard', () => {
+  const reflector = { getAllAndOverride: jest.fn() };
+  const guard = new PermissionGuard(reflector as unknown as Reflector);
+
+  beforeEach(() => reflector.getAllAndOverride.mockReset());
+
+  it('laisse passer une route sans permission requise', async () => {
+    reflector.getAllAndOverride.mockReturnValue(undefined);
+    await expect(guard.canActivate(contextWith(undefined))).resolves.toBe(true);
+  });
+
+  it("autorise toujours le propriétaire de l'agence", async () => {
+    reflector.getAllAndOverride.mockReturnValue('delete_lead');
+    const session = { user: { role: 'OWNER' }, session: { token: 't', permissions: [] } };
+    await expect(guard.canActivate(contextWith(session))).resolves.toBe(true);
+  });
+
+  it('autorise un membre qui a la permission', async () => {
+    reflector.getAllAndOverride.mockReturnValue('view_leads');
+    const session = {
+      user: { role: 'STAFF' },
+      session: { token: 't', permissions: [{ name: 'view_leads' }] },
+    };
+    await expect(guard.canActivate(contextWith(session))).resolves.toBe(true);
+  });
+
+  it("refuse un membre qui n'a pas la permission", async () => {
+    reflector.getAllAndOverride.mockReturnValue('delete_lead');
+    const session = {
+      user: { role: 'STAFF' },
+      session: { token: 't', permissions: [{ name: 'view_leads' }] },
+    };
+    await expect(guard.canActivate(contextWith(session))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('refuse une session sans liste de permissions (client connecté)', async () => {
+    reflector.getAllAndOverride.mockReturnValue('view_leads');
+    const session = { user: { role: 'CLIENT' }, session: { token: 't' } };
+    await expect(guard.canActivate(contextWith(session))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

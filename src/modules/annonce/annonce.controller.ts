@@ -39,6 +39,7 @@ import {
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { MultipartJson } from '../../config/multipart-json.decorator';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Annonces')
 @Controller()
@@ -51,6 +52,7 @@ export class AnnonceController {
 
   @ApiBearerAuth()
   @Post(API_URL.ANNONCE.CREATE)
+  @RequirePermission('publish_property')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Publier une nouvelle annonce immobilière avec images' })
   @ApiBody({
@@ -154,6 +156,7 @@ export class AnnonceController {
 
   @ApiBearerAuth()
   @Get(API_URL.ANNONCE.FIND_BY_AGENCY)
+  @RequirePermission('view_properties')
   @ApiOperation({ summary: "Récupérer les annonces d'une agence spécifique" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: "Annonces de l'agence récupérées avec succès" })
@@ -165,6 +168,7 @@ export class AnnonceController {
 
   @ApiBearerAuth()
   @Put(API_URL.ANNONCE.UPDATE)
+  @RequirePermission('publish_property')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Mettre à jour une annonce' })
   @ApiBody({
@@ -225,6 +229,7 @@ export class AnnonceController {
 
   @ApiBearerAuth()
   @Delete(API_URL.ANNONCE.DELETE)
+  @RequirePermission('unpublish_property')
   @ApiOperation({ summary: 'Supprimer une annonce' })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant de l'annonce à supprimer" })
   @ApiOkResponse({ description: 'Annonce supprimée avec succès' })

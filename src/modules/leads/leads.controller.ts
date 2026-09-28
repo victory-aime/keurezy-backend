@@ -12,6 +12,7 @@ import { API_URL } from '../../config/api';
 import { LeadsService } from './leads.service';
 import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from './leads.dto';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Leads')
 @ApiBearerAuth()
@@ -46,6 +47,7 @@ export class LeadsController {
   // GET v1/secure/leads/agency-leads?agencyId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Get(API_URL.LEADS.AGENCY_LEADS)
+  @RequirePermission('view_leads')
   @ApiOperation({ summary: "Lister les leads d'une agence (Owner + Staff)" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Liste des leads récupérée avec succès' })
@@ -58,6 +60,7 @@ export class LeadsController {
   // GET v1/secure/leads/detail?leadId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Get(API_URL.LEADS.LEAD_DETAIL)
+  @RequirePermission('view_leads')
   @ApiOperation({ summary: "Détail d'un lead" })
   @ApiQuery({ name: 'leadId', required: true, description: 'Identifiant du lead' })
   @ApiOkResponse({ description: 'Lead récupéré avec succès' })
@@ -70,6 +73,7 @@ export class LeadsController {
   // PATCH v1/secure/leads/update-status?leadId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Patch(API_URL.LEADS.UPDATE_STATUS)
+  @RequirePermission('update_lead')
   @ApiOperation({ summary: 'Mettre à jour le statut du lead (pipeline CRM)' })
   @ApiQuery({ name: 'leadId', required: true, description: 'Identifiant du lead' })
   @ApiBody({ type: UpdateLeadStatusDto })
@@ -87,6 +91,7 @@ export class LeadsController {
   // PATCH v1/secure/leads/assign?leadId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Patch(API_URL.LEADS.ASSIGN)
+  @RequirePermission('assign_lead')
   @ApiOperation({ summary: 'Assigner un agent au lead (Owner + Admin agence)' })
   @ApiQuery({ name: 'leadId', required: true, description: 'Identifiant du lead' })
   @ApiBody({ type: AssignLeadDto })
@@ -100,6 +105,7 @@ export class LeadsController {
   // DELETE v1/secure/leads/delete?leadId=xxx
   // ─────────────────────────────────────────────────────────────────
   @Delete(API_URL.LEADS.DELETE)
+  @RequirePermission('delete_lead')
   @ApiOperation({ summary: 'Supprimer un lead (Owner + Admin agence)' })
   @ApiQuery({ name: 'leadId', required: true, description: 'Identifiant du lead à supprimer' })
   @ApiOkResponse({ description: 'Lead supprimé avec succès' })

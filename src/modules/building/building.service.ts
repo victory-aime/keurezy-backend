@@ -74,11 +74,7 @@ export class BuildingService {
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(data.agencyId!);
 
-    const currentProperties = await this.prisma.batiment.count({
-      where: {
-        agencyId: data.agencyId,
-      },
-    });
+    const currentProperties = await this.planFeaturePolicy.countPropertyAssets(data.agencyId!);
 
     const check = this.planFeaturePolicy.checkCapacity(
       context,

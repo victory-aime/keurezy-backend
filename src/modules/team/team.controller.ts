@@ -14,6 +14,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Team')
 @ApiBearerAuth()
@@ -22,6 +23,7 @@ export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
   @Get(API_URL.TEAM.AGENCY_TEAM_LIST)
+  @RequirePermission('view_users')
   @ApiOperation({
     summary: "Récupérer la liste des membres de l'équipe d'une agence (Owner uniquement)",
   })

@@ -13,6 +13,7 @@ import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Visits')
 @ApiBearerAuth()
@@ -24,6 +25,7 @@ export class VisitsController {
   // POST v1/secure/visits/create
   // Accessible : Owner + AGENCY_ADMIN
   @Post(API_URL.VISITS.CREATE)
+  @RequirePermission('schedule_visit')
   @ApiOperation({ summary: 'Planifier une visite pour un lead' })
   @ApiBody({ type: CreateVisitDto })
   @ApiOkResponse({ description: 'Visite planifiée avec succès' })
@@ -39,6 +41,7 @@ export class VisitsController {
   // GET v1/secure/visits/agency-visits?agencyId=
   // Accessible : Owner + Staff
   @Get(API_URL.VISITS.AGENCY_VISITS)
+  @RequirePermission('view_visits')
   @ApiOperation({ summary: "Lister toutes les visites d'une agence" })
   @ApiOkResponse({ description: 'Liste des visites récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
@@ -68,6 +71,7 @@ export class VisitsController {
   // PATCH v1/secure/visits/update-status?visitId=
   // Accessible : Owner + AGENCY_ADMIN + AGENT
   @Patch(API_URL.VISITS.UPDATE)
+  @RequirePermission('update_visit')
   @ApiOperation({ summary: 'Mettre à jour une visite' })
   @ApiBody({ type: UpdateVisitDto })
   @ApiOkResponse({ description: 'Mis à jour avec succès' })
@@ -79,6 +83,7 @@ export class VisitsController {
   // PATCH v1/secure/visits/assign-agent?visitId=xxx
   // Accessible : Owner + AGENCY_ADMIN
   @Patch(API_URL.VISITS.ASSIGN_AGENT)
+  @RequirePermission('update_visit')
   @ApiOperation({ summary: 'Assigner un agent à une visite' })
   @ApiBody({ type: AssignAgentDto })
   @ApiOkResponse({ description: 'Agent assigné avec succès' })
@@ -94,6 +99,7 @@ export class VisitsController {
   // DELETE v1/secure/visits/delete?visitId=
   // Accessible : Owner + AGENCY_ADMIN
   @Patch(API_URL.VISITS.CANCEL_VISIT)
+  @RequirePermission('cancel_visit')
   @ApiOperation({ summary: 'Supprimer une visite' })
   @ApiOkResponse({ description: 'Visite supprimée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })

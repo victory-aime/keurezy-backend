@@ -39,11 +39,7 @@ export class InvitationService {
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(agencyId);
 
-    const currentProperties = await this.prisma.staff.count({
-      where: {
-        agencyId,
-      },
-    });
+    const currentProperties = await this.planFeaturePolicy.countUserSeats(agencyId);
 
     const check = this.planFeaturePolicy.checkCapacity(
       context,

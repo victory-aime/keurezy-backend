@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
@@ -11,8 +11,8 @@ import {
 } from '@nestjs/swagger';
 import { PropertyDto, PropertyFilterDto } from './property.dto';
 import { PropertyService } from './property.service';
-import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
-import { PermissionGuard, RequirePermission } from '../../guard/permission.guard';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { RequirePermission } from '../../guard/permission.guard';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 
 @ApiTags('Property')
@@ -22,7 +22,6 @@ export class PropertyController {
   constructor(private readonly propertyService: PropertyService) {}
 
   @Get(API_URL.PROPERTY.ALL_PROPERTIES_BY_AGENCY)
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission('view_properties')
   @ApiOperation({ summary: 'Récupérer toutes les propriétés' })
   @ApiOkResponse({ description: 'Liste des propriétés récupérée avec success' })
@@ -41,7 +40,6 @@ export class PropertyController {
   }
 
   @Post(API_URL.PROPERTY.CREATE_PROPERTY)
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission('create_property')
   @ApiOperation({ summary: 'Créer une nouvelle propriété' })
   @ApiBody({ type: PropertyDto })
@@ -52,6 +50,7 @@ export class PropertyController {
   }
 
   @Post(API_URL.PROPERTY.UPDATE_PROPERTY)
+  @RequirePermission('update_property')
   @ApiOperation({ summary: 'Mettre a jour une propriété' })
   @ApiBody({ type: PropertyDto })
   @ApiQuery({ name: 'appartId', required: true, description: 'Identifiant de la propriété' })
@@ -66,6 +65,7 @@ export class PropertyController {
   }
 
   @Get(API_URL.PROPERTY.OCCUPATION_RATE_BY_PROPERTY_TYPE)
+  @RequirePermission('view_properties')
   @ApiOperation({ summary: "Récupérer le taux d'occupation par type de propriété" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Stats envoyée avec success' })

@@ -337,6 +337,12 @@ export class AgencyService {
       );
     }
 
+    // Agence fermée : plus aucune action (PENDING reste autorisé, c'est le statut avant validation)
+    const agency = isOwner ? owner?.agency : staff?.agency;
+    if (agency?.status === AgencyStatus.CLOSE) {
+      throw new HttpError('Cette agence est fermée', HttpStatus.FORBIDDEN, 'AGENCY_CLOSED');
+    }
+
     if (isOwner) {
       return {
         type: 'OWNER',
@@ -357,6 +363,7 @@ export class AgencyService {
     const count = await this.prismaService.agency.count({
       where: {
         id: agencyId,
+        status: { not: AgencyStatus.CLOSE },
         OR: [{ owner: { userId } }, { staff: { some: { userId, isActive: true } } }],
       },
     });

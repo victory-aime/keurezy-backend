@@ -27,6 +27,7 @@ import { MultipartJson } from '../../config/multipart-json.decorator';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { BuildingFilterDto, CreateBuildingDto, UpdateBuildingDto } from './building.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Building')
 @ApiBearerAuth()
@@ -39,6 +40,7 @@ export class BuildingController {
   ) {}
 
   @Get(API_URL.BUILDING.ALL_BUILDING_BY_AGENCY)
+  @RequirePermission('manage_batiment')
   @ApiOperation({ summary: "Récupérer tous les bâtiments d'une agence" })
   @ApiOkResponse({ description: 'Liste des bâtiments récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
@@ -47,6 +49,7 @@ export class BuildingController {
   }
 
   @Post(API_URL.BUILDING.CREATE_BUILDING)
+  @RequirePermission('manage_batiment')
   @ApiOperation({ summary: 'Créer un nouveau bâtiment' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateBuildingDto })
@@ -82,6 +85,7 @@ export class BuildingController {
   }
 
   @Post(API_URL.BUILDING.UPDATE)
+  @RequirePermission('manage_batiment')
   @ApiOperation({ summary: 'Mettre à jour un bâtiment existant' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UpdateBuildingDto })
@@ -119,6 +123,7 @@ export class BuildingController {
   }
 
   @Delete(API_URL.BUILDING.DELETE)
+  @RequirePermission('manage_batiment')
   @ApiOperation({ summary: 'Supprimer un bâtiment' })
   @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bâtiment à supprimer' })
   @ApiOkResponse({ description: 'Bâtiment supprimé avec succès' })

@@ -14,6 +14,7 @@ import { InvitationService } from './invitation.service';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
 import { CreateInvitationDto } from './invitation.dto';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Invitation')
 @ApiBearerAuth()
@@ -23,6 +24,7 @@ export class InvitationController {
   constructor(private readonly invitationService: InvitationService) {}
 
   @Get(API_URL.INVITATION.AGENCY_INVITE_LIST)
+  @RequirePermission('view_users')
   @ApiOperation({ summary: "Lister toutes les invitations d'une agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Liste des invitations récupérée avec succès' })
@@ -35,6 +37,7 @@ export class InvitationController {
   }
 
   @Post(API_URL.INVITATION.CREATE_INVITE)
+  @RequirePermission('send_invitation')
   @ApiOperation({ summary: 'Créer et envoyer une invitation à un membre (Owner + Admin)' })
   @ApiBody({ type: CreateInvitationDto })
   @ApiOkResponse({ description: 'Invitation envoyée avec succès' })
@@ -59,6 +62,7 @@ export class InvitationController {
   }
 
   @Post(API_URL.INVITATION.CANCEL_INVITE)
+  @RequirePermission('cancel_invitation')
   @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })
   @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation" })
   @ApiOkResponse({ description: 'Invitation annulée avec succès' })

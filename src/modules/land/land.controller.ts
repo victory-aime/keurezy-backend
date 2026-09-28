@@ -25,6 +25,7 @@ import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { MultipartJson } from '../../config/multipart-json.decorator';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Land')
 @ApiBearerAuth()
@@ -37,6 +38,7 @@ export class LandController {
   ) {}
 
   @Get(API_URL.LAND.ALL_LAND_BY_AGENCY)
+  @RequirePermission('manage_land')
   @ApiOperation({ summary: "Récupérer tous les terrains d'une agence" })
   @ApiOkResponse({ description: 'Liste des terrains récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
@@ -45,6 +47,7 @@ export class LandController {
   }
 
   @Post(API_URL.LAND.CREATE_LAND)
+  @RequirePermission('manage_land')
   @ApiOperation({ summary: 'Créer un nouveau terrain' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateLandDto })
@@ -78,6 +81,7 @@ export class LandController {
   }
 
   @Post(API_URL.LAND.UPDATE)
+  @RequirePermission('manage_land')
   @ApiOperation({ summary: 'Mettre à jour un terrain existant' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UpdateLandDto })
@@ -114,6 +118,7 @@ export class LandController {
   }
 
   @Delete(API_URL.LAND.DELETE)
+  @RequirePermission('manage_land')
   @ApiOperation({ summary: 'Supprimer un terrain (non implémenté)' })
   @ApiOkResponse({ description: 'Delete land not implemented' })
   async deleteLand() {
