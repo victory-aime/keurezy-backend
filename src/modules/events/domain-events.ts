@@ -1,9 +1,28 @@
 import { Global, Injectable, Logger, Module } from '@nestjs/common';
 import { EventEmitter } from 'events';
+import { PropertyType } from '../../../prisma/generated/enums';
 
 /** Événements métier échangés entre modules, sans dépendance directe entre eux. */
 export interface DomainEvents {
   'chat.message.created': ChatMessageCreatedEvent;
+  'booking.status.changed': BookingStatusChangedEvent;
+  'annonce.published': AnnoncePublishedEvent;
+}
+
+/** Réservation confirmée ou refusée (y compris refus automatique) : e-mail au client. */
+export interface BookingStatusChangedEvent {
+  bookingId: string;
+  status: 'CONFIRMED' | 'REJECTED';
+  reason?: string;
+}
+
+/** Annonce mise en ligne : notification des clients abonnés à ce type de bien. */
+export interface AnnoncePublishedEvent {
+  annonceId: string;
+  propertyType: PropertyType;
+  title: string;
+  city: string | null;
+  agencyId: string;
 }
 
 export interface ChatMessageCreatedEvent {

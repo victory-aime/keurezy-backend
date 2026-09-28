@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { DomainEventBus } from '../events/domain-events';
 import { PrismaService } from '../../database/prisma.service';
-import { AnnonceStatus } from '../../../prisma/generated/enums';
+import { AnnonceStatus, PropertyType } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
@@ -82,7 +83,22 @@ export class AnnounceService {
     private readonly planFeaturePolicy: PlanFeaturePolicyService,
     private readonly rentalAvailability: RentalAvailabilityService,
     private readonly rentalQuote: RentalQuoteService,
+    private readonly events: DomainEventBus,
   ) {}
+
+  /** Mise en ligne : les clients abonnés à ce type de bien sont notifiés. */
+  private announcePublished(
+    annonce: { id: string; title: string | null },
+    property: { type: PropertyType; title: string; city: string | null; agencyId: string },
+  ) {
+    this.events.emit('annonce.published', {
+      annonceId: annonce.id,
+      propertyType: property.type,
+      title: annonce.title || property.title,
+      city: property.city,
+      agencyId: property.agencyId,
+    });
+  }
 
   // Vérification centralisée
   private async ensureNoActiveAnnounce(propertyId: string, excludeId?: string) {
@@ -105,9 +121,9 @@ export class AnnounceService {
 
   // 1. CREATE
   async createAnnounce(dto: CreateAnnonceDto, userId: string): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(dto.agencyId!, userId);
+    await this.agencyService.agencyAccessControl(dto.agencyId, userId);
 
-    const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId!);
+    const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId);
 
     const currentProperties = await this.prisma.annonce.count({
       where: {
@@ -154,7 +170,7 @@ export class AnnounceService {
       await this.ensureNoActiveAnnounce(dto.propertyId);
     }
 
-    await this.prisma.annonce.create({
+    const created = await this.prisma.annonce.create({
       data: {
         title: dto.title,
         propertyId: dto.propertyId,
@@ -163,7 +179,9 @@ export class AnnounceService {
         status,
         publishedAt: status === AnnonceStatus.ACTIVE ? new Date() : null,
       },
+      select: { id: true, title: true },
     });
+    if (status === AnnonceStatus.ACTIVE) this.announcePublished(created, property);
 
     return {
       message: 'Annonce créée avec succès',
@@ -346,7 +364,7 @@ export class AnnounceService {
       await this.ensureNoActiveAnnounce(annonce.propertyId, dto.id);
     }
 
-    await this.prisma.annonce.update({
+    const updated = await this.prisma.annonce.update({
       where: { id: dto.id },
       data: {
         title: dto.title ?? annonce.title,
@@ -358,6 +376,10 @@ export class AnnounceService {
       },
       include: { property: true },
     });
+    // Passage en ligne uniquement (une modification d'annonce déjà en ligne ne notifie pas)
+    if (nextStatus === AnnonceStatus.ACTIVE && annonce.status !== AnnonceStatus.ACTIVE) {
+      this.announcePublished(updated, updated.property);
+    }
     return {
       message: 'Annonce mise a jouur',
     };

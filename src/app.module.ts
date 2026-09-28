@@ -26,6 +26,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ChatModule } from './modules/chat/chat.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { DomainEventsModule } from './modules/events/domain-events';
+import { PreferencesModule } from './modules/preferences/preferences.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { DomainEventsModule } from './modules/events/domain-events';
     NotificationsModule,
     ChatModule,
     IntegrationsModule,
+    PreferencesModule,
   ],
 
   providers: [

@@ -43,6 +43,7 @@ import { UpdateUserDto } from '../modules/users/dto/update-user.dto';
 import { UpdateUserStatusDto } from '../modules/users/dto/update-user-status.dto';
 import { UpdateAgencyStatusDto } from '../modules/agency/dto/update-agency-status.dto';
 import { UpdateStaffPermissionsDto } from '../modules/team/team.dto';
+import { UpdateNotificationPreferencesDto } from '../modules/preferences/preferences.dto';
 
 /**
  * Garde-fou de la whitelist globale : chaque DTO reçoit un payload identique à celui

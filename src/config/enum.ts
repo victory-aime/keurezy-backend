@@ -22,6 +22,7 @@ enum APIS_URL_GLOBAL_PATH {
   CHAT = 'chat',
   PUSH_NOTIF = 'push-notification',
   INTEGRATIONS = 'integrations',
+  PREFERENCES = 'preferences',
 }
 
 enum CLOUDINARY_FOLDER_NAME {

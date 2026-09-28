@@ -78,4 +78,22 @@ describe('ExpoPushService', () => {
       where: { token: { in: ['ExponentPushToken[later]'] } },
     });
   });
+
+  it('applique le son choisi : fichier embarqué, canal Android dédié, ou silence', async () => {
+    const { service } = setup();
+    expoClient.sendPushNotificationsAsync.mockResolvedValue([
+      { status: 'ok', id: 'r-1' },
+      { status: 'ok', id: 'r-2' },
+    ]);
+
+    await service.send([
+      { ...message('ExponentPushToken[soft]'), sound: 'SOFT' },
+      { ...message('ExponentPushToken[mute]'), sound: 'NONE' },
+    ]);
+
+    expect(expoClient.sendPushNotificationsAsync).toHaveBeenCalledWith([
+      expect.objectContaining({ sound: 'soft.wav', channelId: 'messages_soft' }),
+      expect.objectContaining({ sound: null, channelId: 'messages_none' }),
+    ]);
+  });
 });

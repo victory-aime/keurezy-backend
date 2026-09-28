@@ -48,7 +48,28 @@ export type TemplateVariables = {
     OTP: string;
     APP_NAME?: string;
   };
+  [EMAIL_TEMPLATE_ID.BOOKING_STATUS]: {
+    SUBJECT: string;
+    USERNAME: string;
+    /** « confirmée » ou « refusée » */
+    STATUS_LABEL: string;
+    PROPERTY_TITLE: string;
+    /** « du 05/10/2026 au 12/10/2026 » */
+    PERIOD: string;
+    /** Motif du refus ou information complémentaire */
+    MESSAGE?: string;
+    APP_NAME?: string;
+  };
 };
+
+export interface BookingStatusEmailPayload {
+  sendTo: string;
+  username: string;
+  confirmed: boolean;
+  propertyTitle: string;
+  period: string;
+  message?: string;
+}
 
 export class SendTemplateEmailOptions<T extends EMAIL_TEMPLATE_ID> {
   to: string | string[];

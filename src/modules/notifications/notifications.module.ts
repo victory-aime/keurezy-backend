@@ -4,17 +4,23 @@ import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
 import { PushNotificationController } from './push-notification.controller';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { PreferencesModule } from '../preferences/preferences.module';
+import { EmailModule } from '../mail/mail.module';
+import { BookingEmailListener } from './booking-email.listener';
+import { ListingNotificationListener } from './listing-notification.listener';
 import { ChatNotificationListener } from './chat-notification.listener';
 import { ExpoPushService } from './expo-push.service';
 
 @Module({
-  imports: [FirebaseModule],
+  imports: [FirebaseModule, PreferencesModule, EmailModule],
   controllers: [NotificationsController, PushNotificationController],
   providers: [
     NotificationsService,
     PushNotificationService,
     ExpoPushService,
     ChatNotificationListener,
+    BookingEmailListener,
+    ListingNotificationListener,
   ],
   exports: [NotificationsService, PushNotificationService],
 })

@@ -19,6 +19,7 @@ import {
   todayCalendarDate,
 } from '../rentals/calendar-date';
 import { AgencyBookingsQueryDto, CreateBookingDto } from './bookings.dto';
+import { DomainEventBus } from '../events/domain-events';
 
 const BOOKING_INCLUDE = {
   property: {
@@ -103,6 +104,7 @@ export class BookingsService {
     private readonly notificationsService: NotificationsService,
     private readonly rentalQuote: RentalQuoteService,
     private readonly rentalAvailability: RentalAvailabilityService,
+    private readonly events: DomainEventBus,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────
@@ -326,6 +328,16 @@ export class BookingsService {
       ),
     );
 
+    // E-mail de statut (selon les préférences du client)
+    this.events.emit('booking.status.changed', { bookingId: booking.id, status: 'CONFIRMED' });
+    for (const other of rejected) {
+      this.events.emit('booking.status.changed', {
+        bookingId: other.id,
+        status: 'REJECTED',
+        reason: AUTO_REJECTION_REASON,
+      });
+    }
+
     return { message: 'Réservation confirmée.', autoRejected: rejected.length };
   }
 
@@ -343,6 +355,11 @@ export class BookingsService {
       `Votre demande pour « ${booking.property.title} » n’a pas été acceptée : ${reason}`,
       booking.id,
     );
+    this.events.emit('booking.status.changed', {
+      bookingId: booking.id,
+      status: 'REJECTED',
+      reason,
+    });
 
     return { message: 'Réservation refusée.' };
   }

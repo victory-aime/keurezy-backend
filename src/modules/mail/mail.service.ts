@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { EmailTemplatePayload, OTPTemplatePayload } from './types/mail-template.type';
+import {
+  BookingStatusEmailPayload,
+  EmailTemplatePayload,
+  OTPTemplatePayload,
+} from './types/mail-template.type';
 import { ResendService } from './resend.service';
 
 @Injectable()
@@ -44,5 +48,10 @@ export class EmailService {
     } catch (error) {
       throw new Error(`Error sending email: ${error}`);
     }
+  }
+
+  /** Statut d'une réservation ; un échec d'envoi n'interrompt pas l'action métier. */
+  async sendBookingStatus(data: BookingStatusEmailPayload): Promise<void> {
+    await this.resendService.sendBookingStatus(data);
   }
 }

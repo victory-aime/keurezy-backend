@@ -98,6 +98,7 @@ const setup = () => {
     }),
   };
   const availability = { isRangeFree: jest.fn().mockResolvedValue(true) };
+  const events = { emit: jest.fn() };
 
   const service = new BookingsService(
     prisma as never,
@@ -105,8 +106,9 @@ const setup = () => {
     notifications as never,
     quote as never,
     availability as never,
+    events as never,
   );
-  return { service, prisma, tx, agencyService, notifications, quote, availability };
+  return { service, prisma, tx, agencyService, notifications, quote, availability, events };
 };
 
 const request = {
@@ -167,7 +169,7 @@ describe('BookingsService', () => {
 
   describe('confirmBooking', () => {
     it('confirme et refuse automatiquement les autres demandes sur ces dates', async () => {
-      const { service, tx, notifications } = setup();
+      const { service, tx, notifications, events } = setup();
       tx.booking.findMany.mockResolvedValue([{ id: 'booking-2', client: { userId: 'user-2' } }]);
 
       const result = await service.confirmBooking('booking-1', 'owner-profile');
@@ -180,6 +182,15 @@ describe('BookingsService', () => {
       expect(result.autoRejected).toBe(1);
       // Client confirmé + client dont la demande n'est pas retenue
       expect(notifications.createNotification).toHaveBeenCalledTimes(2);
+      // E-mails de statut : confirmée, et refus automatique de l'autre demande
+      expect(events.emit).toHaveBeenCalledWith('booking.status.changed', {
+        bookingId: 'booking-1',
+        status: 'CONFIRMED',
+      });
+      expect(events.emit).toHaveBeenCalledWith(
+        'booking.status.changed',
+        expect.objectContaining({ bookingId: 'booking-2', status: 'REJECTED' }),
+      );
     });
 
     it('refuse de confirmer si une réservation confirmée chevauche déjà ces dates', async () => {

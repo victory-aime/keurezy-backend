@@ -148,6 +148,10 @@ export const API_URL = {
     MESSAGES: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/messages`,
     READ: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.CHAT}/conversations/read`,
   },
+  PREFERENCES: {
+    ME: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PREFERENCES}/me`,
+    NOTIFICATIONS: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.PREFERENCES}/notifications`,
+  },
   PAYMENT_ADMIN: {
     LIST: `${BASE_APIS_URL.SECURED}/admin/payments`,
     DETAIL: `${BASE_APIS_URL.SECURED}/admin/payments/detail`,

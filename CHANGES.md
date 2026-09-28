@@ -22,6 +22,7 @@ Le projet utilisait `db push`. `prisma/migrations` est maintenant versionné :
 | `4_bookings`                        | Type de notification `BOOKING`, durée réservée, index client                  |
 | `5_chat_property_context`           | Chat client ↔ agence lié au bien, pièces jointes (à appliquer sur table vide) |
 | `6_device_token_platform`           | Canal d'envoi des jetons push (`WEB` par défaut, `MOBILE_EXPO`)               |
+| `7_user_preferences`                | Table `user_preference`, type de notification `LISTING`                       |
 
 **Première mise en place sur un environnement existant** (UAT, production) :
 
@@ -117,3 +118,13 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Contenu mobile** : titre et texte en clair (contenu du message affiché), `data.type` et les identifiants utiles à la navigation (`conversationId`, `bookingId`), pastille = notifications + messages non lus, canaux Android `messages`, `bookings` et `default`.
 - **Configuration** : `EXPO_ACCESS_TOKEN` (facultatif, recommandé) active la sécurité renforcée des envois côté Expo. Les identifiants FCM (Android) et APNs (iOS) sont gérés par EAS.
 - **Dépendances** : le backend utilise **pnpm** (`pnpm add …`) ; npm échoue sur son arbre de dépendances.
+
+## 10. Préférences utilisateur (notifications)
+
+- **Table `user_preference`** (une ligne par utilisateur, créée à la première modification). Le thème reste sur `User`. Les préférences de notification sont un JSON validé et complété par `resolveNotificationPreferences` (valeurs par défaut, règles).
+- **Catégories** : Messages, Réservations, Visites, Paiements, Nouvelles annonces, Compte et sécurité (toujours actif). Canal push pour toutes, e-mail pour les réservations uniquement. « Nouvelles annonces » est désactivée par défaut et filtrée par types de bien (vide = tous).
+- **Son** : `DEFAULT`, `SOFT`, `CHIME` ou `NONE`. Push mobile : fichier `soft.wav` / `chime.wav` sur iOS, canal Android `<canal>_<son>` (ex. `messages_soft`), silencieux pour `NONE`. `inAppSound` pour le son dans l'application.
+- **Routes** : `GET preferences/me` (préférences et options proposées : libellés, canaux, sons, types de bien) et `PATCH preferences/notifications` (mise à jour partielle).
+- **Envoi** : `PushNotificationService` ne pousse que vers les destinataires qui acceptent la catégorie (web et mobile) ; la notification reste dans le centre de notifications.
+- **E-mail de réservation** : confirmation ou refus (y compris refus automatique), via l'événement `booking.status.changed` et `BookingEmailListener`. Modèle Resend `BOOKING_STATUS` (variables `SUBJECT`, `USERNAME`, `STATUS_LABEL`, `PROPERTY_TITLE`, `PERIOD`, `MESSAGE`, `APP_NAME`), identifiant dans `RESEND_TEMPLATE_BOOKING_STATUS_ID` ; sans lui, l'e-mail est ignoré.
+- **Nouvelles annonces** : à la mise en ligne d'une annonce (création en ligne ou passage en ligne), l'événement `annonce.published` déclenche la notification `LISTING` des clients abonnés, par lots de 500, avec `annonceId`.

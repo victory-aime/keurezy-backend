@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import Expo, { ExpoPushMessage, ExpoPushTicket } from 'expo-server-sdk';
 import { NotificationType } from '../../../prisma/generated/enums';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationSound } from '../preferences/notification-preferences';
 
 /** Canaux Android créés par l'application mobile (même identifiants). */
 export const MOBILE_PUSH_CHANNELS = {
@@ -19,7 +20,24 @@ export interface MobilePushMessage {
   type: NotificationType;
   data: Record<string, string>;
   badge?: number;
+  /** Son choisi par l'utilisateur (défaut du système sinon) */
+  sound?: NotificationSound;
 }
+
+/**
+ * Fichiers embarqués par l'application (iOS : nom du fichier ; Android : le son est porté
+ * par le canal, décliné en `<canal>_<son>`, créé par l'application).
+ */
+const SOUND_FILES: Record<Exclude<NotificationSound, 'DEFAULT' | 'NONE'>, string> = {
+  SOFT: 'soft.wav',
+  CHIME: 'chime.wav',
+};
+
+const soundFor = (sound: NotificationSound = 'DEFAULT') =>
+  sound === 'NONE' ? null : sound === 'DEFAULT' ? 'default' : SOUND_FILES[sound];
+
+const channelWithSound = (channel: string, sound: NotificationSound = 'DEFAULT') =>
+  sound === 'DEFAULT' ? channel : `${channel}_${sound.toLowerCase()}`;
 
 /** Accusés en attente de vérification : borne mémoire (au-delà, les plus anciens sont ignorés). */
 const MAX_PENDING_RECEIPTS = 10_000;
@@ -64,9 +82,9 @@ export class ExpoPushService {
       title: message.title,
       body: message.body,
       data: { ...message.data, type: message.type },
-      sound: 'default',
+      sound: soundFor(message.sound),
       priority: message.type === NotificationType.MESSAGE ? 'high' : 'default',
-      channelId: channelFor(message.type),
+      channelId: channelWithSound(channelFor(message.type), message.sound),
       ...(message.badge !== undefined && { badge: message.badge }),
     }));
 

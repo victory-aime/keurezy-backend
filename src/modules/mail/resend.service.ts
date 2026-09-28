@@ -3,6 +3,7 @@ import { OTP_SETTINGS } from '../../config/otp';
 import { Resend } from 'resend';
 import { EMAIL_TEMPLATE_ID, EMAIL_TEMPLATE_RUNTIME_ID } from './utils/mail';
 import {
+  BookingStatusEmailPayload,
   EmailResult,
   SendInviteEmailPayload,
   SendTemplateEmailOptions,
@@ -186,6 +187,30 @@ export class ResendService {
         // Durée identique à la configuration emailOTP de Better Auth
         EXPIRE_TIME: formatExpiresIn(OTP_SETTINGS.expiresIn),
         OTP: otp,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
+  /** Réservation confirmée ou refusée. Sans modèle configuré, l'envoi est ignoré. */
+  async sendBookingStatus(payload: BookingStatusEmailPayload): Promise<EmailResult | null> {
+    if (!EMAIL_TEMPLATE_RUNTIME_ID[EMAIL_TEMPLATE_ID.BOOKING_STATUS]) {
+      this.logger.warn('RESEND_TEMPLATE_BOOKING_STATUS_ID absent : e-mail de réservation ignoré');
+      return null;
+    }
+    const statusLabel = payload.confirmed ? 'confirmée' : 'refusée';
+    const subject = `Votre réservation est ${statusLabel}`;
+    return this.sendTemplateEmail({
+      to: payload.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.BOOKING_STATUS,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: payload.username,
+        STATUS_LABEL: statusLabel,
+        PROPERTY_TITLE: payload.propertyTitle,
+        PERIOD: payload.period,
+        MESSAGE: payload.message,
         APP_NAME: process.env.APP_NAME,
       },
     });

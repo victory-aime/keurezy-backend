@@ -47,6 +47,7 @@ model User {
   sentMessages             Message[]                 @relation("SentMessages")
   receivedReceipts         MessageReceipt[]          @relation("ReceivedReceipts")
   conversationParticipants ConversationParticipant[]
+  preference               UserPreference?
   deviceTokens             DeviceToken[]
   integrationProvider      IntegrationProvider[]
 
@@ -970,6 +971,25 @@ model MessageReceipt {
 }
 
 // ─────────────────────────────────────────────
+// PRÉFÉRENCES UTILISATEUR
+// ─────────────────────────────────────────────
+
+// Une ligne par utilisateur, créée à la première modification (sinon valeurs par défaut).
+// Le thème reste sur User ; les autres préférences s'ajoutent ici (colonnes ou JSON validé).
+model UserPreference {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  // Préférences de notification, validées et complétées par PreferencesService
+  notifications Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preference")
+}
+
+// ─────────────────────────────────────────────
 // PUSH SUBSCRIPTIONS
 // ─────────────────────────────────────────────
 
@@ -1082,6 +1102,7 @@ enum AgencyStatus {
 enum NotificationType {
   BOOKING
   MESSAGE
+  LISTING // nouvelle annonce correspondant aux préférences du client
   LEAD
   VISIT
   TICKET

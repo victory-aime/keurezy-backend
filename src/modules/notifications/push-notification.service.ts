@@ -5,6 +5,8 @@ import { PushNotificationsDto, RegisterPushNotificationTokenDto } from './notifi
 import { PrismaService } from '../../database/prisma.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ExpoPushService, MobilePushMessage } from './expo-push.service';
+import { PreferencesService } from '../preferences/preferences.service';
+import { allowsNotification } from '../preferences/notification-preferences';
 
 /**
  * Distribution des notifications push selon l'appareil : FCM pour le navigateur,
@@ -17,6 +19,7 @@ export class PushNotificationService {
     private readonly prisma: PrismaService,
     private readonly firebaseService: FirebaseService,
     private readonly expoPush: ExpoPushService,
+    private readonly preferences: PreferencesService,
   ) {}
 
   /**
@@ -108,7 +111,14 @@ export class PushNotificationService {
   }
 
   async sendToUsers(userIds: string[], payload: PushNotificationsDto) {
-    const recipients = [...new Set(userIds.filter(Boolean))];
+    const candidates = [...new Set(userIds.filter(Boolean))];
+    if (!candidates.length) return;
+
+    // Préférences : catégorie désactivée → pas de push (la notification reste dans le centre)
+    const preferences = await this.preferences.getNotificationPreferences(candidates);
+    const recipients = candidates.filter((id) =>
+      allowsNotification(preferences.get(id)!, payload.type, 'push'),
+    );
     if (!recipients.length) return;
 
     const devices = await this.prisma.deviceToken.findMany({
@@ -137,6 +147,7 @@ export class PushNotificationService {
         ...(payload.notificationId && { notificationId: payload.notificationId }),
       },
       badge: badges.get(device.userId),
+      sound: preferences.get(device.userId)?.sound,
     }));
 
     await Promise.allSettled([

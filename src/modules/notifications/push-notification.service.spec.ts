@@ -1,4 +1,5 @@
 jest.mock('../firebase/firebase.service', () => ({ FirebaseService: jest.fn() }));
+jest.mock('../preferences/preferences.service', () => ({ PreferencesService: jest.fn() }));
 jest.mock('./expo-push.service', () => ({
   ExpoPushService: Object.assign(jest.fn(), {
     isExpoToken: (token: string) => token.startsWith('ExponentPushToken['),
@@ -8,6 +9,7 @@ jest.mock('./expo-push.service', () => ({
 import { PushNotificationService } from './push-notification.service';
 import { HttpError } from '../../config/http.error';
 import { NotificationType, PushPlatform } from '../../../prisma/generated/enums';
+import { resolveNotificationPreferences } from '../preferences/notification-preferences';
 
 const errorCode = async (promise: Promise<unknown>) => {
   try {
@@ -28,12 +30,18 @@ const setup = () => {
   const send = jest.fn();
   const firebase = { getMessaging: () => ({ send }) };
   const expoPush = { send: jest.fn() };
+  const preferences = {
+    getNotificationPreferences: jest.fn((ids: string[]) =>
+      Promise.resolve(new Map(ids.map((id) => [id, resolveNotificationPreferences(undefined)]))),
+    ),
+  };
   const service = new PushNotificationService(
     prisma as never,
     firebase as never,
     expoPush as never,
+    preferences as never,
   );
-  return { prisma, send, expoPush, service };
+  return { prisma, send, expoPush, preferences, service };
 };
 
 const payload = {
@@ -125,5 +133,25 @@ describe('PushNotificationService', () => {
         create: expect.objectContaining({ platform: PushPlatform.MOBILE_EXPO }) as unknown,
       }),
     );
+  });
+
+  it('respecte les préférences : catégorie désactivée → pas de push, son choisi', async () => {
+    const { service, prisma, expoPush, preferences } = setup();
+    prisma.deviceToken.findMany.mockResolvedValue([
+      { token: 'ExponentPushToken[b]', userId: 'user-2', platform: PushPlatform.MOBILE_EXPO },
+    ]);
+    preferences.getNotificationPreferences.mockResolvedValue(
+      new Map([
+        ['user-1', resolveNotificationPreferences({ categories: { MESSAGE: { push: false } } })],
+        ['user-2', resolveNotificationPreferences({ sound: 'SOFT' })],
+      ]),
+    );
+
+    await service.sendToUsers(['user-1', 'user-2'], payload);
+
+    expect(prisma.deviceToken.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: { in: ['user-2'] } } }),
+    );
+    expect(expoPush.send).toHaveBeenCalledWith([expect.objectContaining({ sound: 'SOFT' })]);
   });
 });
