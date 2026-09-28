@@ -26,7 +26,7 @@ export class VisitsController {
   // Accessible : Owner + AGENCY_ADMIN
   @Post(API_URL.VISITS.CREATE)
   @RequirePermission('schedule_visit')
-  @ApiOperation({ summary: 'Planifier une visite pour un lead' })
+  @ApiOperation({ summary: 'Planifier une visite pour un client' })
   @ApiBody({ type: CreateVisitDto })
   @ApiOkResponse({ description: 'Visite planifiée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
@@ -36,6 +36,16 @@ export class VisitsController {
     @AgencyProfileId() userId: string,
   ) {
     return this.visitsService.createVisit(dto, agencyId, userId);
+  }
+
+  // GET v1/secure/visits/agency-clients?agencyId=
+  // Clients proposés pour une visite (réservation ou discussion avec l'agence)
+  @Get(API_URL.VISITS.AGENCY_CLIENTS)
+  @RequirePermission('schedule_visit')
+  @ApiOperation({ summary: 'Clients pouvant être invités à une visite' })
+  @ApiOkResponse({ description: 'Liste des clients récupérée avec succès' })
+  async getAgencyClients(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.visitsService.getAgencyClients(agencyId, userId);
   }
 
   // GET v1/secure/visits/agency-visits?agencyId=

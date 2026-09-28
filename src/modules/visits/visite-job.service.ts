@@ -28,7 +28,7 @@ export class VisiteJobService {
         },
       },
       include: {
-        lead: { include: { client: { include: { user: true } } } },
+        client: true,
         property: true,
         agent: true,
         agency: {
@@ -46,7 +46,7 @@ export class VisiteJobService {
       });
 
       const recipients = [
-        visit.lead?.client?.userId,
+        visit.client?.userId,
         // agentId est un Staff.id : le destinataire est son compte utilisateur
         visit.agent?.userId,
         visit?.agency?.owner?.userId,

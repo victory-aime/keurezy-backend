@@ -177,6 +177,7 @@ model Client {
   leads         Lead[]
   bookings      Booking[]
   conversations Conversation[]
+  visits        Visit[]
 
   createdAt DateTime @default(now())
 
@@ -486,8 +487,11 @@ model Visit {
   status      VisitStatus @default(PLANNED)
   notes       String?
 
-  leadId     String
-  lead       Lead     @relation(fields: [leadId], references: [id])
+  // Client visiteur ; le lead est facultatif en attendant le retrait des leads
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leadId     String?
+  lead       Lead?    @relation(fields: [leadId], references: [id])
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id])
   agentId    String?
@@ -498,6 +502,7 @@ model Visit {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([clientId])
   @@map("visit")
 }
 

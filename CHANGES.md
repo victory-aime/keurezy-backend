@@ -143,3 +143,11 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Abonnement inactif** : les créations soumises au plan sont refusées (`SUBSCRIPTION_INACTIVE`). L'expiration (`currentPeriodEnd`) sera appliquée avec le renouvellement.
 - **Quotas** : propriétés, terrains et bâtiments sont comptés ensemble contre la limite de biens (`countPropertyAssets`) ; les invitations en attente non expirées comptent dans les places utilisateurs (`countUserSeats`).
 - **Visites** : la notification « Nouvelle visite » part vers l'owner et l'agent assigné (hors auteur) ; elle n'était jamais envoyée. Le cron de fin de visite notifie le compte de l'agent (et non son identifiant Staff).
+
+## 12. Visites rattachées au client (retrait des leads, étape 1)
+
+- **Migration `8_visit_client`** (à appliquer) : ajoute `Visit.clientId` (index, suppression en cascade avec le client), rempli depuis le lead de chaque visite existante ; `Visit.leadId` devient facultatif. Retour arrière décrit en commentaire dans la migration.
+- **Planifier une visite** : `clientId` (client ayant réservé ou écrit à l'agence, sinon `CLIENT_NOT_LINKED`) et `propertyId`. `leadId` reste accepté jusqu'au retrait des leads : le client en est déduit. Sans l'un ni l'autre : `VISIT_CLIENT_REQUIRED`.
+- **Nouvelle route** `GET visits/agency-clients?agencyId` (`schedule_visit`) : clients proposés dans le formulaire de visite.
+- **Réponses** : les visites exposent `client` (nom, e-mail), `property` et `agent` ; `lead` reste présent dans la liste agence pour le web actuel. Notifications, « mes visites » et cron de fin de visite passent par le client.
+- **Étape suivante** : une fois le web adapté, une migration supprimera les leads (table, module, feature `manage_leads`).

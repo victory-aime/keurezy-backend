@@ -18,13 +18,7 @@ export class VisitsService {
   async createVisit(dto: CreateVisitDto, agencyId: string, userId: string) {
     const actor = await this.agencyService.agencyAccessControl(agencyId, userId);
     try {
-      const lead = await this.prisma.lead.findUnique({
-        where: { id: dto.leadId },
-        include: { client: { include: { user: true } } },
-      });
-      if (!lead || lead.agencyId !== agencyId) {
-        throw new HttpError('Demande introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
-      }
+      const client = await this.resolveVisitClient(dto, agencyId);
 
       const property = await this.prisma.property.findUnique({
         where: { id: dto.propertyId },
@@ -79,7 +73,8 @@ export class VisitsService {
           startTime: dto.startTime,
           endTime: dto.endTime,
           notes: dto.notes,
-          leadId: dto.leadId,
+          clientId: client.id,
+          leadId: dto.leadId ?? null,
           propertyId: dto.propertyId,
           agentId: dto.agentId ?? null,
           agencyId,
@@ -87,7 +82,7 @@ export class VisitsService {
         },
       });
 
-      const clientUserId = lead.client?.user?.id;
+      const clientUserId = client.userId;
 
       // Côté agence : le propriétaire et l'agent assigné, sauf l'auteur de la planification
       const agency = await this.prisma.agency.findUnique({
@@ -131,6 +126,72 @@ export class VisitsService {
     }
   }
 
+  /**
+   * Client de la visite : fourni directement (il doit avoir réservé ou écrit à l'agence),
+   * ou déduit du lead tant que le web l'envoie encore.
+   */
+  private async resolveVisitClient(
+    dto: CreateVisitDto,
+    agencyId: string,
+  ): Promise<{ id: string; userId: string }> {
+    if (dto.leadId) {
+      const lead = await this.prisma.lead.findUnique({
+        where: { id: dto.leadId },
+        include: { client: { select: { userId: true } } },
+      });
+      if (!lead || lead.agencyId !== agencyId) {
+        throw new HttpError('Demande introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
+      }
+      return { id: lead.clientId, userId: lead.client.userId };
+    }
+
+    if (!dto.clientId) {
+      throw new HttpError(
+        'Le client de la visite est requis',
+        HttpStatus.BAD_REQUEST,
+        'VISIT_CLIENT_REQUIRED',
+      );
+    }
+
+    const client = await this.prisma.client.findUnique({
+      where: { id: dto.clientId },
+      select: {
+        id: true,
+        userId: true,
+        _count: {
+          select: {
+            bookings: { where: { agencyId } },
+            conversations: { where: { agencyId } },
+          },
+        },
+      },
+    });
+    if (!client || client._count.bookings + client._count.conversations === 0) {
+      throw new HttpError(
+        "Ce client n'a pas encore contacté votre agence",
+        HttpStatus.BAD_REQUEST,
+        'CLIENT_NOT_LINKED',
+      );
+    }
+    return { id: client.id, userId: client.userId };
+  }
+
+  /** Clients qu'une visite peut concerner : ceux qui ont réservé ou écrit à l'agence. */
+  async getAgencyClients(agencyId: string, userId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
+    return this.prisma.client.findMany({
+      where: {
+        OR: [{ bookings: { some: { agencyId } } }, { conversations: { some: { agencyId } } }],
+      },
+      select: {
+        id: true,
+        phone: true,
+        user: { select: { name: true, email: true } },
+      },
+      orderBy: { user: { name: 'asc' } },
+    });
+  }
+
   // LISTER LES VISITES D'UNE AGENCE
   async getVisitsByAgency(agencyId: string, userId: string) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
@@ -145,6 +206,12 @@ export class VisitsService {
           title: true,
           status: true,
           notes: true,
+          property: {
+            select: { id: true, title: true, address: true, city: true, price: true },
+          },
+          client: { include: { user: { select: { name: true, email: true } } } },
+          agent: { select: { user: { select: { id: true, name: true } } } },
+          // ponytail: forme historique conservée pour le web jusqu'au retrait des leads
           lead: {
             select: {
               id: true,
@@ -175,15 +242,11 @@ export class VisitsService {
         include: {
           property: { select: { title: true, address: true, city: true } },
           agent: { select: { user: { select: { name: true, email: true } } } },
-          lead: {
-            include: {
-              client: { include: { user: { select: { name: true, email: true } } } },
-            },
-          },
+          client: { include: { user: { select: { name: true, email: true } } } },
         },
       });
 
-      const isVisitClient = visit?.lead?.client?.userId === userId;
+      const isVisitClient = visit?.client?.userId === userId;
       if (
         !visit ||
         (!isVisitClient && !(await this.agencyService.isAgencyMember(visit.agencyId, userId)))
@@ -210,7 +273,7 @@ export class VisitsService {
       }
 
       return this.prisma.visit.findMany({
-        where: { lead: { clientId: client.id } },
+        where: { clientId: client.id },
         include: {
           property: true,
         },
@@ -230,7 +293,7 @@ export class VisitsService {
       const visit = await this.prisma.visit.findUnique({
         where: { id: dto.visitId },
         include: {
-          lead: { include: { client: { include: { user: true } } } },
+          client: { include: { user: true } },
           property: { select: { title: true } },
           agency: true,
         },
@@ -329,7 +392,7 @@ export class VisitsService {
           hour: '2-digit',
           minute: '2-digit',
         });
-        const clientUserId = visit.lead?.client?.user?.id;
+        const clientUserId = visit.client?.user?.id;
 
         const recipients = [visit.agentId, actor?.userOwnerId].filter((id): id is string =>
           Boolean(id),
@@ -420,15 +483,7 @@ export class VisitsService {
       const visit = await this.prisma.visit.findUnique({
         where: { id: visitId },
         include: {
-          lead: {
-            include: {
-              client: {
-                include: {
-                  user: true,
-                },
-              },
-            },
-          },
+          client: { include: { user: true } },
           property: true,
           agency: {
             include: {
@@ -468,7 +523,7 @@ export class VisitsService {
       });
 
       const recipients = [
-        visit.lead?.client?.user?.id,
+        visit.client?.user?.id,
         visit.agency?.owner?.userId,
         visit.agentId,
       ].filter((id): id is string => Boolean(id));
