@@ -119,6 +119,12 @@ export class PushNotificationService {
     const recipients = candidates.filter((id) =>
       allowsNotification(preferences.get(id)!, payload.type, 'push'),
     );
+    const muted = candidates.filter((id) => !recipients.includes(id));
+    if (muted.length) {
+      this.logger.log(
+        `[push] type=${payload.type} non envoyé (préférence désactivée) : ${muted.join(', ')}`,
+      );
+    }
     if (!recipients.length) return;
 
     const devices = await this.prisma.deviceToken.findMany({
@@ -130,7 +136,8 @@ export class PushNotificationService {
     const mobile = devices.filter((device) => device.platform === PushPlatform.MOBILE_EXPO);
     const web = devices.filter((device) => device.platform !== PushPlatform.MOBILE_EXPO);
     this.logger.log(
-      `Envoi push — destinataires=${recipients.length}, web=${web.length}, mobile=${mobile.length}`,
+      `[push] type=${payload.type} destinataires=${recipients.length}, web=${web.length}, mobile=${mobile.length} ` +
+        `sons=${recipients.map((id) => `${id}:${preferences.get(id)?.sound}`).join(', ')}`,
     );
 
     const badges = mobile.length

@@ -39,6 +39,9 @@ const soundFor = (sound: NotificationSound = 'DEFAULT') =>
 const channelWithSound = (channel: string, sound: NotificationSound = 'DEFAULT') =>
   sound === 'DEFAULT' ? channel : `${channel}_${sound.toLowerCase()}`;
 
+/** Jeton masqué pour les logs (6 derniers caractères) */
+const maskToken = (token: string) => `…${token.replace(/\]$/, '').slice(-6)}`;
+
 /** Accusés en attente de vérification : borne mémoire (au-delà, les plus anciens sont ignorés). */
 const MAX_PENDING_RECEIPTS = 10_000;
 
@@ -88,6 +91,14 @@ export class ExpoPushService {
       ...(message.badge !== undefined && { badge: message.badge }),
     }));
 
+    // Diagnostic : son demandé (iOS) et canal (Android, qui porte le son) de chaque envoi
+    for (const message of expoMessages) {
+      this.logger.log(
+        `[push] → ${maskToken(message.to as string)} type=${String(message.data?.type)} ` +
+          `sound=${JSON.stringify(message.sound ?? null)} channel=${message.channelId} badge=${message.badge ?? '-'}`,
+      );
+    }
+
     for (const chunk of this.expo.chunkPushNotifications(expoMessages)) {
       try {
         const tickets = await this.expo.sendPushNotificationsAsync(chunk);
@@ -105,13 +116,19 @@ export class ExpoPushService {
     const deadTokens: string[] = [];
     tickets.forEach((ticket, index) => {
       if (ticket.status === 'ok') {
+        this.logger.log(
+          `[push] ✓ accepté par Expo ${maskToken(tokens[index])} ticket=${ticket.id}`,
+        );
         if (this.pendingReceipts.size < MAX_PENDING_RECEIPTS) {
           this.pendingReceipts.set(ticket.id, tokens[index]);
         }
       } else if (ticket.details?.error === 'DeviceNotRegistered') {
         deadTokens.push(tokens[index]);
       } else {
-        this.logger.warn(`Ticket Expo refusé : ${ticket.details?.error ?? ticket.message}`);
+        this.logger.warn(
+          `[push] ✗ refusé par Expo ${maskToken(tokens[index])} : ` +
+            `${ticket.details?.error ?? '-'} — ${ticket.message}`,
+        );
       }
     });
     await this.removeTokens(deadTokens);
@@ -129,7 +146,10 @@ export class ExpoPushService {
       try {
         const receipts = await this.expo.getPushNotificationReceiptsAsync(ids);
         for (const [id, receipt] of Object.entries(receipts)) {
-          if (receipt.status !== 'error') continue;
+          if (receipt.status !== 'error') {
+            this.logger.log(`[push] ✓ livré à FCM/APNs ticket=${id}`);
+            continue;
+          }
           if (receipt.details?.error === 'DeviceNotRegistered') {
             const token = pending.get(id);
             if (token) deadTokens.push(token);
