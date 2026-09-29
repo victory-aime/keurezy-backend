@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { OTP_SETTINGS } from '../config/otp';
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { EXPIRE_TIME } from '../config/enum';
 import { twoFactor, emailOTP, lastLoginMethod } from 'better-auth/plugins';
@@ -153,6 +153,8 @@ const createAuth = (prisma: PrismaClient) => {
           }
         },
       }),
+      // Typé en BetterAuthPlugin : @better-auth/i18n embarque des types better-call non exportés
+      // (TS4023 à la génération des .d.ts). Le plugin ne fait que traduire les erreurs, sans endpoint.
       i18n({
         translations: {
           fr: {
@@ -188,7 +190,7 @@ const createAuth = (prisma: PrismaClient) => {
               'La session de vérification à deux facteurs est invalide ou expirée.',
           },
         },
-      }),
+      }) as BetterAuthPlugin,
       lastLoginMethod({
         storeInDatabase: true,
       }),
