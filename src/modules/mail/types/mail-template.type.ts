@@ -65,7 +65,7 @@ export type TemplateVariables = {
 export interface BookingStatusEmailPayload {
   sendTo: string;
   username: string;
-  confirmed: boolean;
+  status: 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
   propertyTitle: string;
   period: string;
   message?: string;

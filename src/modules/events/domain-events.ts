@@ -9,10 +9,10 @@ export interface DomainEvents {
   'annonce.published': AnnoncePublishedEvent;
 }
 
-/** Réservation confirmée ou refusée (y compris refus automatique) : e-mail au client. */
+/** Réservation confirmée, refusée (y compris refus automatique) ou annulée par l'agence : e-mail au client. */
 export interface BookingStatusChangedEvent {
   bookingId: string;
-  status: 'CONFIRMED' | 'REJECTED';
+  status: 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
   reason?: string;
 }
 

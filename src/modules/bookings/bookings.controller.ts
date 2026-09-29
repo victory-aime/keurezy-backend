@@ -100,4 +100,19 @@ export class BookingsController {
   ) {
     return this.bookingsService.rejectBooking(query.id, profileId, dto.reason);
   }
+
+  @Patch(API_URL.BOOKINGS.AGENCY_CANCEL)
+  @ApiOperation({
+    summary: 'Annuler une réservation confirmée qui n’a pas commencé, avec un motif',
+  })
+  @ApiBody({ type: RejectBookingDto })
+  @ApiOkResponse({ description: 'Réservation annulée, client prévenu' })
+  @ApiBadRequestResponse({ description: 'Réservation non confirmée ou déjà commencée' })
+  async agencyCancel(
+    @Query() query: BookingIdDto,
+    @Body() dto: RejectBookingDto,
+    @AgencyProfileId() profileId: string,
+  ) {
+    return this.bookingsService.agencyCancelBooking(query.id, profileId, dto.reason);
+  }
 }

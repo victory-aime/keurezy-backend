@@ -1,4 +1,5 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../../prisma/generated/client';
 import {
@@ -98,6 +99,8 @@ const toBookingResponse = (booking: BookingRecord) => {
  */
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
@@ -362,6 +365,55 @@ export class BookingsService {
     });
 
     return { message: 'Réservation refusée.' };
+  }
+
+  /** Annulation par l'agence d'un séjour confirmé qui n'a pas commencé ; les dates redeviennent libres. */
+  async agencyCancelBooking(id: string, profileId: string, reason: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: { client: { select: { userId: true } }, property: { select: { title: true } } },
+    });
+    if (!booking) {
+      throw new HttpError('Réservation introuvable', HttpStatus.NOT_FOUND, 'BOOKING_NOT_FOUND');
+    }
+    await this.agencyService.agencyAccessControl(booking.agencyId, profileId);
+
+    if (booking.status !== BookingStatus.CONFIRMED || booking.startDate <= todayCalendarDate()) {
+      throw new HttpError(
+        'Seule une réservation confirmée qui n’a pas commencé peut être annulée',
+        HttpStatus.BAD_REQUEST,
+        'BOOKING_NOT_CANCELLABLE',
+      );
+    }
+
+    await this.prisma.booking.update({
+      where: { id },
+      data: {
+        status: BookingStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+      },
+    });
+
+    await this.notifyClient(
+      booking.client?.userId,
+      'Réservation annulée',
+      `L’agence a annulé votre réservation pour « ${booking.property.title} » du ${this.frDate(booking.startDate)} au ${this.frDate(booking.endDate)} : ${reason}`,
+      booking.id,
+    );
+    this.events.emit('booking.status.changed', { bookingId: id, status: 'CANCELLED', reason });
+
+    return { message: 'Réservation annulée.' };
+  }
+
+  /** Chaque nuit : les séjours confirmés dont la date de fin est passée sont terminés. */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async completeFinishedBookings() {
+    const { count } = await this.prisma.booking.updateMany({
+      where: { status: BookingStatus.CONFIRMED, endDate: { lt: todayCalendarDate() } },
+      data: { status: BookingStatus.COMPLETED },
+    });
+    if (count) this.logger.log(`${count} réservation(s) terminée(s)`);
   }
 
   // ─────────────────────────────────────────────────────────────────

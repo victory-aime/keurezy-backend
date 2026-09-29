@@ -11,6 +11,12 @@ import {
 import { formatExpiresIn } from './utils/getExpiresTime';
 import { EXPIRE_TIME } from '../../config/enum';
 
+const BOOKING_STATUS_LABELS = {
+  CONFIRMED: 'confirmée',
+  REJECTED: 'refusée',
+  CANCELLED: 'annulée',
+} as const;
+
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
@@ -192,13 +198,13 @@ export class ResendService {
     });
   }
 
-  /** Réservation confirmée ou refusée. Sans modèle configuré, l'envoi est ignoré. */
+  /** Réservation confirmée, refusée ou annulée. Sans modèle configuré, l'envoi est ignoré. */
   async sendBookingStatus(payload: BookingStatusEmailPayload): Promise<EmailResult | null> {
     if (!EMAIL_TEMPLATE_RUNTIME_ID[EMAIL_TEMPLATE_ID.BOOKING_STATUS]) {
       this.logger.warn('RESEND_TEMPLATE_BOOKING_STATUS_ID absent : e-mail de réservation ignoré');
       return null;
     }
-    const statusLabel = payload.confirmed ? 'confirmée' : 'refusée';
+    const statusLabel = BOOKING_STATUS_LABELS[payload.status];
     const subject = `Votre réservation est ${statusLabel}`;
     return this.sendTemplateEmail({
       to: payload.sendTo,

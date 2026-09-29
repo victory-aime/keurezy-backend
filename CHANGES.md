@@ -158,3 +158,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `GET property/detail?id` (`view_properties`) : le bien avec ses annonces, modalités et disponibilités.
 - `POST property/close?id` (`update_property`) : les annonces en ligne du bien passent `INACTIVE` ; le bien et son historique restent.
 - `DELETE property/delete?id` (`delete_property`) : uniquement un bien sans historique. Refus `PROPERTY_HAS_BOOKINGS` (réservations) ou `PROPERTY_IN_USE` (discussions, qui seraient supprimées en cascade ; visites ou leads, bloqués par la base). Dans ces cas, fermer le bien.
+
+## 14. Réservations : annulation par l'agence et fin de séjour
+
+- `PATCH bookings/agency-cancel?id` avec `{ reason }` : l'agence annule une réservation confirmée qui n'a pas commencé (`BOOKING_NOT_CANCELLABLE` sinon). Les dates redeviennent disponibles ; le client reçoit une notification et l'e-mail « Votre réservation est annulée » (événement `booking.status.changed` avec `CANCELLED`).
+- **Cron quotidien (1 h)** : les réservations confirmées dont la date de fin est passée deviennent `COMPLETED`.
+- **E-mail** : `sendBookingStatus` reçoit le statut (`CONFIRMED`, `REJECTED`, `CANCELLED`) au lieu d'un booléen ; libellés « confirmée », « refusée », « annulée ».

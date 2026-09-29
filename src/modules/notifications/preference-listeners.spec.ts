@@ -36,7 +36,7 @@ describe('BookingEmailListener', () => {
     const { listener, email } = setup(undefined);
     await listener.send({ bookingId: 'booking-1', status: 'CONFIRMED' });
     expect(email.sendBookingStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ sendTo: 'awa@example.com', confirmed: true }),
+      expect.objectContaining({ sendTo: 'awa@example.com', status: 'CONFIRMED' }),
     );
   });
 

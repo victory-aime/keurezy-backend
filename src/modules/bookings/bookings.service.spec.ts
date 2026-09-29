@@ -83,6 +83,7 @@ const setup = () => {
         client: { phone: null, user: { name: 'Awa', email: 'awa@example.com' } },
       }),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
   };
@@ -210,6 +211,61 @@ describe('BookingsService', () => {
       expect(await errorCode(service.rejectBooking('booking-1', 'owner-profile', 'Motif'))).toBe(
         'BOOKING_NOT_PENDING',
       );
+    });
+  });
+});
+
+describe('BookingsService — annulation par l’agence et fin de séjour', () => {
+  it('refuse d’annuler une demande qui n’est pas confirmée', async () => {
+    const { service, prisma } = setup();
+    prisma.booking.findUnique.mockResolvedValue(bookingRecord({ status: BookingStatus.PENDING }));
+
+    expect(await errorCode(service.agencyCancelBooking('booking-1', 'owner-1', 'Travaux'))).toBe(
+      'BOOKING_NOT_CANCELLABLE',
+    );
+    expect(prisma.booking.update).not.toHaveBeenCalled();
+  });
+
+  it('refuse d’annuler un séjour déjà commencé', async () => {
+    const { service, prisma } = setup();
+    prisma.booking.findUnique.mockResolvedValue(
+      bookingRecord({ status: BookingStatus.CONFIRMED, startDate: inDays(0) }),
+    );
+
+    expect(await errorCode(service.agencyCancelBooking('booking-1', 'owner-1', 'Travaux'))).toBe(
+      'BOOKING_NOT_CANCELLABLE',
+    );
+  });
+
+  it('annule une réservation confirmée à venir, prévient le client et libère les dates', async () => {
+    const { service, prisma, agencyService, notifications, events } = setup();
+    prisma.booking.findUnique.mockResolvedValue(bookingRecord({ status: BookingStatus.CONFIRMED }));
+
+    await service.agencyCancelBooking('booking-1', 'owner-1', 'Dégât des eaux');
+
+    expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('agency-1', 'owner-1');
+    expect(firstCallData(prisma.booking.update)).toMatchObject({
+      status: BookingStatus.CANCELLED,
+      cancellationReason: 'Dégât des eaux',
+    });
+    expect(notifications.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ recipients: ['user-1'] }),
+    );
+    expect(events.emit).toHaveBeenCalledWith('booking.status.changed', {
+      bookingId: 'booking-1',
+      status: 'CANCELLED',
+      reason: 'Dégât des eaux',
+    });
+  });
+
+  it('passe en « terminée » les réservations confirmées dont le séjour est fini', async () => {
+    const { service, prisma } = setup();
+
+    await service.completeFinishedBookings();
+
+    expect(prisma.booking.updateMany).toHaveBeenCalledWith({
+      where: { status: BookingStatus.CONFIRMED, endDate: { lt: todayCalendarDate() } },
+      data: { status: BookingStatus.COMPLETED },
     });
   });
 });

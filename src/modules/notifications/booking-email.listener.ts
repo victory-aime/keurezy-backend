@@ -45,7 +45,7 @@ export class BookingEmailListener implements OnModuleInit {
     await this.emailService.sendBookingStatus({
       sendTo: user.email,
       username: user.name,
-      confirmed: event.status === 'CONFIRMED',
+      status: event.status,
       propertyTitle: booking.property.title,
       period: `du ${frDate(booking.startDate)} au ${frDate(booking.endDate)}`,
       message: event.reason,

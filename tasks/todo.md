@@ -24,13 +24,13 @@ Vérification commune à chaque tâche :
 - **Fichiers** : `api.ts`, `land.controller/service`, `property.controller/service`. **Taille** : M.
 
 ## Task 3 (M3) : réservations
-- [ ] `PATCH bookings/agency-cancel?id` avec un motif : seulement une réservation `CONFIRMED` pas encore commencée. Émet l'événement `booking.status.changed` et notifie le client.
-- [ ] Cron quotidien : `CONFIRMED` → `COMPLETED` quand `endDate` est passée.
+- [x] `PATCH bookings/agency-cancel?id` avec un motif : seulement une réservation `CONFIRMED` pas encore commencée. Émet l'événement `booking.status.changed` et notifie le client.
+- [x] Cron quotidien : `CONFIRMED` → `COMPLETED` quand `endDate` est passée.
 - **Test** : annulation refusée une fois la réservation commencée ; le cron ne touche que les réservations confirmées terminées.
 - **Fichiers** : `api.ts`, `bookings.controller/service/dto`, e-mail (libellé « annulée »). **Taille** : M.
 
 ### Checkpoint A : Tasks 1 à 3
-- [ ] Tests et typecheck au vert.
+- [x] Tests et typecheck au vert.
 - [ ] Ton test manuel, puis les commits.
 
 ## Task 4 (M4) : équipe et invitations
