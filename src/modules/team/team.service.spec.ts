@@ -191,3 +191,43 @@ describe('TeamService.removeMember', () => {
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 });
+
+describe('TeamService.getMemberImpact', () => {
+  const prisma = {
+    staff: { findFirst: jest.fn() },
+    visit: { count: jest.fn() },
+    ticket: { count: jest.fn() },
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new TeamService(prisma as never, agencyService as never, {} as never);
+
+  beforeEach(() => jest.resetAllMocks());
+
+  it("refuse l'impact à un membre qui n'est pas le propriétaire", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(service.getMemberImpact('staff-2', 'agency-A', 'staff-1')).rejects.toBeInstanceOf(
+      HttpError,
+    );
+  });
+
+  it('compte les visites et tickets assignés et les permissions retirées', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({
+      id: 'staff-2',
+      user: { name: 'Moussa', email: 'moussa@example.com' },
+      _count: { permissions: 4 },
+    });
+    prisma.visit.count.mockImplementation(({ where }: { where: { scheduledAt?: unknown } }) =>
+      where.scheduledAt ? 1 : 3,
+    );
+    prisma.ticket.count.mockResolvedValue(2);
+
+    await expect(service.getMemberImpact('staff-2', 'agency-A', 'owner-1')).resolves.toEqual({
+      name: 'Moussa',
+      email: 'moussa@example.com',
+      visits: { assigned: 3, upcoming: 1 },
+      tickets: 2,
+      permissions: 4,
+    });
+  });
+});

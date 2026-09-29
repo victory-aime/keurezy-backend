@@ -94,4 +94,16 @@ export class TeamController {
   ) {
     return this.teamService.removeMember(id, agencyId, ownerId);
   }
+
+  @Get(API_URL.TEAM.MEMBER_IMPACT)
+  @ApiOperation({ summary: "Ce que le retrait d'un membre entraîne (owner uniquement)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du membre (Staff)' })
+  async getMemberImpact(
+    @Query('id') id: string,
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() ownerId: string,
+  ) {
+    return this.teamService.getMemberImpact(id, agencyId, ownerId);
+  }
 }

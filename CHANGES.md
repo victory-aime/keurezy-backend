@@ -210,3 +210,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - `GET building/impact?id` (`manage_batiment`) : biens du bâtiment (supprimés avec lui) et leur historique cumulé (annonces, réservations, discussions, visites), avec `canDelete`.
 - `building/delete` refuse (`BUILDING_IN_USE`) quand un de ses biens a un historique, au lieu d'une erreur 500 ; calcul partagé avec les biens (`computeImpact`).
+
+## 24. Impact du retrait d'un membre
+
+- `GET team/member-impact?agencyId&id` (owner) : nom, e-mail, visites assignées (dont à venir), tickets assignés et nombre de permissions, affichés avant `team/remove-member`.

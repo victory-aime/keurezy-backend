@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
+import { VisitStatus } from '../../../prisma/generated/enums';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
@@ -89,6 +90,47 @@ export class TeamService {
     ]);
     return {
       message: `Le compte a été ${data.status ? 'activé' : 'désactivé'} avec succès.`,
+    };
+  }
+
+  /**
+   * Ce que le retrait d'un membre entraîne (owner uniquement) : visites et tickets qui seront
+   * désassignés, permissions retirées. Affiché avant la confirmation.
+   */
+  async getMemberImpact(staffId: string, agencyId: string, ownerId: string) {
+    const actor = await this.agencyService.agencyAccessControl(agencyId, ownerId);
+    if (actor.type !== 'OWNER') throw ownerOnly("retirer un membre de l'équipe");
+
+    const member = await this.prisma.staff.findFirst({
+      where: { id: staffId, agencyId },
+      select: {
+        id: true,
+        user: { select: { name: true, email: true } },
+        _count: { select: { permissions: true } },
+      },
+    });
+    if (!member) {
+      throw new HttpError('Membre introuvable', HttpStatus.NOT_FOUND, 'STAFF_NOT_FOUND');
+    }
+
+    const [assigned, upcoming, tickets] = await Promise.all([
+      this.prisma.visit.count({ where: { agentId: staffId } }),
+      this.prisma.visit.count({
+        where: {
+          agentId: staffId,
+          status: { in: [VisitStatus.PLANNED, VisitStatus.CONFIRMED] },
+          scheduledAt: { gte: new Date() },
+        },
+      }),
+      this.prisma.ticket.count({ where: { assignedToId: staffId } }),
+    ]);
+
+    return {
+      name: member.user.name,
+      email: member.user.email,
+      visits: { assigned, upcoming },
+      tickets,
+      permissions: member._count.permissions,
     };
   }
 

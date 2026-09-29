@@ -9,6 +9,7 @@
 |---|---|---|
 | `GET property/impact?id` | `view_properties` | `PropertyImpact` |
 | `GET land/impact?id` | `manage_land` | `LandImpact` |
+| `GET team/member-impact?agencyId&id` | owner uniquement | `MemberImpact` : `{ name, email, visits: { assigned, upcoming }, tickets, permissions }`. Visites et tickets assignés, qui seront désassignés, et nombre de permissions retirées. |
 | `GET building/impact?id` | `manage_batiment` | `BuildingImpact` : `PropertyImpact` sur tous ses biens et `properties` (id, titre), qui sont supprimés en cascade |
 
 ```ts
