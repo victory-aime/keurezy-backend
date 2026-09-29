@@ -50,6 +50,8 @@ export const API_URL = {
     OCCUPATION_RATE_BY_PROPERTY_TYPE: `${BASE_APIS_URL.SECURED}/property/occupation-rate-property-type`,
     MONTHLY_REVENUE: `${BASE_APIS_URL.SECURED}/property/monthly-revenue`,
     CLOSE_PROPERTY: `${BASE_APIS_URL.SECURED}/property/close`,
+    PROPERTY_DETAIL: `${BASE_APIS_URL.SECURED}/property/detail`,
+    DELETE_PROPERTY: `${BASE_APIS_URL.SECURED}/property/delete`,
   },
   ANNONCE: {
     CREATE: `${BASE_APIS_URL.SECURED}/${APIS_URL_GLOBAL_PATH.ANNONCES}/create`,

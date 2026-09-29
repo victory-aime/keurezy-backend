@@ -5,6 +5,7 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
+import { AnnonceStatus } from '../../../prisma/generated/enums';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
@@ -376,4 +377,70 @@ export class PropertyService {
   //     };
   //   });
   // }
+
+  /** Bien de l'agence de l'appelant (contrôle d'accès sur l'agence du bien). */
+  private async findAgencyProperty(id: string, userId: string) {
+    const property = await this.prisma.property.findUnique({
+      where: { id },
+      include: { _count: { select: { bookings: true, conversations: true } } },
+    });
+    if (!property) {
+      throw new HttpError('Bien introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
+    }
+    await this.agencyService.agencyAccessControl(property.agencyId, userId);
+    return property;
+  }
+
+  async getPropertyDetail(id: string, userId: string) {
+    await this.findAgencyProperty(id, userId);
+    return this.prisma.property.findUnique({
+      where: { id },
+      include: { annonces: true, ...RENTAL_INCLUDE },
+    });
+  }
+
+  /** Fermer : le bien reste (historique), ses annonces en ligne sont retirées. */
+  async closeProperty(id: string, userId: string) {
+    await this.findAgencyProperty(id, userId);
+    await this.prisma.annonce.updateMany({
+      where: { propertyId: id, status: AnnonceStatus.ACTIVE },
+      data: { status: AnnonceStatus.INACTIVE },
+    });
+    return { message: 'Le bien a été fermé : ses annonces ne sont plus en ligne.' };
+  }
+
+  /**
+   * Supprimer : uniquement un bien sans historique. Réservations (conservées) et discussions
+   * (supprimées en cascade sinon) bloquent ; visites et leads sont bloqués par la base.
+   */
+  async deleteProperty(id: string, userId: string) {
+    const property = await this.findAgencyProperty(id, userId);
+    if (property._count.bookings > 0) {
+      throw new HttpError(
+        'Ce bien a des réservations : fermez-le plutôt que de le supprimer.',
+        HttpStatus.CONFLICT,
+        'PROPERTY_HAS_BOOKINGS',
+      );
+    }
+    if (property._count.conversations > 0) {
+      throw new HttpError(
+        'Ce bien a des discussions : fermez-le plutôt que de le supprimer.',
+        HttpStatus.CONFLICT,
+        'PROPERTY_IN_USE',
+      );
+    }
+    try {
+      await this.prisma.property.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new HttpError(
+          'Ce bien a des visites ou un historique : fermez-le plutôt que de le supprimer.',
+          HttpStatus.CONFLICT,
+          'PROPERTY_IN_USE',
+        );
+      }
+      throw error;
+    }
+    return { message: 'Bien supprimé avec succès.' };
+  }
 }

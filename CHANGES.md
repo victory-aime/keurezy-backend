@@ -151,3 +151,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Nouvelle route** `GET visits/agency-clients?agencyId` (`schedule_visit`) : clients proposés dans le formulaire de visite.
 - **Réponses** : les visites exposent `client` (nom, e-mail), `property` et `agent` ; `lead` reste présent dans la liste agence pour le web actuel. Notifications, « mes visites » et cron de fin de visite passent par le client.
 - **Étape suivante** : une fois le web adapté, une migration supprimera les leads (table, module, feature `manage_leads`).
+
+## 13. Biens : suppression, détail et fermeture
+
+- `DELETE land/delete-land?id` (`manage_land`) : supprime un terrain de l'agence ; refus `LAND_HAS_BUILDINGS` s'il porte des bâtiments ou des villas (ils partiraient en cascade).
+- `GET property/detail?id` (`view_properties`) : le bien avec ses annonces, modalités et disponibilités.
+- `POST property/close?id` (`update_property`) : les annonces en ligne du bien passent `INACTIVE` ; le bien et son historique restent.
+- `DELETE property/delete?id` (`delete_property`) : uniquement un bien sans historique. Refus `PROPERTY_HAS_BOOKINGS` (réservations) ou `PROPERTY_IN_USE` (discussions, qui seraient supprimées en cascade ; visites ou leads, bloqués par la base). Dans ces cas, fermer le bien.

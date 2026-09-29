@@ -14,6 +14,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOkResponse,
+  ApiQuery,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -119,9 +120,10 @@ export class LandController {
 
   @Delete(API_URL.LAND.DELETE)
   @RequirePermission('manage_land')
-  @ApiOperation({ summary: 'Supprimer un terrain (non implémenté)' })
-  @ApiOkResponse({ description: 'Delete land not implemented' })
-  async deleteLand() {
-    return 'Delete land not implemented';
+  @ApiOperation({ summary: 'Supprimer un terrain (sans bâtiment ni villa)' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du terrain' })
+  @ApiOkResponse({ description: 'Terrain supprimé avec succès' })
+  async deleteLand(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.landService.deleteLand(id, userId);
   }
 }

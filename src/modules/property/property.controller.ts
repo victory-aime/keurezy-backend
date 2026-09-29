@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
@@ -72,5 +72,29 @@ export class PropertyController {
   @ApiBadRequestResponse({ description: 'Une erreur est survenue réessayer plus tard' })
   async getOccupationRate(@AgencyProfileId() userId: string, @Query('agencyId') agencyId: string) {
     return this.propertyService.getOccupationRateByType(userId, agencyId);
+  }
+
+  @Get(API_URL.PROPERTY.PROPERTY_DETAIL)
+  @RequirePermission('view_properties')
+  @ApiOperation({ summary: "Détail d'un bien de l'agence (annonces et modalités de location)" })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bien' })
+  async getPropertyDetail(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.propertyService.getPropertyDetail(id, userId);
+  }
+
+  @Post(API_URL.PROPERTY.CLOSE_PROPERTY)
+  @RequirePermission('update_property')
+  @ApiOperation({ summary: 'Fermer un bien : ses annonces ne sont plus en ligne' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bien' })
+  async closeProperty(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.propertyService.closeProperty(id, userId);
+  }
+
+  @Delete(API_URL.PROPERTY.DELETE_PROPERTY)
+  @RequirePermission('delete_property')
+  @ApiOperation({ summary: 'Supprimer un bien sans réservation ni discussion' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bien' })
+  async deleteProperty(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.propertyService.deleteProperty(id, userId);
   }
 }

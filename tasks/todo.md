@@ -18,8 +18,8 @@ Vérification commune à chaque tâche :
 - **Fichiers** : `schema.prisma`, migration, `visits.dto.ts`, `visits.service.ts`, `visite-job.service.ts`. **Taille** : M.
 
 ## Task 2 (M2) : biens
-- [ ] `DELETE land/delete-land?id` (`manage_land`) : refus `LAND_HAS_BUILDINGS` si le terrain porte des bâtiments.
-- [ ] `GET property/detail?id` (`view_properties`), `POST property/close?id` (`update_property`) et `DELETE property/delete?id` (`delete_property`, refus `PROPERTY_HAS_BOOKINGS`).
+- [x] `DELETE land/delete-land?id` (`manage_land`) : refus `LAND_HAS_BUILDINGS` si le terrain porte des bâtiments.
+- [x] `GET property/detail?id` (`view_properties`), `POST property/close?id` (`update_property`) et `DELETE property/delete?id` (`delete_property`, refus `PROPERTY_HAS_BOOKINGS`).
 - **Test** : suppression refusée avec des réservations ; fermeture qui dépublie les annonces.
 - **Fichiers** : `api.ts`, `land.controller/service`, `property.controller/service`. **Taille** : M.
 
