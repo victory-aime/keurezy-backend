@@ -114,11 +114,6 @@ export class TeamService {
         where: { assignedToId: member.id },
         data: { assignedToId: null },
       }),
-      // ponytail: à retirer avec le module leads
-      this.prisma.lead.updateMany({
-        where: { assignedToId: member.id },
-        data: { assignedToId: null },
-      }),
       this.prisma.staff.delete({ where: { id: member.id } }),
       this.prisma.user.update({ where: { id: member.userId }, data: { status: 'INACTIVE' } }),
       this.prisma.session.deleteMany({ where: { userId: member.userId } }),

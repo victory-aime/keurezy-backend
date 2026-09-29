@@ -35,21 +35,13 @@ export class CreateVisitDto {
   @IsString()
   propertyId: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'uuid-client-id',
     description: "Client visiteur (il doit avoir réservé ou écrit à l'agence)",
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  clientId?: string;
-
-  @ApiPropertyOptional({
-    example: 'uuid-lead-id',
-    description: 'Obsolète : lead dont le client est déduit (retiré avec les leads)',
-  })
-  @IsOptional()
-  @IsString()
-  leadId?: string;
+  clientId: string;
 
   @ApiPropertyOptional({
     example: 'uuid-agent-id',

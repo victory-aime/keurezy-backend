@@ -156,7 +156,6 @@ model Staff {
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   agency     Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
-  assignedLeads   Lead[]
   assignedTickets Ticket[]
   visits          Visit[]
   permissions     StaffPermission[]
@@ -174,7 +173,6 @@ model Client {
   phone  String?
 
   favorites     Favorite[]
-  leads         Lead[]
   bookings      Booking[]
   conversations Conversation[]
   visits        Visit[]
@@ -205,7 +203,6 @@ model Agency {
   ownerId       String         @unique // 1 agence = 1 owner
   owner         Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   staff         Staff[]
-  leads         Lead[]
   tenants       Tenant[]
   contracts     Contract[]
   subscriptions Subscription[]
@@ -329,7 +326,6 @@ model Property {
   batiment   Batiment? @relation(fields: [batimentId], references: [id], onDelete: Cascade)
 
   annonces       Annonce[]
-  leads          Lead[]
   tenants        Tenant[]
   contracts      Contract[]
   tickets        Ticket[]
@@ -444,37 +440,6 @@ model Booking {
 }
 
 // ─────────────────────────────────────────
-// LEADS
-// ─────────────────────────────────────────
-
-model Lead {
-  id      String     @id @default(uuid())
-  status  LeadStatus @default(NEW)
-  message String?
-
-  // Côté PRIVÉ : client connecté
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  // Agent assigné
-  assignedToId String?
-  assignedTo   Staff?  @relation(fields: [assignedToId], references: [id])
-
-  propertyId String
-  property   Property @relation(fields: [propertyId], references: [id])
-  agencyId   String
-  agency     Agency   @relation(fields: [agencyId], references: [id])
-
-  visits Visit[]
-  tenant Tenant? // ✅ FIX: backrelation manquante (Tenant.leadId)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("lead")
-}
-
-// ─────────────────────────────────────────
 // VISITES
 // ─────────────────────────────────────────
 
@@ -487,11 +452,8 @@ model Visit {
   status      VisitStatus @default(PLANNED)
   notes       String?
 
-  // Client visiteur ; le lead est facultatif en attendant le retrait des leads
   clientId   String?
   client     Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  leadId     String?
-  lead       Lead?    @relation(fields: [leadId], references: [id])
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id])
   agentId    String?
@@ -533,10 +495,6 @@ model Tenant {
   phone     String?
   documents String[]
   status    TenantStatus @default(ACTIVE)
-
-  // Traçabilité de l'origine
-  leadId String? @unique // converti depuis un lead (1 lead → max 1 tenant)
-  lead   Lead?   @relation(fields: [leadId], references: [id])
 
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id])
@@ -1277,14 +1235,6 @@ enum VisitStatus {
   CONFIRMED
   DONE
   CANCELLED
-}
-
-enum LeadStatus {
-  NEW
-  CONTACTED
-  VISIT_PLANNED
-  OFFER
-  CONVERTED
 }
 
 enum ReportType {

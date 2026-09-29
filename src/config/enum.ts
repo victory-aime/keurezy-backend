@@ -16,7 +16,6 @@ enum APIS_URL_GLOBAL_PATH {
   INVITE = 'invitation',
   TEAM = 'team',
   ANNONCES = 'announces',
-  LEADS = 'leads',
   VISITS = 'visits',
   BOOKINGS = 'bookings',
   CHAT = 'chat',

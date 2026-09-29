@@ -58,22 +58,6 @@ async function seed() {
     },
 
     // ─────────────────────────────────────────
-    // LEADS
-    // ─────────────────────────────────────────
-    {
-      name: 'manage_leads',
-      category: FeatureCategory.LEADS,
-      isCommercial: false,
-      permissions: [
-        { name: 'view_leads', description: 'Voir les leads' },
-        { name: 'create_lead', description: 'Créer un lead' },
-        { name: 'update_lead', description: 'Modifier un lead' },
-        { name: 'delete_lead', description: 'Supprimer un lead' },
-        { name: 'assign_lead', description: 'Assigner un lead' },
-      ],
-    },
-
-    // ─────────────────────────────────────────
     // MESSAGERIE (chat client ↔ agence)
     // ─────────────────────────────────────────
     {
@@ -303,7 +287,6 @@ async function seed() {
     //         feature('publish_properties', 20),
     //         feature('boost_annonces', 3),
     //         feature('annonce_stats'),
-    //         feature('manage_leads'),
     //         feature('manage_users', 5),
     //         feature('view_reports'),
     //         feature('premium_support', 5),
@@ -333,7 +316,6 @@ async function seed() {
     //         feature('publish_properties'),
     //         feature('boost_annonces'),
     //         feature('annonce_stats'),
-    //         feature('manage_leads'),
     //         feature('manage_users'),
     //         feature('manage_accounting'),
     //         feature('view_reports'),
@@ -428,7 +410,6 @@ async function seed() {
             feature('manage_conversations'),
             feature('boost_annonces', 3),
             feature('annonce_stats'),
-            feature('manage_leads'),
             feature('manage_users', 5),
             feature('view_reports'),
             feature('premium_support', 5),
@@ -474,7 +455,6 @@ async function seed() {
             feature('manage_conversations'),
             feature('boost_annonces'),
             feature('annonce_stats'),
-            feature('manage_leads'),
             feature('manage_users'),
             feature('manage_accounting'),
             feature('view_reports'),

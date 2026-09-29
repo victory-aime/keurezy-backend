@@ -400,7 +400,7 @@ export class PropertyService {
 
   /**
    * Supprimer : uniquement un bien sans historique. Réservations (conservées) et discussions
-   * (supprimées en cascade sinon) bloquent ; visites et leads sont bloqués par la base.
+   * (supprimées en cascade sinon) bloquent ; les visites sont bloquées par la base.
    */
   async deleteProperty(id: string, userId: string) {
     const property = await this.findAgencyProperty(id, userId);

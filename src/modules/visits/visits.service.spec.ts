@@ -16,7 +16,6 @@ const inOneHour = (hours = 1) => new Date(Date.now() + hours * 3600_000).toISOSt
 
 describe('VisitsService.createVisit — visite rattachée au client', () => {
   const prisma = {
-    lead: { findUnique: jest.fn() },
     client: { findUnique: jest.fn() },
     property: { findUnique: jest.fn() },
     staff: { findFirst: jest.fn() },
@@ -77,27 +76,6 @@ describe('VisitsService.createVisit — visite rattachée au client', () => {
     });
     expect(notifications.createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ recipients: ['client-user'] }),
-    );
-  });
-
-  it('déduit le client du lead (compatibilité jusqu’au retrait des leads)', async () => {
-    prisma.lead.findUnique.mockResolvedValue({
-      id: 'lead-1',
-      agencyId: 'A',
-      clientId: 'client-1',
-      client: { userId: 'client-user' },
-    });
-
-    await service.createVisit(dto({ leadId: 'lead-1' }) as never, 'A', 'owner-1');
-
-    expect(prisma.visit.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ clientId: 'client-1', leadId: 'lead-1' }),
-    });
-  });
-
-  it('exige un client ou un lead', async () => {
-    await expect(errorCodeOf(service.createVisit(dto({}) as never, 'A', 'owner-1'))).resolves.toBe(
-      'VISIT_CLIENT_REQUIRED',
     );
   });
 });

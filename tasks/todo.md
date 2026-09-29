@@ -51,7 +51,7 @@ Vérification commune à chaque tâche :
 - [x] `GET property/monthly-revenue?agencyId&year` (`view_properties`) : 12 lignes `{ month, receivedAmount, remainingAmount }`.
   - « Reçu » : réservations `COMPLETED` ; « restant » : réservations `CONFIRMED`.
   - Réservations rangées par mois de début.
-- [ ] Les compteurs de leads sont retirés de `agency/stats` au M1b.
+- [x] Les compteurs de leads sont retirés de `agency/stats` au M1b.
 - **Test** : agrégation par mois ; les réservations annulées sont exclues.
 - **Taille** : S.
 
@@ -59,4 +59,4 @@ Vérification commune à chaque tâche :
 - [x] Tests et typecheck au vert, ton test manuel, les commits.
 
 ## Task 7 (M1b, après le lot web) : suppression des leads (contract)
-- [ ] Migration `9_remove_leads`, module `leads`, feature `manage_leads` du seed, compteurs des stats.
+- [x] Migration `9_remove_leads`, module `leads`, feature `manage_leads` du seed, compteurs des stats.

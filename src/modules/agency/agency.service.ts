@@ -9,7 +9,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
-  LeadStatus,
   PricingType,
   PropertyStatus,
   Role,
@@ -382,16 +381,6 @@ export class AgencyService {
         this.prismaService.property.count({ where: { agencyId, status: PropertyStatus.RENTED } }),
       ]);
 
-      // LEADS
-      const [totalLeads, newLeads, contactedLeads, visitPlannedLeads, convertedLeads] =
-        await Promise.all([
-          this.prismaService.lead.count({ where: { agencyId } }),
-          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.NEW } }),
-          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.CONTACTED } }),
-          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.VISIT_PLANNED } }),
-          this.prismaService.lead.count({ where: { agencyId, status: LeadStatus.CONVERTED } }),
-        ]);
-
       // VISITES
       const [totalVisits, plannedVisits, confirmedVisits, doneVisits, cancelledVisits] =
         await Promise.all([
@@ -431,14 +420,6 @@ export class AgencyService {
           rented: rentedProperties,
           occupancyRate:
             totalProperties > 0 ? Math.round((rentedProperties / totalProperties) * 100) : 0, // taux d'occupation en %
-        },
-        leads: {
-          total: totalLeads,
-          new: newLeads,
-          contacted: contactedLeads,
-          visitPlanned: visitPlannedLeads,
-          converted: convertedLeads,
-          conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0, // taux de conversion en %
         },
         visits: {
           total: totalVisits,

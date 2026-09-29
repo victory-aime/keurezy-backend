@@ -19,7 +19,6 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { InvitationModule } from './modules/invitations/invitation.module';
 import { AnnounceModule } from './modules/annonce/annonce.module';
 import { TeamModule } from './modules/team/team.module';
-import { LeadsModule } from './modules/leads/leads.module';
 import { VisitsModule } from './modules/visits/visits.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -75,7 +74,6 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
     BookingsModule,
     InvitationModule,
     TeamModule,
-    LeadsModule,
     VisitsModule,
     NotificationsModule,
     ChatModule,

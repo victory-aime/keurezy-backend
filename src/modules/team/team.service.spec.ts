@@ -142,7 +142,6 @@ describe('TeamService.removeMember', () => {
     staff: { findFirst: jest.fn(), delete: jest.fn() },
     visit: { updateMany: jest.fn() },
     ticket: { updateMany: jest.fn() },
-    lead: { updateMany: jest.fn() },
     user: { update: jest.fn() },
     session: { deleteMany: jest.fn() },
     $transaction: jest.fn(),

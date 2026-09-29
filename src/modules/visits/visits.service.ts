@@ -84,7 +84,6 @@ export class VisitsService {
           endTime: dto.endTime,
           notes: dto.notes,
           clientId: client.id,
-          leadId: dto.leadId ?? null,
           propertyId: dto.propertyId,
           agentId: dto.agentId ?? null,
           agencyId,
@@ -136,33 +135,11 @@ export class VisitsService {
     }
   }
 
-  /**
-   * Client de la visite : fourni directement (il doit avoir réservé ou écrit à l'agence),
-   * ou déduit du lead tant que le web l'envoie encore.
-   */
+  /** Client de la visite : il doit avoir réservé ou écrit à l'agence. */
   private async resolveVisitClient(
     dto: CreateVisitDto,
     agencyId: string,
   ): Promise<{ id: string; userId: string }> {
-    if (dto.leadId) {
-      const lead = await this.prisma.lead.findUnique({
-        where: { id: dto.leadId },
-        include: { client: { select: { userId: true } } },
-      });
-      if (!lead || lead.agencyId !== agencyId) {
-        throw new HttpError('Demande introuvable', HttpStatus.NOT_FOUND, 'LEAD_NOT_FOUND');
-      }
-      return { id: lead.clientId, userId: lead.client.userId };
-    }
-
-    if (!dto.clientId) {
-      throw new HttpError(
-        'Le client de la visite est requis',
-        HttpStatus.BAD_REQUEST,
-        'VISIT_CLIENT_REQUIRED',
-      );
-    }
-
     const client = await this.prisma.client.findUnique({
       where: { id: dto.clientId },
       select: {
@@ -224,17 +201,6 @@ export class VisitsService {
           },
           client: { include: { user: { select: { name: true, email: true } } } },
           agent: { select: { user: { select: { id: true, name: true } } } },
-          // ponytail: forme historique conservée pour le web jusqu'au retrait des leads
-          lead: {
-            select: {
-              id: true,
-              property: {
-                select: { id: true, title: true, address: true, city: true, price: true },
-              },
-              client: { include: { user: { select: { name: true, email: true } } } },
-              assignedTo: { select: { user: { select: { id: true, name: true } } } },
-            },
-          },
         },
         orderBy: { scheduledAt: 'asc' },
       });

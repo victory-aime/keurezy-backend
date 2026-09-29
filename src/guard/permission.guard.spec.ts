@@ -21,25 +21,25 @@ describe('PermissionGuard', () => {
   });
 
   it("autorise toujours le propriétaire de l'agence", async () => {
-    reflector.getAllAndOverride.mockReturnValue('delete_lead');
+    reflector.getAllAndOverride.mockReturnValue('cancel_visit');
     const session = { user: { role: 'OWNER' }, session: { token: 't', permissions: [] } };
     await expect(guard.canActivate(contextWith(session))).resolves.toBe(true);
   });
 
   it('autorise un membre qui a la permission', async () => {
-    reflector.getAllAndOverride.mockReturnValue('view_leads');
+    reflector.getAllAndOverride.mockReturnValue('view_visits');
     const session = {
       user: { role: 'STAFF' },
-      session: { token: 't', permissions: [{ name: 'view_leads' }] },
+      session: { token: 't', permissions: [{ name: 'view_visits' }] },
     };
     await expect(guard.canActivate(contextWith(session))).resolves.toBe(true);
   });
 
   it("refuse un membre qui n'a pas la permission", async () => {
-    reflector.getAllAndOverride.mockReturnValue('delete_lead');
+    reflector.getAllAndOverride.mockReturnValue('cancel_visit');
     const session = {
       user: { role: 'STAFF' },
-      session: { token: 't', permissions: [{ name: 'view_leads' }] },
+      session: { token: 't', permissions: [{ name: 'view_visits' }] },
     };
     await expect(guard.canActivate(contextWith(session))).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -47,7 +47,7 @@ describe('PermissionGuard', () => {
   });
 
   it('refuse une session sans liste de permissions (client connecté)', async () => {
-    reflector.getAllAndOverride.mockReturnValue('view_leads');
+    reflector.getAllAndOverride.mockReturnValue('view_visits');
     const session = { user: { role: 'CLIENT' }, session: { token: 't' } };
     await expect(guard.canActivate(contextWith(session))).rejects.toBeInstanceOf(
       ForbiddenException,

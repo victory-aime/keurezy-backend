@@ -26,7 +26,6 @@ import { CreateInvitationDto } from '../modules/invitations/invitation.dto';
 import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
 import { MultipartJson } from './multipart-json.decorator';
-import { AssignLeadDto, CreateLeadDto, UpdateLeadStatusDto } from '../modules/leads/leads.dto';
 import {
   OpenBookingConversationDto,
   OpenPropertyConversationDto,
@@ -155,7 +154,7 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
         startTime: '2026-10-01T10:00:00.000Z',
         endTime: '2026-10-01T11:00:00.000Z',
         propertyId: uuid,
-        leadId: uuid,
+        clientId: uuid,
         agentId: uuid,
         title: 'Visite',
         notes: 'RAS',
@@ -274,9 +273,6 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
         phone: '+221770000000',
       },
     ],
-    ['CreateLeadDto', CreateLeadDto, { propertyId: uuid, message: 'Intéressé' }],
-    ['UpdateLeadStatusDto', UpdateLeadStatusDto, { leadId: uuid, status: 'CONTACTED' }],
-    ['AssignLeadDto', AssignLeadDto, { leadId: uuid, staffId: uuid }],
     [
       'UpdateStaffPermissionsDto',
       UpdateStaffPermissionsDto,

@@ -183,3 +183,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Adresse invitable** : inconnue, ou compte désactivé sans profil (ancien membre retiré). Refus `USER_NOT_INVITABLE` pour un compte actif (client, owner, membre) ou désactivé mais encore rattaché à une équipe (à réactiver via `team/change-status`). Refus `INVITATION_ALREADY_PENDING` si une invitation attend déjà (la renvoyer). Les anciennes invitations clôturées de l'adresse sont purgées (e-mail unique).
 - **Acceptation** : un ancien membre retiré retrouve son compte (réactivé, mot de passe remplacé par le mot de passe temporaire, nouveau profil staff et permissions de l'invitation) ; sinon le compte est créé comme avant.
 - **Renvoi** : un nouveau mot de passe temporaire est généré côté serveur (`generateTemporaryPassword`), chiffré et envoyé ; l'ancien n'est plus valable.
+
+## 19. Retrait des leads (étape 2)
+
+- **Migration `9_remove_leads`** (à appliquer, **destructive**) : supprime la feature `manage_leads` et ses permissions (plans, membres, invitations en attente), puis `visit.leadId`, `tenant.leadId`, la table `lead` et l'enum `LeadStatus`.
+- **Code** : module `leads` et routes `leads/*` retirés ; `manage_leads` retiré du seed ; plus de compteurs de leads dans `agency/stats` ni dans le détail admin d'une agence. Les valeurs d'enum historiques (`NotificationType.LEAD`, `FeatureCategory.LEADS`, `ReportType.LEADS`) restent pour les données existantes.
+- **Visites** : `clientId` est désormais obligatoire (`leadId` n'est plus accepté) ; la liste agence n'expose plus `lead`.
+- **Web à adapter** : le formulaire de visite doit envoyer `clientId` (liste : `visits/agency-clients`) et la liste lire `client` / `property` au lieu de `lead`.
