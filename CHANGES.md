@@ -177,3 +177,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 ## 17. Revenus mensuels réels
 
 - `GET property/monthly-revenue?agencyId&year` (`view_properties`) : 12 lignes `{ month: 'AAAA-MM', receivedAmount, remainingAmount }` pour l'année (par défaut l'année en cours), rangées par mois de début des réservations. Reçu : réservations terminées ; restant : réservations confirmées. Annulées et refusées exclues. Remplace la version factice commentée.
+
+## 18. Réinvitation d'un ancien membre et nouveau mot de passe au renvoi
+
+- **Adresse invitable** : inconnue, ou compte désactivé sans profil (ancien membre retiré). Refus `USER_NOT_INVITABLE` pour un compte actif (client, owner, membre) ou désactivé mais encore rattaché à une équipe (à réactiver via `team/change-status`). Refus `INVITATION_ALREADY_PENDING` si une invitation attend déjà (la renvoyer). Les anciennes invitations clôturées de l'adresse sont purgées (e-mail unique).
+- **Acceptation** : un ancien membre retiré retrouve son compte (réactivé, mot de passe remplacé par le mot de passe temporaire, nouveau profil staff et permissions de l'invitation) ; sinon le compte est créé comme avant.
+- **Renvoi** : un nouveau mot de passe temporaire est généré côté serveur (`generateTemporaryPassword`), chiffré et envoyé ; l'ancien n'est plus valable.

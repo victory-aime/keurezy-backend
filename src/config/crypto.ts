@@ -19,3 +19,8 @@ export function decryptPassword(encryptedText: string): string {
   const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(SECRET_KEY, 'hex'), iv);
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString();
 }
+
+/** Mot de passe temporaire d'invitation, généré côté serveur (16 caractères URL-safe). */
+export function generateTemporaryPassword(): string {
+  return crypto.randomBytes(12).toString('base64url');
+}

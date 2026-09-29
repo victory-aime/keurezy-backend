@@ -6,7 +6,7 @@ import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { CreateInvitationDto } from './invitation.dto';
 import { EXPIRE_TIME, FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
-import { decryptPassword, encryptPassword } from '../../config/crypto';
+import { decryptPassword, encryptPassword, generateTemporaryPassword } from '../../config/crypto';
 import { getAuthInstance } from '../../lib/auth';
 
 @Injectable()
@@ -36,6 +36,7 @@ export class InvitationService {
   ) {
     const { adminId, userId } = actor;
     await this.agencyService.agencyAccessControl(agencyId, userId);
+    await this.assertInvitableEmail(payload.email);
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(agencyId);
 
@@ -123,6 +124,37 @@ export class InvitationService {
     };
   }
 
+  /**
+   * Adresse invitable : inconnue, ou compte désactivé sans profil (ancien membre retiré).
+   * Les anciennes invitations clôturées de l'adresse sont purgées (e-mail unique).
+   */
+  async assertInvitableEmail(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { status: true, staff: true, owner: true, client: true },
+    });
+    if (user && (user.status !== 'INACTIVE' || user.staff || user.owner || user.client)) {
+      throw new HttpError(
+        'Cette adresse appartient déjà à un compte actif : seuls les comptes désactivés peuvent être réinvités.',
+        HttpStatus.CONFLICT,
+        'USER_NOT_INVITABLE',
+      );
+    }
+
+    const pending = await this.prisma.invitation.findFirst({
+      where: { email, status: 'PENDING' },
+      select: { id: true },
+    });
+    if (pending) {
+      throw new HttpError(
+        'Une invitation est déjà en attente pour cette adresse : renvoyez-la plutôt.',
+        HttpStatus.CONFLICT,
+        'INVITATION_ALREADY_PENDING',
+      );
+    }
+    await this.prisma.invitation.deleteMany({ where: { email, status: { not: 'PENDING' } } });
+  }
+
   async acceptInvitation(token: string) {
     // 1. Valider le token
     const invitation = await this.prisma.invitation.findUniqueOrThrow({
@@ -167,15 +199,26 @@ export class InvitationService {
     const currentAllowedFeatureIds = new Set(currentPlanFeatures.map((f) => f.featureId));
 
     return this.prisma.$transaction(async (tx) => {
-      // 3. Créer le User via better-auth
+      // 3. Compte : ancien membre retiré (désactivé) réactivé, sinon création via better-auth
       const auth = getAuthInstance();
-      const { user } = await auth.api.signUpEmail({
-        body: {
-          email: invitation.email,
-          password: decryptPassword(invitation.temporaryPassword!),
-          name: invitation.name,
-        },
+      const temporaryPassword = decryptPassword(invitation.temporaryPassword!);
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: invitation.email },
+        select: { id: true, email: true },
       });
+      let user: { id: string; email: string };
+      if (existingUser) {
+        const { password } = await auth.$context;
+        await tx.account.updateMany({
+          where: { userId: existingUser.id, providerId: 'credential' },
+          data: { password: await password.hash(temporaryPassword) },
+        });
+        user = existingUser;
+      } else {
+        ({ user } = await auth.api.signUpEmail({
+          body: { email: invitation.email, password: temporaryPassword, name: invitation.name },
+        }));
+      }
 
       // 4. Créer le Staff
       const newStaff = await tx.staff.create({
@@ -202,9 +245,7 @@ export class InvitationService {
 
       await tx.user.update({
         where: { id: user.id },
-        data: {
-          role: invitation.agencyRole,
-        },
+        data: { role: invitation.agencyRole, status: 'ACTIVE' },
       });
 
       // 6. Clôturer l'invitation et effacer le mot de passe chiffré
@@ -217,7 +258,7 @@ export class InvitationService {
       });
       return {
         email: user.email,
-        password: decryptPassword(invitation.temporaryPassword!),
+        password: temporaryPassword,
       };
     });
   }
@@ -243,7 +284,7 @@ export class InvitationService {
     };
   }
 
-  /** Renvoie une invitation en attente : 7 jours de validité en plus, même mot de passe temporaire. */
+  /** Renvoie une invitation en attente : nouveau mot de passe temporaire et 7 jours de validité en plus. */
   async resendInvitation(id: string, userId: string) {
     const invitation = await this.prisma.invitation.findUnique({
       where: { id },
@@ -262,14 +303,19 @@ export class InvitationService {
       );
     }
 
+    // Nouveau mot de passe temporaire : l'ancien, déjà envoyé, n'est plus valable
+    const temporaryPassword = generateTemporaryPassword();
     await this.prisma.invitation.update({
       where: { id },
-      data: { expiresAt: new Date(Date.now() + EXPIRE_TIME._7_DAYS * 1000) },
+      data: {
+        temporaryPassword: encryptPassword(temporaryPassword),
+        expiresAt: new Date(Date.now() + EXPIRE_TIME._7_DAYS * 1000),
+      },
     });
     await this.resendService.sendInvitationEmail({
       sendTo: invitation.email,
       email: invitation.email,
-      password: decryptPassword(invitation.temporaryPassword),
+      password: temporaryPassword,
       token: invitation.token,
       agencyName: invitation.agency.name,
       username: invitation.name,
