@@ -44,7 +44,7 @@ Vérification commune à chaque tâche :
 - **Taille** : M.
 
 ## Task 5 (M5) : visites par période
-- [ ] Paramètres optionnels `from` et `to` sur `agency-visits`, filtrés sur `scheduledAt`.
+- [x] Paramètres optionnels `from` et `to` sur `agency-visits`, filtrés sur `scheduledAt`.
 - **Taille** : XS.
 
 ## Task 6 (M6) : revenus mensuels

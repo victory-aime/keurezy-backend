@@ -1,10 +1,20 @@
 import { HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
+import { AgencyVisitsQueryDto, AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
 import { NotificationScope, NotificationType, VisitStatus } from '../../../prisma/generated/enums';
 import { HttpError } from '../../config/http.error';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AgencyService } from '../agency/agency.service';
+
+/** Période inclusive ; une date seule (AAAA-MM-JJ) en fin de période couvre toute la journée. */
+const periodFilter = (from?: string, to?: string) => {
+  const end = to ? new Date(to) : undefined;
+  if (end && to!.length === 10) end.setUTCDate(end.getUTCDate() + 1);
+  return {
+    ...(from && { gte: new Date(from) }),
+    ...(end && (to!.length === 10 ? { lt: end } : { lte: end })),
+  };
+};
 
 @Injectable()
 export class VisitsService {
@@ -193,11 +203,14 @@ export class VisitsService {
   }
 
   // LISTER LES VISITES D'UNE AGENCE
-  async getVisitsByAgency(agencyId: string, userId: string) {
+  async getVisitsByAgency({ agencyId, from, to }: AgencyVisitsQueryDto, userId: string) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
     try {
       return await this.prisma.visit.findMany({
-        where: { agencyId },
+        where: {
+          agencyId,
+          ...((from || to) && { scheduledAt: periodFilter(from, to) }),
+        },
         select: {
           id: true,
           scheduledAt: true,

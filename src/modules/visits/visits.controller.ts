@@ -8,7 +8,7 @@ import {
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { VisitsService } from './visits.service';
-import { AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
+import { AgencyVisitsQueryDto, AssignAgentDto, CreateVisitDto, UpdateVisitDto } from './visits.dto';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '../../config/api';
@@ -55,8 +55,8 @@ export class VisitsController {
   @ApiOperation({ summary: "Lister toutes les visites d'une agence" })
   @ApiOkResponse({ description: 'Liste des visites récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })
-  async getVisitsByAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
-    return this.visitsService.getVisitsByAgency(agencyId, userId);
+  async getVisitsByAgency(@Query() query: AgencyVisitsQueryDto, @AgencyProfileId() userId: string) {
+    return this.visitsService.getVisitsByAgency(query, userId);
   }
 
   // GET v1/secure/visits/detail?visitId=

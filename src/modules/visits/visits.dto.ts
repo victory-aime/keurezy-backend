@@ -142,3 +142,21 @@ export class AssignAgentDto {
   @IsString()
   agentId: string;
 }
+
+// DTO : VISITES D'UNE AGENCE, FILTRABLES PAR PÉRIODE (agenda)
+export class AgencyVisitsQueryDto {
+  @ApiProperty({ description: "Identifiant de l'agence" })
+  @IsNotEmpty()
+  @IsString()
+  agencyId: string;
+
+  @ApiPropertyOptional({ example: '2026-10-01', description: 'Début de période (inclus)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-10-31', description: 'Fin de période (incluse)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}

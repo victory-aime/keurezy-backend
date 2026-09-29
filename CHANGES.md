@@ -169,3 +169,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - `DELETE team/remove-member?agencyId&id` (owner uniquement) : dans une transaction, les visites, tickets et leads du membre sont désassignés (conservés), son profil staff et ses permissions supprimés, son compte passé `INACTIVE` et ses sessions fermées.
 - `POST invite/resend-invitation?inviteId` (`resend_invitation`) : renvoie une invitation en attente avec le même mot de passe temporaire et 7 jours de validité en plus ; refus `INVITATION_NOT_PENDING` sinon (acceptée, annulée ou expirée).
+
+## 16. Visites par période
+
+- `GET visits/agency-visits?agencyId&from&to` : filtre facultatif sur `scheduledAt` (dates ISO validées). Période inclusive : une date seule en fin de période couvre toute la journée. Sans période, toutes les visites comme avant.

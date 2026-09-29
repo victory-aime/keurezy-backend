@@ -125,3 +125,31 @@ describe('VisitsService.getAgencyClients', () => {
     );
   });
 });
+
+describe('VisitsService.getVisitsByAgency — période', () => {
+  const prisma = { visit: { findMany: jest.fn().mockResolvedValue([]) } };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new VisitsService(prisma as never, {} as never, agencyService as never);
+
+  it('filtre les visites planifiées dans la période demandée', async () => {
+    await service.getVisitsByAgency(
+      { agencyId: 'A', from: '2026-10-01', to: '2026-10-31' },
+      'owner-1',
+    );
+    expect(prisma.visit.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          agencyId: 'A',
+          scheduledAt: { gte: new Date('2026-10-01'), lt: new Date('2026-11-01') },
+        },
+      }),
+    );
+  });
+
+  it('sans période, renvoie toutes les visites de l’agence', async () => {
+    await service.getVisitsByAgency({ agencyId: 'A' }, 'owner-1');
+    expect(prisma.visit.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { agencyId: 'A' } }),
+    );
+  });
+});
