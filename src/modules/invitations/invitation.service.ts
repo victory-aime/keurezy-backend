@@ -242,4 +242,39 @@ export class InvitationService {
       message: 'Invitation annulée avec succès.',
     };
   }
+
+  /** Renvoie une invitation en attente : 7 jours de validité en plus, même mot de passe temporaire. */
+  async resendInvitation(id: string, userId: string) {
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { id },
+      include: { agency: { select: { name: true } } },
+    });
+    if (!invitation) {
+      throw new HttpError('Invitation introuvable', HttpStatus.NOT_FOUND, 'INVITATION_NOT_FOUND');
+    }
+    await this.agencyService.agencyAccessControl(invitation.agencyId, userId);
+
+    if (invitation.status !== 'PENDING' || !invitation.temporaryPassword) {
+      throw new HttpError(
+        'Seule une invitation en attente peut être renvoyée',
+        HttpStatus.BAD_REQUEST,
+        'INVITATION_NOT_PENDING',
+      );
+    }
+
+    await this.prisma.invitation.update({
+      where: { id },
+      data: { expiresAt: new Date(Date.now() + EXPIRE_TIME._7_DAYS * 1000) },
+    });
+    await this.resendService.sendInvitationEmail({
+      sendTo: invitation.email,
+      email: invitation.email,
+      password: decryptPassword(invitation.temporaryPassword),
+      token: invitation.token,
+      agencyName: invitation.agency.name,
+      username: invitation.name,
+    });
+
+    return { message: 'Invitation renvoyée avec succès.' };
+  }
 }

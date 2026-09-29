@@ -93,6 +93,41 @@ export class TeamService {
   }
 
   /**
+   * Retire un membre (owner uniquement) : son travail est désassigné (pas supprimé), son profil
+   * et ses permissions disparaissent, son compte est désactivé et ses sessions sont fermées.
+   */
+  async removeMember(staffId: string, agencyId: string, ownerId: string) {
+    const actor = await this.agencyService.agencyAccessControl(agencyId, ownerId);
+    if (actor.type !== 'OWNER') throw ownerOnly("retirer un membre de l'équipe");
+
+    const member = await this.prisma.staff.findFirst({
+      where: { id: staffId, agencyId },
+      select: { id: true, userId: true },
+    });
+    if (!member) {
+      throw new HttpError('Membre introuvable', HttpStatus.NOT_FOUND, 'STAFF_NOT_FOUND');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.visit.updateMany({ where: { agentId: member.id }, data: { agentId: null } }),
+      this.prisma.ticket.updateMany({
+        where: { assignedToId: member.id },
+        data: { assignedToId: null },
+      }),
+      // ponytail: à retirer avec le module leads
+      this.prisma.lead.updateMany({
+        where: { assignedToId: member.id },
+        data: { assignedToId: null },
+      }),
+      this.prisma.staff.delete({ where: { id: member.id } }),
+      this.prisma.user.update({ where: { id: member.userId }, data: { status: 'INACTIVE' } }),
+      this.prisma.session.deleteMany({ where: { userId: member.userId } }),
+    ]);
+
+    return { message: "Le membre a été retiré de l'équipe." };
+  }
+
+  /**
    * Remplace les permissions d'un membre (owner uniquement). Seules les permissions des
    * features incluses dans le plan actif de l'agence peuvent être accordées.
    * Les droits sont relus à chaque requête : ils s'appliquent dès la session suivante du membre.

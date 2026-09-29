@@ -31,15 +31,15 @@ Vérification commune à chaque tâche :
 
 ### Checkpoint A : Tasks 1 à 3
 - [x] Tests et typecheck au vert.
-- [ ] Ton test manuel, puis les commits.
+- [x] Ton test manuel, puis les commits.
 
 ## Task 4 (M4) : équipe et invitations
-- [ ] `DELETE team/remove-member?agencyId&id`, réservé à l'owner, dans une transaction :
+- [x] `DELETE team/remove-member?agencyId&id`, réservé à l'owner, dans une transaction :
   - désassigne ses visites et tickets (et ses leads jusqu'au M1b) ;
   - supprime ses `StaffPermission` et son profil `Staff` ;
   - passe `user.status = false` ;
   - supprime ses sessions.
-- [ ] `POST invite/resend-invitation?inviteId` (`resend_invitation`) : uniquement si l'invitation est `PENDING`. Elle gagne 7 jours de validité et l'e-mail est renvoyé avec le mot de passe déchiffré.
+- [x] `POST invite/resend-invitation?inviteId` (`resend_invitation`) : uniquement si l'invitation est `PENDING`. Elle gagne 7 jours de validité et l'e-mail est renvoyé avec le mot de passe déchiffré.
 - **Test** : retrait refusé à un non-owner ; renvoi refusé si l'invitation n'est pas en attente.
 - **Taille** : M.
 

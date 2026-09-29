@@ -164,3 +164,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `PATCH bookings/agency-cancel?id` avec `{ reason }` : l'agence annule une réservation confirmée qui n'a pas commencé (`BOOKING_NOT_CANCELLABLE` sinon). Les dates redeviennent disponibles ; le client reçoit une notification et l'e-mail « Votre réservation est annulée » (événement `booking.status.changed` avec `CANCELLED`).
 - **Cron quotidien (1 h)** : les réservations confirmées dont la date de fin est passée deviennent `COMPLETED`.
 - **E-mail** : `sendBookingStatus` reçoit le statut (`CONFIRMED`, `REJECTED`, `CANCELLED`) au lieu d'un booléen ; libellés « confirmée », « refusée », « annulée ».
+
+## 15. Équipe : retrait d'un membre et renvoi d'invitation
+
+- `DELETE team/remove-member?agencyId&id` (owner uniquement) : dans une transaction, les visites, tickets et leads du membre sont désassignés (conservés), son profil staff et ses permissions supprimés, son compte passé `INACTIVE` et ses sessions fermées.
+- `POST invite/resend-invitation?inviteId` (`resend_invitation`) : renvoie une invitation en attente avec le même mot de passe temporaire et 7 jours de validité en plus ; refus `INVITATION_NOT_PENDING` sinon (acceptée, annulée ou expirée).

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { TeamService } from './team.service';
@@ -80,5 +80,18 @@ export class TeamController {
     @Body() dto: UpdateStaffPermissionsDto,
   ) {
     return this.teamService.updateMemberPermissions(dto, agencyId, profileId);
+  }
+
+  @Delete(API_URL.TEAM.REMOVE_MEMBER)
+  @ApiOperation({ summary: "Retirer un membre de l'équipe (owner uniquement)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du membre (Staff)' })
+  @ApiOkResponse({ description: 'Membre retiré, compte désactivé' })
+  async removeMember(
+    @Query('id') id: string,
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() ownerId: string,
+  ) {
+    return this.teamService.removeMember(id, agencyId, ownerId);
   }
 }

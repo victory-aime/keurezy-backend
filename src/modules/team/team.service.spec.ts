@@ -136,3 +136,59 @@ describe('TeamService.updateMemberPermissions', () => {
     expect(result.member.id).toBe('staff-2');
   });
 });
+
+describe('TeamService.removeMember', () => {
+  const prisma = {
+    staff: { findFirst: jest.fn(), delete: jest.fn() },
+    visit: { updateMany: jest.fn() },
+    ticket: { updateMany: jest.fn() },
+    lead: { updateMany: jest.fn() },
+    user: { update: jest.fn() },
+    session: { deleteMany: jest.fn() },
+    $transaction: jest.fn(),
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new TeamService(prisma as never, agencyService as never, {} as never);
+
+  beforeEach(() => jest.resetAllMocks());
+
+  it("refuse le retrait à un membre qui n'est pas le propriétaire", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(service.removeMember('staff-2', 'agency-A', 'staff-1')).rejects.toBeInstanceOf(
+      HttpError,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuse un membre d'une autre agence", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue(null);
+    await expect(service.removeMember('staff-x', 'agency-A', 'owner-1')).rejects.toBeInstanceOf(
+      HttpError,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('désassigne son travail, supprime son profil, désactive son compte et ses sessions', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({ id: 'staff-2', userId: 'user-2' });
+
+    await service.removeMember('staff-2', 'agency-A', 'owner-1');
+
+    expect(prisma.visit.updateMany).toHaveBeenCalledWith({
+      where: { agentId: 'staff-2' },
+      data: { agentId: null },
+    });
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
+      where: { assignedToId: 'staff-2' },
+      data: { assignedToId: null },
+    });
+    expect(prisma.staff.delete).toHaveBeenCalledWith({ where: { id: 'staff-2' } });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-2' },
+      data: { status: 'INACTIVE' },
+    });
+    expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-2' } });
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+});

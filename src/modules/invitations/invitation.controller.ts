@@ -70,4 +70,13 @@ export class InvitationController {
   async cancelInvitation(@Query('inviteId') inviteId: string, @AgencyProfileId() userId: string) {
     return this.invitationService.cancelledInvitation(inviteId, userId);
   }
+
+  @Post(API_URL.INVITATION.RESEND_INVITE)
+  @RequirePermission('resend_invitation')
+  @ApiOperation({ summary: 'Renvoyer une invitation en attente (7 jours de validité en plus)' })
+  @ApiQuery({ name: 'inviteId', required: true, description: "Identifiant de l'invitation" })
+  @ApiOkResponse({ description: 'Invitation renvoyée avec succès' })
+  async resendInvitation(@Query('inviteId') inviteId: string, @AgencyProfileId() userId: string) {
+    return this.invitationService.resendInvitation(inviteId, userId);
+  }
 }
