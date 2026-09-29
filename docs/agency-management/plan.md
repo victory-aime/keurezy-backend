@@ -1,6 +1,6 @@
 # Plan d'implémentation : lot 2 (fonctionnalités agence)
 
-Spécification : [`SPEC.md`](../SPEC.md). Tâches : [`tasks/todo.md`](todo.md).
+Spécification : [`spec.md`](spec.md). Tâches : [`todo.md`](todo.md).
 
 ## Décisions d'architecture
 - **Retrait des leads en deux temps (expand/contract).** Le web appelle encore les routes des leads.

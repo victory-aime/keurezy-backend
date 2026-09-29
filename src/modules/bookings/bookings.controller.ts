@@ -20,6 +20,7 @@ import {
   CreateBookingDto,
   RejectBookingDto,
 } from './bookings.dto';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Réservations')
 @ApiBearerAuth()
@@ -68,6 +69,7 @@ export class BookingsController {
   // ─── Agence (Owner + Staff) ─────────────────────────────────────
 
   @Get(API_URL.BOOKINGS.AGENCY_BOOKINGS)
+  @RequirePermission('view_bookings')
   @ApiOperation({ summary: 'Réservations d’une agence, filtrables par statut' })
   @ApiOkResponse({ description: 'Réservations de l’agence' })
   async agencyBookings(
@@ -78,6 +80,7 @@ export class BookingsController {
   }
 
   @Patch(API_URL.BOOKINGS.CONFIRM)
+  @RequirePermission('manage_bookings')
   @ApiOperation({
     summary: 'Confirmer une demande',
     description:
@@ -90,6 +93,7 @@ export class BookingsController {
   }
 
   @Patch(API_URL.BOOKINGS.REJECT)
+  @RequirePermission('manage_bookings')
   @ApiOperation({ summary: 'Refuser une demande avec un motif' })
   @ApiBody({ type: RejectBookingDto })
   @ApiOkResponse({ description: 'Réservation refusée' })
@@ -102,6 +106,7 @@ export class BookingsController {
   }
 
   @Patch(API_URL.BOOKINGS.AGENCY_CANCEL)
+  @RequirePermission('manage_bookings')
   @ApiOperation({
     summary: 'Annuler une réservation confirmée qui n’a pas commencé, avec un motif',
   })

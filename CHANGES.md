@@ -190,3 +190,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Code** : module `leads` et routes `leads/*` retirés ; `manage_leads` retiré du seed ; plus de compteurs de leads dans `agency/stats` ni dans le détail admin d'une agence. Les valeurs d'enum historiques (`NotificationType.LEAD`, `FeatureCategory.LEADS`, `ReportType.LEADS`) restent pour les données existantes.
 - **Visites** : `clientId` est désormais obligatoire (`leadId` n'est plus accepté) ; la liste agence n'expose plus `lead`.
 - **Web à adapter** : le formulaire de visite doit envoyer `clientId` (liste : `visits/agency-clients`) et la liste lire `client` / `property` au lieu de `lead`.
+
+## 20. Permission des réservations (staff)
+
+- **Feature `manage_bookings`** (catégorie `BOOKINGS`, incluse dans tous les plans) : `view_bookings` (liste) et `manage_bookings` (confirmer, refuser, annuler). L'owner garde tous les droits ; les membres existants doivent se voir accorder ces permissions par l'owner.
+- **Migration `10_booking_permission`** (à appliquer) : ajoute la valeur `BOOKINGS` à `FeatureCategory`. Puis lancer le seed des features (`pnpm db:seed:dev-feature` ou `db:seed:uat-feature`) pour créer la feature, ses permissions et l'ajouter aux plans.

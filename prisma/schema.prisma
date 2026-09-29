@@ -1100,6 +1100,7 @@ enum FeatureCategory {
   SUPPORT
   MARKETING
   MESSAGING
+  BOOKINGS
 }
 
 enum Plan {

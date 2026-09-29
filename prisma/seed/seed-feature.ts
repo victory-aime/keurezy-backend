@@ -71,6 +71,19 @@ async function seed() {
     },
 
     // ─────────────────────────────────────────
+    // RÉSERVATIONS (traitement des demandes des clients)
+    // ─────────────────────────────────────────
+    {
+      name: 'manage_bookings',
+      category: FeatureCategory.BOOKINGS,
+      isCommercial: false,
+      permissions: [
+        { name: 'view_bookings', description: 'Voir les réservations de l’agence' },
+        { name: 'manage_bookings', description: 'Confirmer, refuser ou annuler une réservation' },
+      ],
+    },
+
+    // ─────────────────────────────────────────
     // USERS / STAFF
     // ─────────────────────────────────────────
     {
@@ -350,6 +363,7 @@ async function seed() {
             feature('manage_properties', 6),
             feature('publish_properties', 6),
             feature('manage_conversations'),
+            feature('manage_bookings'),
             feature('manage_users', 1),
             feature('premium_support', 1),
           ],
@@ -408,6 +422,7 @@ async function seed() {
             feature('manage_properties', 20),
             feature('publish_properties', 20),
             feature('manage_conversations'),
+            feature('manage_bookings'),
             feature('boost_annonces', 3),
             feature('annonce_stats'),
             feature('manage_users', 5),
@@ -453,6 +468,7 @@ async function seed() {
             feature('manage_properties'),
             feature('publish_properties'),
             feature('manage_conversations'),
+            feature('manage_bookings'),
             feature('boost_annonces'),
             feature('annonce_stats'),
             feature('manage_users'),
