@@ -173,3 +173,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 ## 16. Visites par période
 
 - `GET visits/agency-visits?agencyId&from&to` : filtre facultatif sur `scheduledAt` (dates ISO validées). Période inclusive : une date seule en fin de période couvre toute la journée. Sans période, toutes les visites comme avant.
+
+## 17. Revenus mensuels réels
+
+- `GET property/monthly-revenue?agencyId&year` (`view_properties`) : 12 lignes `{ month: 'AAAA-MM', receivedAmount, remainingAmount }` pour l'année (par défaut l'année en cours), rangées par mois de début des réservations. Reçu : réservations terminées ; restant : réservations confirmées. Annulées et refusées exclues. Remplace la version factice commentée.

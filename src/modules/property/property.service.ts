@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { PropertyDto, PropertyFilterDto } from './property.dto';
+import { MonthlyRevenueQueryDto, PropertyDto, PropertyFilterDto } from './property.dto';
 import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { AnnonceStatus } from '../../../prisma/generated/enums';
+import { AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
@@ -332,51 +332,40 @@ export class PropertyService {
     }));
   }
 
-  // /**
-  //  * Stats: Revenus mensuels par maison occupée (fake API pour dev)
-  //  */
-  // async getMonthlyRevenue(ownerId: string, agencyId: string) {
-  //   await this.agencyService.checkAgencyOwnership(ownerId, agencyId);
-  //
-  //   const properties = await this.prisma.property.findMany({
-  //     where: {
-  //       agencyId,
-  //       status: { not: 'AVAILABLE' },
-  //     },
-  //     select: { price: true },
-  //   });
-  //
-  //   const expectedAmount = properties.reduce(
-  //     (sum, p) => sum + Number(p.price),
-  //     0,
-  //   );
-  //
-  //   const months = [
-  //     'January',
-  //     'February',
-  //     'March',
-  //     'April',
-  //     'May',
-  //     'June',
-  //     'July',
-  //     'August',
-  //     'September',
-  //     'October',
-  //     'November',
-  //     'December',
-  //   ];
-  //
-  //   return months.map((month) => {
-  //     const remainingAmount = Math.floor(Math.random() * expectedAmount * 0.4);
-  //     const receivedAmount = expectedAmount - remainingAmount;
-  //
-  //     return {
-  //       month,
-  //       receivedAmount,
-  //       remainingAmount,
-  //     };
-  //   });
-  // }
+  /**
+   * Revenus mensuels d'une année, d'après les réservations (pas encore de paiement en ligne) :
+   * « reçu » = séjours terminés, « restant » = séjours confirmés à venir, par mois de début.
+   */
+  async getMonthlyRevenue({ agencyId, year }: MonthlyRevenueQueryDto, userId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
+    const targetYear = year ?? new Date().getUTCFullYear();
+
+    // ponytail: agrégation en mémoire sur une année d'une agence ; groupBy SQL si le volume grossit
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        agencyId,
+        status: { in: [BookingStatus.COMPLETED, BookingStatus.CONFIRMED] },
+        startDate: {
+          gte: new Date(Date.UTC(targetYear, 0, 1)),
+          lt: new Date(Date.UTC(targetYear + 1, 0, 1)),
+        },
+      },
+      select: { startDate: true, status: true, totalAmount: true },
+    });
+
+    const months = Array.from({ length: 12 }, (_, index) => ({
+      month: `${targetYear}-${String(index + 1).padStart(2, '0')}`,
+      receivedAmount: 0,
+      remainingAmount: 0,
+    }));
+    for (const booking of bookings) {
+      const row = months[booking.startDate.getUTCMonth()];
+      const amount = Number(booking.totalAmount);
+      if (booking.status === BookingStatus.COMPLETED) row.receivedAmount += amount;
+      else row.remainingAmount += amount;
+    }
+    return months;
+  }
 
   /** Bien de l'agence de l'appelant (contrôle d'accès sur l'agence du bien). */
   private async findAgencyProperty(id: string, userId: string) {

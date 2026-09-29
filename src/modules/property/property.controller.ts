@@ -9,7 +9,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { PropertyDto, PropertyFilterDto } from './property.dto';
+import { MonthlyRevenueQueryDto, PropertyDto, PropertyFilterDto } from './property.dto';
 import { PropertyService } from './property.service';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { RequirePermission } from '../../guard/permission.guard';
@@ -96,5 +96,16 @@ export class PropertyController {
   @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bien' })
   async deleteProperty(@Query('id') id: string, @AgencyProfileId() userId: string) {
     return this.propertyService.deleteProperty(id, userId);
+  }
+
+  @Get(API_URL.PROPERTY.MONTHLY_REVENUE)
+  @RequirePermission('view_properties')
+  @ApiOperation({ summary: "Revenus mensuels d'une année, d'après les réservations" })
+  @ApiOkResponse({ description: '12 mois : { month, receivedAmount, remainingAmount }' })
+  async getMonthlyRevenue(
+    @Query() query: MonthlyRevenueQueryDto,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.propertyService.getMonthlyRevenue(query, userId);
   }
 }

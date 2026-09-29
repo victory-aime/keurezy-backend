@@ -110,3 +110,38 @@ describe('LandService.deleteLand', () => {
     expect(prisma.land.delete).toHaveBeenCalledWith({ where: { id: 'l1' } });
   });
 });
+
+describe('PropertyService.getMonthlyRevenue', () => {
+  const prisma = { booking: { findMany: jest.fn() } };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new PropertyService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+  );
+
+  it('range les montants par mois de début : terminées = reçu, confirmées = restant', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      { startDate: new Date('2026-01-10'), status: 'COMPLETED', totalAmount: 100000 },
+      { startDate: new Date('2026-01-25'), status: 'COMPLETED', totalAmount: 50000 },
+      { startDate: new Date('2026-03-02'), status: 'CONFIRMED', totalAmount: 80000 },
+    ]);
+
+    const revenue = await service.getMonthlyRevenue({ agencyId: 'A', year: 2026 }, 'owner-1');
+
+    expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('A', 'owner-1');
+    expect(revenue).toHaveLength(12);
+    expect(revenue[0]).toEqual({ month: '2026-01', receivedAmount: 150000, remainingAmount: 0 });
+    expect(revenue[2]).toEqual({ month: '2026-03', receivedAmount: 0, remainingAmount: 80000 });
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          agencyId: 'A',
+          status: { in: ['COMPLETED', 'CONFIRMED'] },
+          startDate: { gte: new Date(Date.UTC(2026, 0, 1)), lt: new Date(Date.UTC(2027, 0, 1)) },
+        },
+      }),
+    );
+  });
+});

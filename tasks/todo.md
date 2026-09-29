@@ -48,7 +48,7 @@ Vérification commune à chaque tâche :
 - **Taille** : XS.
 
 ## Task 6 (M6) : revenus mensuels
-- [ ] `GET property/monthly-revenue?agencyId&year` (`view_properties`) : 12 lignes `{ month, receivedAmount, remainingAmount }`.
+- [x] `GET property/monthly-revenue?agencyId&year` (`view_properties`) : 12 lignes `{ month, receivedAmount, remainingAmount }`.
   - « Reçu » : réservations `COMPLETED` ; « restant » : réservations `CONFIRMED`.
   - Réservations rangées par mois de début.
 - [ ] Les compteurs de leads sont retirés de `agency/stats` au M1b.
@@ -56,7 +56,7 @@ Vérification commune à chaque tâche :
 - **Taille** : S.
 
 ### Checkpoint B : Tasks 4 à 6
-- [ ] Tests et typecheck au vert, ton test manuel, les commits.
+- [x] Tests et typecheck au vert, ton test manuel, les commits.
 
 ## Task 7 (M1b, après le lot web) : suppression des leads (contract)
 - [ ] Migration `9_remove_leads`, module `leads`, feature `manage_leads` du seed, compteurs des stats.

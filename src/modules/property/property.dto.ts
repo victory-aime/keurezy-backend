@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PropertyStatus, PropertyType, PropertyFeature } from '../../../prisma/generated/enums';
 import { PaginationDto } from '../../config/pagination.dto';
 import { RentalConfigDto } from '../rentals/rentals.dto';
@@ -177,4 +188,19 @@ export class PropertyFilterDto extends PaginationDto {
   @IsOptional()
   @IsEnum(PropertyType)
   type?: PropertyType;
+}
+
+export class MonthlyRevenueQueryDto {
+  @ApiProperty({ description: "Identifiant de l'agence" })
+  @IsNotEmpty()
+  @IsString()
+  agencyId: string;
+
+  @ApiPropertyOptional({ example: 2026, description: 'Année (par défaut : année en cours)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 }
