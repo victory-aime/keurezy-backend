@@ -9,3 +9,17 @@ allowBuilds:
   msgpackr-extract: true
   prisma: true
   protobufjs: true
+# Sécurité : versions corrigées imposées aux dépendances transitives vulnérables
+# (chat : socket.io, engine.io ; firebase-admin ; @nestjs/config ; outillage)
+overrides:
+  socket.io-parser@<4.2.7: ^4.2.7
+  ws@>=8.0.0 <8.21.0: ^8.21.0
+  lodash@<4.17.24: ^4.17.24
+  form-data@<2.5.6: ~2.5.6
+  websocket-driver@<0.7.5: ^0.7.5
+  shell-quote@<1.8.4: ^1.8.4
+  minimatch@>=9.0.0 <9.0.6: ^9.0.6
+  brace-expansion@>=2.0.0 <2.1.2: ^2.1.2
+  minimatch@>=10.0.0 <10.2.3: ^10.2.3
+  '@isaacs/brace-expansion@<5.0.1': ^5.0.1
+  defu@<6.1.5: ^6.1.5
