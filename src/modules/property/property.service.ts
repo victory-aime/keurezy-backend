@@ -5,7 +5,9 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
+import { AnnonceStatus, BookingStatus, VisitStatus } from '../../../prisma/generated/enums';
+import { todayCalendarDate } from '../rentals/calendar-date';
+import { PropertyImpact } from './property-impact';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
@@ -371,13 +373,57 @@ export class PropertyService {
   private async findAgencyProperty(id: string, userId: string) {
     const property = await this.prisma.property.findUnique({
       where: { id },
-      include: { _count: { select: { bookings: true, conversations: true } } },
+      select: { id: true, agencyId: true },
     });
     if (!property) {
       throw new HttpError('Bien introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
     await this.agencyService.agencyAccessControl(property.agencyId, userId);
     return property;
+  }
+
+  /**
+   * Ce qui est lié au bien, affiché avant une fermeture ou une suppression (l'utilisateur
+   * voit ce que son action entraîne). `canDelete` est la règle unique de suppression.
+   */
+  async getPropertyImpact(id: string, userId: string): Promise<PropertyImpact> {
+    await this.findAgencyProperty(id, userId);
+    return this.computePropertyImpact(id);
+  }
+
+  private async computePropertyImpact(propertyId: string): Promise<PropertyImpact> {
+    const where = { propertyId };
+    const [annonces, online, bookings, upcoming, pending, conversations, visits, upcomingVisits] =
+      await Promise.all([
+        this.prisma.annonce.count({ where }),
+        this.prisma.annonce.count({ where: { ...where, status: AnnonceStatus.ACTIVE } }),
+        this.prisma.booking.count({ where }),
+        this.prisma.booking.count({
+          where: {
+            ...where,
+            status: BookingStatus.CONFIRMED,
+            endDate: { gte: todayCalendarDate() },
+          },
+        }),
+        this.prisma.booking.count({ where: { ...where, status: BookingStatus.PENDING } }),
+        this.prisma.conversation.count({ where }),
+        this.prisma.visit.count({ where }),
+        this.prisma.visit.count({
+          where: {
+            ...where,
+            status: { in: [VisitStatus.PLANNED, VisitStatus.CONFIRMED] },
+            scheduledAt: { gte: new Date() },
+          },
+        }),
+      ]);
+    return {
+      annonces: { total: annonces, online },
+      bookings: { total: bookings, upcoming, pending },
+      conversations,
+      visits: { total: visits, upcoming: upcomingVisits },
+      // Réservations conservées, discussions supprimées en cascade, visites bloquées par la base
+      canDelete: bookings === 0 && conversations === 0 && visits === 0,
+    };
   }
 
   async getPropertyDetail(id: string, userId: string) {
@@ -399,21 +445,22 @@ export class PropertyService {
   }
 
   /**
-   * Supprimer : uniquement un bien sans historique. Réservations (conservées) et discussions
-   * (supprimées en cascade sinon) bloquent ; les visites sont bloquées par la base.
+   * Supprimer : uniquement un bien sans historique (`canDelete` de l'impact). Contrats et
+   * locataires éventuels restent bloqués par la base (P2003).
    */
   async deleteProperty(id: string, userId: string) {
-    const property = await this.findAgencyProperty(id, userId);
-    if (property._count.bookings > 0) {
+    await this.findAgencyProperty(id, userId);
+    const impact = await this.computePropertyImpact(id);
+    if (impact.bookings.total > 0) {
       throw new HttpError(
         'Ce bien a des réservations : fermez-le plutôt que de le supprimer.',
         HttpStatus.CONFLICT,
         'PROPERTY_HAS_BOOKINGS',
       );
     }
-    if (property._count.conversations > 0) {
+    if (!impact.canDelete) {
       throw new HttpError(
-        'Ce bien a des discussions : fermez-le plutôt que de le supprimer.',
+        'Ce bien a des discussions ou des visites : fermez-le plutôt que de le supprimer.',
         HttpStatus.CONFLICT,
         'PROPERTY_IN_USE',
       );

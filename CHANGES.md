@@ -199,3 +199,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 ## 21. Taille de page plafonnée
 
 - `MAX_PAGE_SIZE = 100` (`config/pagination.dto.ts`) : `limitPerPage` est validé entre 1 et 100 sur les listes paginées (terrains, bâtiments, propriétés via `PaginationDto`, annonces publiques via le filtre des annonces) ; au-delà, 400. Les listes admin (utilisateurs, paiements) bornent la valeur reçue à 100. Évite qu'une seule requête charge toute une table.
+
+## 22. Impact des suppressions et fermetures
+
+- `GET property/impact?id` (`view_properties`) : annonces (totales, en ligne), réservations (totales, à venir, en attente), discussions, visites (totales, à venir) et `canDelete`.
+- `GET land/impact?id` (`manage_land`) : bâtiments (id, nom), nombre de villas et `canDelete`.
+- `property/delete` et `land/delete-land` utilisent ce même calcul : une visite liée bloque désormais la suppression (`PROPERTY_IN_USE`). Le web affiche cet impact avant de confirmer.

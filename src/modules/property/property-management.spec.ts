@@ -15,10 +15,13 @@ const errorCodeOf = (promise: Promise<unknown>) =>
     (error: HttpError) => (error.getResponse() as { errorCode: string }).errorCode,
   );
 
-describe('PropertyService — fermeture et suppression', () => {
+describe('PropertyService — impact, fermeture et suppression', () => {
   const prisma = {
     property: { findUnique: jest.fn(), delete: jest.fn() },
-    annonce: { updateMany: jest.fn() },
+    annonce: { updateMany: jest.fn(), count: jest.fn() },
+    booking: { count: jest.fn() },
+    conversation: { count: jest.fn() },
+    visit: { count: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
   const service = new PropertyService(
@@ -28,16 +31,51 @@ describe('PropertyService — fermeture et suppression', () => {
     {} as never,
   );
 
-  const property = (counts: { bookings?: number; conversations?: number }) => ({
-    id: 'p1',
-    agencyId: 'A',
-    _count: { bookings: counts.bookings ?? 0, conversations: counts.conversations ?? 0 },
-  });
+  /** Données liées au bien : chaque compteur répond selon le filtre demandé. */
+  const linked = (data: {
+    annonces?: number;
+    online?: number;
+    bookings?: number;
+    upcoming?: number;
+    pending?: number;
+    conversations?: number;
+    visits?: number;
+    upcomingVisits?: number;
+  }) => {
+    prisma.property.findUnique.mockResolvedValue({ id: 'p1', agencyId: 'A' });
+    prisma.annonce.count.mockImplementation(({ where }: { where: { status?: string } }) =>
+      where.status ? (data.online ?? 0) : (data.annonces ?? 0),
+    );
+    prisma.booking.count.mockImplementation(({ where }: { where: { status?: string } }) =>
+      where.status === 'PENDING'
+        ? (data.pending ?? 0)
+        : where.status === 'CONFIRMED'
+          ? (data.upcoming ?? 0)
+          : (data.bookings ?? 0),
+    );
+    prisma.conversation.count.mockResolvedValue(data.conversations ?? 0);
+    prisma.visit.count.mockImplementation(({ where }: { where: { status?: unknown } }) =>
+      where.status ? (data.upcomingVisits ?? 0) : (data.visits ?? 0),
+    );
+  };
 
   beforeEach(() => jest.resetAllMocks());
 
-  it("refuse l'accès à un bien d'une autre agence (contrôle sur l'agence du bien)", async () => {
-    prisma.property.findUnique.mockResolvedValue(property({}));
+  it("décrit ce qui est lié au bien et indique s'il peut être supprimé", async () => {
+    linked({ annonces: 2, online: 1, bookings: 3, upcoming: 1, pending: 1, conversations: 2 });
+
+    await expect(service.getPropertyImpact('p1', 'owner-1')).resolves.toEqual({
+      annonces: { total: 2, online: 1 },
+      bookings: { total: 3, upcoming: 1, pending: 1 },
+      conversations: 2,
+      visits: { total: 0, upcoming: 0 },
+      canDelete: false,
+    });
+    expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('A', 'owner-1');
+  });
+
+  it("refuse l'impact et la suppression d'un bien d'une autre agence", async () => {
+    linked({});
     agencyService.agencyAccessControl.mockRejectedValue(
       new HttpError('x', 403, 'AGENCY_ACCESS_DENIED'),
     );
@@ -45,33 +83,37 @@ describe('PropertyService — fermeture et suppression', () => {
     await expect(errorCodeOf(service.deleteProperty('p1', 'staff-1'))).resolves.toBe(
       'AGENCY_ACCESS_DENIED',
     );
-    expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('A', 'staff-1');
     expect(prisma.property.delete).not.toHaveBeenCalled();
   });
 
   it('refuse la suppression d’un bien qui a des réservations', async () => {
-    prisma.property.findUnique.mockResolvedValue(property({ bookings: 1 }));
+    linked({ bookings: 1 });
     await expect(errorCodeOf(service.deleteProperty('p1', 'owner-1'))).resolves.toBe(
       'PROPERTY_HAS_BOOKINGS',
     );
     expect(prisma.property.delete).not.toHaveBeenCalled();
   });
 
-  it('refuse la suppression d’un bien qui a des discussions (historique du chat)', async () => {
-    prisma.property.findUnique.mockResolvedValue(property({ conversations: 2 }));
+  it('refuse la suppression d’un bien qui a des discussions ou des visites', async () => {
+    linked({ conversations: 1 });
     await expect(errorCodeOf(service.deleteProperty('p1', 'owner-1'))).resolves.toBe(
       'PROPERTY_IN_USE',
     );
+    linked({ visits: 1 });
+    await expect(errorCodeOf(service.deleteProperty('p1', 'owner-1'))).resolves.toBe(
+      'PROPERTY_IN_USE',
+    );
+    expect(prisma.property.delete).not.toHaveBeenCalled();
   });
 
   it('supprime un bien sans historique', async () => {
-    prisma.property.findUnique.mockResolvedValue(property({}));
+    linked({ annonces: 1 });
     await service.deleteProperty('p1', 'owner-1');
     expect(prisma.property.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
   });
 
   it('la fermeture dépublie les annonces en ligne du bien', async () => {
-    prisma.property.findUnique.mockResolvedValue(property({}));
+    linked({});
     await service.closeProperty('p1', 'owner-1');
     expect(prisma.annonce.updateMany).toHaveBeenCalledWith({
       where: { propertyId: 'p1', status: 'ACTIVE' },
@@ -91,7 +133,8 @@ describe('LandService.deleteLand', () => {
     prisma.land.findUnique.mockResolvedValue({
       id: 'l1',
       agencyId: 'A',
-      _count: { batiments: 1, villa: 0 },
+      batiments: [{ id: 'b1', name: 'Résidence A' }],
+      _count: { villa: 0 },
     });
     await expect(errorCodeOf(service.deleteLand('l1', 'owner-1'))).resolves.toBe(
       'LAND_HAS_BUILDINGS',
@@ -103,11 +146,25 @@ describe('LandService.deleteLand', () => {
     prisma.land.findUnique.mockResolvedValue({
       id: 'l1',
       agencyId: 'A',
-      _count: { batiments: 0, villa: 0 },
+      batiments: [],
+      _count: { villa: 0 },
     });
     await service.deleteLand('l1', 'owner-1');
     expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('A', 'owner-1');
     expect(prisma.land.delete).toHaveBeenCalledWith({ where: { id: 'l1' } });
+  });
+  it('décrit les bâtiments et villas qui bloquent la suppression', async () => {
+    prisma.land.findUnique.mockResolvedValue({
+      id: 'l1',
+      agencyId: 'A',
+      batiments: [{ id: 'b1', name: 'Résidence A' }],
+      _count: { villa: 2 },
+    });
+    await expect(service.getLandImpact('l1', 'owner-1')).resolves.toEqual({
+      batiments: [{ id: 'b1', name: 'Résidence A' }],
+      villas: 2,
+      canDelete: false,
+    });
   });
 });
 

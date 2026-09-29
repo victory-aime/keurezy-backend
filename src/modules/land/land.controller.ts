@@ -126,4 +126,12 @@ export class LandController {
   async deleteLand(@Query('id') id: string, @AgencyProfileId() userId: string) {
     return this.landService.deleteLand(id, userId);
   }
+
+  @Get(API_URL.LAND.IMPACT)
+  @RequirePermission('manage_land')
+  @ApiOperation({ summary: 'Bâtiments et villas portés par le terrain, avant sa suppression' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du terrain' })
+  async getLandImpact(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.landService.getLandImpact(id, userId);
+  }
 }

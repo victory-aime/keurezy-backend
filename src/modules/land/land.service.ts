@@ -7,6 +7,7 @@ import { CreateLandDto, LandFilterDto, UpdateLandDto } from './land.dto';
 import { convertToInteger } from '../../config/convert';
 import { FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
+import { LandImpact } from '../property/property-impact';
 
 @Injectable()
 export class LandService {
@@ -147,18 +148,31 @@ export class LandService {
     };
   }
 
-  async deleteLand(id: string, userId: string) {
+  /** Bâtiments et villas portés par le terrain, affichés avant sa suppression. */
+  async getLandImpact(id: string, userId: string): Promise<LandImpact> {
     const land = await this.prisma.land.findUnique({
       where: { id },
-      include: { _count: { select: { batiments: true, villa: true } } },
+      select: {
+        agencyId: true,
+        batiments: { select: { id: true, name: true } },
+        _count: { select: { villa: true } },
+      },
     });
     if (!land) {
       throw new HttpError('Terrain introuvable', HttpStatus.NOT_FOUND, 'LAND_NOT_FOUND');
     }
     await this.agencyService.agencyAccessControl(land.agencyId, userId);
+    return {
+      batiments: land.batiments,
+      villas: land._count.villa,
+      canDelete: land.batiments.length === 0 && land._count.villa === 0,
+    };
+  }
 
-    // Bâtiments et villas seraient supprimés en cascade avec leurs biens : refus explicite
-    if (land._count.batiments + land._count.villa > 0) {
+  async deleteLand(id: string, userId: string) {
+    // Même règle que l'impact affiché : bâtiments et villas partiraient en cascade
+    const impact = await this.getLandImpact(id, userId);
+    if (!impact.canDelete) {
       throw new HttpError(
         'Ce terrain porte des bâtiments ou des villas : supprimez-les d’abord.',
         HttpStatus.CONFLICT,

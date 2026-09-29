@@ -108,4 +108,12 @@ export class PropertyController {
   ) {
     return this.propertyService.getMonthlyRevenue(query, userId);
   }
+
+  @Get(API_URL.PROPERTY.PROPERTY_IMPACT)
+  @RequirePermission('view_properties')
+  @ApiOperation({ summary: 'Ce qui est lié au bien, avant une fermeture ou une suppression' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bien' })
+  async getPropertyImpact(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.propertyService.getPropertyImpact(id, userId);
+  }
 }
