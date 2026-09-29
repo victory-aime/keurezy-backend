@@ -9,3 +9,7 @@ Date : 2026-09-29. Méthode : skill `security-and-hardening`.
 - **Charge.** Au plus 8 requêtes `count` indexées, lancées en parallèle, par appel. Aucune liste non bornée. ✅
 
 **Verdict** : rien à signaler.
+
+## Ajout : `building/impact` et suppression d'un bâtiment
+- La route est protégée par `manage_batiment`. L'agence propriétaire du bâtiment est contrôlée avant tout comptage. ✅
+- **Intégrité des données.** Avant, supprimer un bâtiment supprimait ses biens, leurs annonces et leurs discussions en cascade. S'il y avait des réservations, l'erreur n'était pas gérée (500). La suppression est désormais refusée tant qu'un bien a un historique. ✅

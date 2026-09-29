@@ -7,6 +7,7 @@ import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
 import { FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
+import { BuildingImpact, computeImpact } from '../property/property-impact';
 
 @Injectable()
 export class BuildingService {
@@ -182,19 +183,41 @@ export class BuildingService {
     };
   }
 
-  async deleteBuilding(id: string, userId: string) {
+  /**
+   * Ce que la suppression du bâtiment entraîne : ses biens sont supprimés avec lui (cascade),
+   * donc leur historique cumulé décide si c'est permis.
+   */
+  async getBuildingImpact(id: string, userId: string): Promise<BuildingImpact> {
     const building = await this.prisma.batiment.findUnique({
       where: { id },
       select: { agencyId: true },
     });
-
     if (!building?.agencyId) {
       throw new HttpError('Aucun bâtiment trouvé', HttpStatus.NOT_FOUND, 'BUILDING_NOT_EXIST');
     }
-
     await this.agencyService.agencyAccessControl(building.agencyId, userId);
-    await this.prisma.batiment.delete({
-      where: { id },
-    });
+
+    const [properties, history] = await Promise.all([
+      this.prisma.property.findMany({
+        where: { batimentId: id },
+        select: { id: true, title: true },
+        orderBy: { title: 'asc' },
+      }),
+      computeImpact(this.prisma, { property: { batimentId: id } }),
+    ]);
+    return { ...history, properties };
+  }
+
+  async deleteBuilding(id: string, userId: string) {
+    const impact = await this.getBuildingImpact(id, userId);
+    if (!impact.canDelete) {
+      throw new HttpError(
+        'Un bien de ce bâtiment a un historique (réservations, discussions ou visites) : il ne peut pas être supprimé.',
+        HttpStatus.CONFLICT,
+        'BUILDING_IN_USE',
+      );
+    }
+    await this.prisma.batiment.delete({ where: { id } });
+    return { message: 'Bâtiment supprimé avec succès.' };
   }
 }

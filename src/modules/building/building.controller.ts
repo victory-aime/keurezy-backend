@@ -131,4 +131,12 @@ export class BuildingController {
   async deleteBuilding(@Query('id') id: string, @AgencyProfileId() userId: string) {
     return this.buildingService.deleteBuilding(id, userId);
   }
+
+  @Get(API_URL.BUILDING.IMPACT)
+  @RequirePermission('manage_batiment')
+  @ApiOperation({ summary: 'Biens et historique supprimés avec le bâtiment, avant confirmation' })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du bâtiment' })
+  async getBuildingImpact(@Query('id') id: string, @AgencyProfileId() userId: string) {
+    return this.buildingService.getBuildingImpact(id, userId);
+  }
 }

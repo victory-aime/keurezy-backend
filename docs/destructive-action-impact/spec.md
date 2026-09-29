@@ -9,6 +9,7 @@
 |---|---|---|
 | `GET property/impact?id` | `view_properties` | `PropertyImpact` |
 | `GET land/impact?id` | `manage_land` | `LandImpact` |
+| `GET building/impact?id` | `manage_batiment` | `BuildingImpact` : `PropertyImpact` sur tous ses biens et `properties` (id, titre), qui sont supprimés en cascade |
 
 ```ts
 interface PropertyImpact {
@@ -27,6 +28,8 @@ interface LandImpact {
 ```
 
 - **Erreurs** : `PROPERTY_NOT_FOUND` ou `LAND_NOT_FOUND` (404), et 403 si la ressource appartient à une autre agence (contrôle sur l'agence de la ressource).
+- **Calcul partagé** : `computeImpact(prisma, scope)` compte pour un bien (`{ propertyId }`) ou pour tous les biens d'un bâtiment (`{ property: { batimentId } }`).
+- **`building/delete`** : refuse avec `BUILDING_IN_USE` (409) si un de ses biens a un historique. Avant, la base refusait et l'utilisateur recevait une erreur 500.
 - **`property/delete`** et **`land/delete-land`** s'appuient sur ce même calcul : ils refusent quand `canDelete` vaut `false`. Les codes d'erreur existants sont conservés : `PROPERTY_HAS_BOOKINGS`, `PROPERTY_IN_USE`, `LAND_HAS_BUILDINGS`.
 
 ## Tests

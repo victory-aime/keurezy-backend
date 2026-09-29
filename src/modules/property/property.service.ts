@@ -5,9 +5,8 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { AnnonceStatus, BookingStatus, VisitStatus } from '../../../prisma/generated/enums';
-import { todayCalendarDate } from '../rentals/calendar-date';
-import { PropertyImpact } from './property-impact';
+import { AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
+import { computeImpact, PropertyImpact } from './property-impact';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
@@ -391,39 +390,8 @@ export class PropertyService {
     return this.computePropertyImpact(id);
   }
 
-  private async computePropertyImpact(propertyId: string): Promise<PropertyImpact> {
-    const where = { propertyId };
-    const [annonces, online, bookings, upcoming, pending, conversations, visits, upcomingVisits] =
-      await Promise.all([
-        this.prisma.annonce.count({ where }),
-        this.prisma.annonce.count({ where: { ...where, status: AnnonceStatus.ACTIVE } }),
-        this.prisma.booking.count({ where }),
-        this.prisma.booking.count({
-          where: {
-            ...where,
-            status: BookingStatus.CONFIRMED,
-            endDate: { gte: todayCalendarDate() },
-          },
-        }),
-        this.prisma.booking.count({ where: { ...where, status: BookingStatus.PENDING } }),
-        this.prisma.conversation.count({ where }),
-        this.prisma.visit.count({ where }),
-        this.prisma.visit.count({
-          where: {
-            ...where,
-            status: { in: [VisitStatus.PLANNED, VisitStatus.CONFIRMED] },
-            scheduledAt: { gte: new Date() },
-          },
-        }),
-      ]);
-    return {
-      annonces: { total: annonces, online },
-      bookings: { total: bookings, upcoming, pending },
-      conversations,
-      visits: { total: visits, upcoming: upcomingVisits },
-      // Réservations conservées, discussions supprimées en cascade, visites bloquées par la base
-      canDelete: bookings === 0 && conversations === 0 && visits === 0,
-    };
+  private computePropertyImpact(propertyId: string): Promise<PropertyImpact> {
+    return computeImpact(this.prisma, { propertyId });
   }
 
   async getPropertyDetail(id: string, userId: string) {

@@ -205,3 +205,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `GET property/impact?id` (`view_properties`) : annonces (totales, en ligne), réservations (totales, à venir, en attente), discussions, visites (totales, à venir) et `canDelete`.
 - `GET land/impact?id` (`manage_land`) : bâtiments (id, nom), nombre de villas et `canDelete`.
 - `property/delete` et `land/delete-land` utilisent ce même calcul : une visite liée bloque désormais la suppression (`PROPERTY_IN_USE`). Le web affiche cet impact avant de confirmer.
+
+## 23. Impact d'une suppression de bâtiment
+
+- `GET building/impact?id` (`manage_batiment`) : biens du bâtiment (supprimés avec lui) et leur historique cumulé (annonces, réservations, discussions, visites), avec `canDelete`.
+- `building/delete` refuse (`BUILDING_IN_USE`) quand un de ses biens a un historique, au lieu d'une erreur 500 ; calcul partagé avec les biens (`computeImpact`).
