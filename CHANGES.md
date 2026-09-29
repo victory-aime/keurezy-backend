@@ -195,3 +195,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - **Feature `manage_bookings`** (catégorie `BOOKINGS`, incluse dans tous les plans) : `view_bookings` (liste) et `manage_bookings` (confirmer, refuser, annuler). L'owner garde tous les droits ; les membres existants doivent se voir accorder ces permissions par l'owner.
 - **Migration `10_booking_permission`** (à appliquer) : ajoute la valeur `BOOKINGS` à `FeatureCategory`. Puis lancer le seed des features (`pnpm db:seed:dev-feature` ou `db:seed:uat-feature`) pour créer la feature, ses permissions et l'ajouter aux plans.
+
+## 21. Taille de page plafonnée
+
+- `MAX_PAGE_SIZE = 100` (`config/pagination.dto.ts`) : `limitPerPage` est validé entre 1 et 100 sur les listes paginées (terrains, bâtiments, propriétés via `PaginationDto`, annonces publiques via le filtre des annonces) ; au-delà, 400. Les listes admin (utilisateurs, paiements) bornent la valeur reçue à 100. Évite qu'une seule requête charge toute une table.

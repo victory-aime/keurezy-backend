@@ -15,6 +15,7 @@ import { PaymentAdminService } from './services/payment-admin.service';
 import { API_URL } from '../../config/api';
 import { convertToInteger } from '../../config/convert';
 import { NabooPayoutParams, NabooPayoutPayload, NabooTransactionParams } from './naboo';
+import { MAX_PAGE_SIZE } from '../../config/pagination.dto';
 
 @ApiTags('Super Admin - Paiements')
 @ApiBearerAuth()
@@ -42,7 +43,7 @@ export class AdminPaymentController {
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async getAllTransactions(@Query() data: NabooTransactionParams) {
     const page = convertToInteger(data?.page!) || 1;
-    const limit = convertToInteger(data.limit!) || 10;
+    const limit = Math.min(convertToInteger(data.limit!) || 10, MAX_PAGE_SIZE);
     const min_amount = convertToInteger(data.min_amount!);
     const max_amount = convertToInteger(data.max_amount!);
     return this.paymentAdminService.getAllTransactions({
@@ -80,7 +81,7 @@ export class AdminPaymentController {
   @Get(API_URL.PAYMENT_ADMIN.ALL_REFUNDS)
   async getAllPayouts(@Query() data: NabooPayoutParams) {
     const page = convertToInteger(data?.page!) || 1;
-    const limit = convertToInteger(data.limit!) || 10;
+    const limit = Math.min(convertToInteger(data.limit!) || 10, MAX_PAGE_SIZE);
     const min_amount = convertToInteger(data.min_amount!);
     const max_amount = convertToInteger(data.max_amount!);
     return this.paymentAdminService.getAllPayouts({

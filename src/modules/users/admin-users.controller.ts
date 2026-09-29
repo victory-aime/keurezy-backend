@@ -17,6 +17,7 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { API_URL } from '../../config/api';
 import { Role } from '../../../prisma/generated/enums';
 import { convertToInteger } from '../../config/convert';
+import { MAX_PAGE_SIZE } from '../../config/pagination.dto';
 
 @ApiTags('Super Admin - Utilisateurs')
 @ApiBearerAuth()
@@ -41,7 +42,7 @@ export class AdminUsersController {
     @Query('limitPerPage') limitPerPage: number,
   ) {
     const page = convertToInteger(initialPage) || 1;
-    const limit = convertToInteger(limitPerPage) || 10;
+    const limit = Math.min(convertToInteger(limitPerPage) || 10, MAX_PAGE_SIZE);
     return this.usersAdminService.getAllUsers(page, limit);
   }
 

@@ -16,9 +16,11 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   Min,
 } from 'class-validator';
 import { CALENDAR_DATE } from '../rentals/calendar-date';
+import { MAX_PAGE_SIZE } from '../../config/pagination.dto';
 
 export class CreateAnnonceDto {
   @ApiProperty({ example: 'Appartement F3 Almadies', description: "Titre de l'annonce" })
@@ -83,11 +85,12 @@ export class FilterAnnonceDto {
   @Min(1)
   initialPage: number;
 
-  @ApiProperty({ example: 10, description: "Nombre d'annonces maximum par page" })
+  @ApiProperty({ example: 10, description: "Nombre d'annonces maximum par page (100 au plus)" })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_PAGE_SIZE)
   limitPerPage: number;
 
   @ApiPropertyOptional({ example: 'Dakar', description: 'Filtrer par ville' })
