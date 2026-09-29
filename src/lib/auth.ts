@@ -137,7 +137,8 @@ const createAuth = (prisma: PrismaClient) => {
       }),
       twoFactor({
         issuer: process.env.APP_NAME,
-        skipVerificationOnEnable: true,
+        // Pas de skipVerificationOnEnable : la 2FA ne s'active qu'après un premier code valide
+        // (verifyTotp), sinon un QR code mal scanné bloque le compte à la connexion suivante.
       }),
       passkey(),
       expo(),

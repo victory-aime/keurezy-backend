@@ -214,3 +214,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 ## 24. Impact du retrait d'un membre
 
 - `GET team/member-impact?agencyId&id` (owner) : nom, e-mail, visites assignées (dont à venir), tickets assignés et nombre de permissions, affichés avant `team/remove-member`.
+
+## 25. Activation de la 2FA vérifiée
+
+- `twoFactor` n'a plus `skipVerificationOnEnable` : `two-factor/enable` renvoie le QR code et les codes de secours, mais la 2FA ne s'active qu'au premier code valide (`two-factor/verify-totp`). Un QR code mal scanné ne peut plus bloquer le compte.
+- La connexion par code de secours (`two-factor/verify-backup-code`, Better Auth) est désormais proposée par le web.
+- **Migration `10_two_factor_lockout`** (additive) : colonnes `twofactor.failedVerificationCount` (défaut 0) et `lockedUntil`, exigées par Better Auth 1.6.33 pour verrouiller la 2FA après trop de codes faux. Sans elle, l'activation de la 2FA échoue (`Unknown argument failedVerificationCount`) depuis la montée en 1.6.33 : à appliquer avant tout déploiement de cette version.
