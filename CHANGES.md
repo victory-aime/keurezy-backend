@@ -273,3 +273,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **2FA** : verrouillage du compte après 5 codes faux consécutifs, pendant 15 min (`accountLockout`), aligné sur les 5 essais par connexion de Better Auth et en plus de la limite par IP.
 - **Modèles Resend en HTML** prêts à coller, dans `src/modules/mail/templates/*.html` (10 modèles, variables vérifiées contre le code). L'invitation envoie aussi `APP_NAME`.
 - **Suppression** de `otp.hbs`, de `CompileTemplateService` (inutilisé), de `invoice.pdf` (inutilisé) et de la dépendance `handlebars`. Tous les e-mails passent par Resend.
+
+## 33. État de la vérification 2FA lu en base
+
+- Nouvelle route Better Auth `GET /api/auth/two-factor/status` (plugin `two-factor-status.plugin.ts`), accessible seulement avec le cookie signé du défi 2FA : fin du verrouillage (`TwoFactor.lockedUntil`), essais restants et recours (`self` pour un membre, `support` pour l'owner). Limitée à 30 requêtes par minute.
+- Le web affiche le décompte réel quel que soit l'appareil ou la page d'où revient l'utilisateur. À la fin du défi, il affiche « compte bloqué » avec la récupération (membre) ou le support (owner), et ferme la session en silence.
+- Le seuil de verrouillage est partagé (`TWO_FACTOR_MAX_FAILED_ATTEMPTS`).

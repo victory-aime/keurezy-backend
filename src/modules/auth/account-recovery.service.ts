@@ -9,7 +9,7 @@ import { getAuthInstance } from '../../lib/auth';
 import { ResendService } from '../mail/resend.service';
 
 /** Délai de grâce entre la demande de récupération et la désactivation de la 2FA. */
-export const RECOVERY_DELAY_HOURS = 72;
+export const RECOVERY_DELAY_HOURS = 48;
 
 const CODE_PREFIX = 'RECOVERY_CODE';
 const codeIdentifier = (userId: string) => `recovery-${userId}`;
@@ -19,7 +19,7 @@ const formatDateTime = (date: Date) =>
 
 /**
  * Récupération d'un compte dont la 2FA est perdue (téléphone et codes de secours) :
- * mot de passe, puis code envoyé à l'e-mail du compte, puis délai de 72 h pendant lequel le
+ * mot de passe, puis code envoyé à l'e-mail du compte, puis délai de 48 h pendant lequel le
  * titulaire peut annuler (lien reçu, ou n'importe quelle connexion réussie). Un cron exécute
  * ensuite la désactivation de la 2FA. Plus lent qu'une connexion : jamais une porte d'entrée.
  */

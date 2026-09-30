@@ -13,6 +13,10 @@ import { PrismaClient } from '../../prisma/generated/client';
 import { customSession } from 'better-auth/plugins/custom-session';
 import { i18n } from '@better-auth/i18n';
 import { IP_HEADERS } from '../config/throttle';
+import {
+  TWO_FACTOR_MAX_FAILED_ATTEMPTS,
+  twoFactorStatus,
+} from '../modules/auth/two-factor-status.plugin';
 
 let authInstance: ReturnType<typeof createAuth> | null = null;
 
@@ -62,6 +66,7 @@ const createAuth = (prisma: PrismaClient) => {
         '/two-factor/verify-backup-code': { window: 60, max: 5 },
         '/two-factor/enable': { window: 60, max: 5 },
         '/two-factor/disable': { window: 60, max: 5 },
+        '/two-factor/status': { window: 60, max: 30 },
       },
     },
     appName: process.env.APP_NAME,
@@ -187,9 +192,14 @@ const createAuth = (prisma: PrismaClient) => {
         // (verifyTotp), sinon un QR code mal scanné bloque le compte à la connexion suivante.
         // Verrouillage du compte après 5 codes faux consécutifs (15 min), quelle que soit l'IP :
         // aligné sur la limite de 5 essais par connexion de Better Auth, et complète la limite par
-        // IP (5/min). Le web affiche alors le blocage, son décompte et la récupération de compte.
-        accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 },
+        // IP (5/min). Le web lit l'état via `two-factor/status` (décompte, essais restants, recours).
+        accountLockout: {
+          enabled: true,
+          maxFailedAttempts: TWO_FACTOR_MAX_FAILED_ATTEMPTS,
+          durationSeconds: 900,
+        },
       }),
+      twoFactorStatus(prisma),
       passkey(),
       expo(),
       emailOTP({
