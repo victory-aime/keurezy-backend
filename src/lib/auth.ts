@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { OTP_SETTINGS } from '../config/otp';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { EXPIRE_TIME } from '../config/enum';
 import { twoFactor, emailOTP, lastLoginMethod } from 'better-auth/plugins';
@@ -69,6 +70,27 @@ const createAuth = (prisma: PrismaClient) => {
     database: prismaAdapter(prisma, {
       provider: 'postgresql',
     }),
+    databaseHooks: {
+      session: {
+        create: {
+          // Aucune session pour un compte désactivé (membre désactivé ou retiré, agence fermée,
+          // compte banni) : couvre mot de passe, passkey, 2FA et mobile. Sans ce contrôle, le
+          // compte se reconnectait et seules les routes métier refusaient ensuite l'accès.
+          before: async (session) => {
+            const user = await prisma.user.findUnique({
+              where: { id: session.userId },
+              select: { status: true },
+            });
+            if (user && user.status !== 'ACTIVE') {
+              throw new APIError('FORBIDDEN', {
+                message: "Ce compte est désactivé. Contactez l'administrateur de votre agence.",
+                code: 'ACCOUNT_DISABLED',
+              });
+            }
+          },
+        },
+      },
+    },
     user: {
       deleteUser: {
         enabled: true,
