@@ -190,3 +190,26 @@ describe('AgencyService — fermeture programmée', () => {
     });
   });
 });
+
+describe('AgencyService.getAgencyPlanFeatures', () => {
+  const prisma = { subscription: { findUnique: jest.fn() } };
+  const service = new AgencyService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  it("expose le statut de l'abonnement, pour le bandeau de lecture seule du staff", async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'INACTIVE',
+      plan: { name: 'BASIC_SUB', planFeatures: [] },
+    });
+    await expect(service.getAgencyPlanFeatures('A')).resolves.toEqual({
+      plan: 'BASIC_SUB',
+      status: 'INACTIVE',
+      features: [],
+    });
+  });
+});

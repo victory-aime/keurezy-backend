@@ -99,6 +99,8 @@ export class AgencyService {
 
     return {
       plan: subscription.plan.name,
+      // INACTIVE : tableau de bord en lecture seule (bandeau affiché à tout le staff)
+      status: subscription.status,
       features,
     };
   }
