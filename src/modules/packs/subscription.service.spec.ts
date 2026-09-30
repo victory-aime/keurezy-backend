@@ -176,11 +176,31 @@ describe('SubscriptionService.expireEndedPeriods', () => {
     });
   });
 
-  it("ne fait rien tant que SUBSCRIPTION_EXPIRY_ENABLED n'est pas activé", async () => {
+  it("sans SUBSCRIPTION_EXPIRY_ENABLED, n'expire que les abonnements résiliés", async () => {
     delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
     prisma.subscription.updateMany.mockClear();
+    prisma.subscription.updateMany.mockResolvedValue({ count: 0 });
     await service.runExpiryJob();
-    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: 'ACTIVE',
+        currentPeriodEnd: { lt: expect.any(Date) },
+        cancelAtPeriodEnd: true,
+      },
+      data: { status: 'INACTIVE' },
+    });
+  });
+
+  it('avec SUBSCRIPTION_EXPIRY_ENABLED, expire aussi les périodes non renouvelées', async () => {
+    process.env.SUBSCRIPTION_EXPIRY_ENABLED = 'true';
+    prisma.subscription.updateMany.mockClear();
+    prisma.subscription.updateMany.mockResolvedValue({ count: 0 });
+    await service.runExpiryJob();
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', currentPeriodEnd: { lt: expect.any(Date) } },
+      data: { status: 'INACTIVE' },
+    });
+    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
   });
 });
 

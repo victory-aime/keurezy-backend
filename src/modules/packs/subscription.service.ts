@@ -183,24 +183,28 @@ export class SubscriptionService {
   }
 
   /**
-   * Job horaire d'expiration, **désactivé tant que `SUBSCRIPTION_EXPIRY_ENABLED` ne vaut pas
-   * `true`** : sans renouvellement en ligne (module checkout), il bloquerait toutes les agences
-   * dont la première période est déjà terminée.
+   * Job horaire d'expiration. Une résiliation (demande explicite de l'owner) est toujours
+   * appliquée à l'échéance. Les périodes simplement non renouvelées n'expirent qu'avec
+   * `SUBSCRIPTION_EXPIRY_ENABLED=true` : sans renouvellement en ligne (module checkout), cela
+   * bloquerait toutes les agences dont la première période est déjà terminée.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async runExpiryJob(): Promise<void> {
-    if (process.env.SUBSCRIPTION_EXPIRY_ENABLED !== 'true') return;
-    await this.expireEndedPeriods();
+    await this.expireEndedPeriods(new Date(), process.env.SUBSCRIPTION_EXPIRY_ENABLED === 'true');
   }
 
   /**
-   * Un abonnement actif dont la période est terminée passe INACTIVE, qu'il ait été résilié ou
-   * simplement pas renouvelé. Idempotent. Effets : tableau de bord en lecture seule
+   * Un abonnement actif dont la période est terminée passe INACTIVE : résilié, ou aussi non
+   * renouvelé si `includeUnrenewed`. Idempotent. Effets : tableau de bord en lecture seule
    * (`ActiveSubscriptionGuard`) et annonces masquées (`publicAnnonceWhere`).
    */
-  async expireEndedPeriods(now = new Date()): Promise<number> {
+  async expireEndedPeriods(now = new Date(), includeUnrenewed = true): Promise<number> {
     const { count } = await this.prisma.subscription.updateMany({
-      where: { status: SubscriptionStatus.ACTIVE, currentPeriodEnd: { lt: now } },
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodEnd: { lt: now },
+        ...(includeUnrenewed ? {} : { cancelAtPeriodEnd: true }),
+      },
       data: { status: SubscriptionStatus.INACTIVE },
     });
     if (count > 0) this.logger.log(`${count} abonnement(s) expiré(s)`);
