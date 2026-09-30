@@ -286,5 +286,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - `payment_transaction.agencyId` (FK, index `agencyId, createdAt`) et `kind` (`ONBOARDING`, `RENEWAL`, `UPGRADE`, `REACTIVATION`). Les transactions d'onboarding existantes sont rattachées à leur agence via `metadata.agencyEmail`.
   - `subscription.scheduledPlanId`, `scheduledBillingCycle`, `scheduledKeep` (downgrade programmé et éléments gardés actifs), `lastRenewalReminder`.
   - `isActive` (défaut `true`) sur `property`, `terrains` et `batiment` : bien désactivé par un downgrade.
+- **`GET agency/subscription?agencyId`** (propriétaire uniquement, `OWNER_ONLY` sinon) : souscription (plan, statut, cycle, prix numérique, période, résiliation), consommation par quota (`used`, `limit`, `remaining`, `percentage`, `state` : `OK`, `NEAR_LIMIT` dès 80 %, `REACHED`, `UNLIMITED`) et fonctionnalités commerciales (`included`). Un abonnement inactif est renvoyé sans erreur ; sans souscription, `subscription` vaut `null`. `subscription-info` est inchangé.
+- La consommation réutilise les compteurs qui bloquent la création (`countPropertyAssets`, `countUserSeats`, et `countAnnonces`, extrait d'`annonce.service.ts`) : une jauge ne peut pas contredire un refus.
 - La migration de contraction de l'invitation (section 30) prendra le numéro `14`.
 - Spec : `keurezy-front/docs/subscription-ui/`.

@@ -9,6 +9,8 @@ import { AdminFeaturesController } from './admin-features.controller';
 import { FeaturesAdminService } from './features-admin.service';
 import { PlanFeaturePolicyService } from './plan-feature-policy.service';
 import { PermissionsService } from './permissions.service';
+import { SubscriptionController } from './subscription.controller';
+import { SubscriptionService } from './subscription.service';
 
 /**
  * Plans et abonnements : catalogue des plans, fonctionnalités commerciales,
@@ -16,13 +18,19 @@ import { PermissionsService } from './permissions.service';
  */
 @Module({
   imports: [DatabaseModule, AgencyModule],
-  controllers: [PackController, AdminPackController, AdminFeaturesController],
+  controllers: [
+    PackController,
+    AdminPackController,
+    AdminFeaturesController,
+    SubscriptionController,
+  ],
   providers: [
     PackService,
     PackAdminService,
     FeaturesAdminService,
     PlanFeaturePolicyService,
     PermissionsService,
+    SubscriptionService,
   ],
   exports: [PlanFeaturePolicyService, PermissionsService],
 })
