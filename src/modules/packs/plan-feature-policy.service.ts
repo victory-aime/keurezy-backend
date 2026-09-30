@@ -12,6 +12,45 @@ export interface FeatureCapacityCheck {
   allowed: boolean;
 }
 
+/** Seuil (part de la limite consommée) à partir duquel une limite est « bientôt atteinte ». */
+export const NEAR_LIMIT_RATIO = 0.8;
+
+export type UsageState = 'OK' | 'NEAR_LIMIT' | 'REACHED' | 'UNLIMITED';
+
+/** Consommation d'une fonctionnalité limitée, telle qu'affichée sur la page abonnement. */
+export interface FeatureUsage {
+  feature: string;
+  used: number;
+  /** null = illimité */
+  limit: number | null;
+  remaining: number | null;
+  /** 0–100, plafonné à 100 ; null si illimité */
+  percentage: number | null;
+  state: UsageState;
+}
+
+/**
+ * Traduit un contrôle de capacité en consommation affichable. Part du même `checkCapacity` que
+ * l'enforcement : une jauge ne peut donc pas contredire un refus de création.
+ */
+export function toUsage(check: FeatureCapacityCheck): FeatureUsage {
+  const { feature, currentUsage: used, capacity: limit, remaining } = check;
+  if (limit === null) {
+    return { feature, used, limit, remaining: null, percentage: null, state: 'UNLIMITED' };
+  }
+  const ratio = limit === 0 ? 1 : used / limit;
+  const state: UsageState =
+    used >= limit ? 'REACHED' : ratio >= NEAR_LIMIT_RATIO ? 'NEAR_LIMIT' : 'OK';
+  return {
+    feature,
+    used,
+    limit,
+    remaining,
+    percentage: Math.min(100, Math.round(ratio * 100)),
+    state,
+  };
+}
+
 export interface PlanFeatureContext {
   planId: string;
   features: Map<
@@ -100,6 +139,11 @@ export class PlanFeaturePolicyService {
       this.prisma.batiment.count({ where: { agencyId } }),
     ]);
     return counts.reduce((total, count) => total + count, 0);
+  }
+
+  /** Annonces de l'agence, toutes confondues : c'est ce que compte la limite `publish_properties`. */
+  countAnnonces(agencyId: string): Promise<number> {
+    return this.prisma.annonce.count({ where: { property: { agencyId } } });
   }
 
   /** Places utilisateurs occupées : membres de l'équipe et invitations en attente encore valides. */

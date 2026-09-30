@@ -1,5 +1,6 @@
 import { PlanFeaturePolicyService } from './plan-feature-policy.service';
 import { HttpError } from '../../config/http.error';
+import { toUsage } from './plan-feature-policy.service';
 
 describe('PlanFeaturePolicyService', () => {
   const prisma = {
@@ -9,6 +10,7 @@ describe('PlanFeaturePolicyService', () => {
     batiment: { count: jest.fn() },
     staff: { count: jest.fn() },
     invitation: { count: jest.fn() },
+    annonce: { count: jest.fn() },
   };
   const service = new PlanFeaturePolicyService(prisma as never);
 
@@ -46,5 +48,54 @@ describe('PlanFeaturePolicyService', () => {
     const context = await service.getAgencyFeatureContext('A');
     expect(service.checkCapacity(context, 'f', 6).allowed).toBe(false);
     expect(service.checkCapacity(context, 'f', 5).allowed).toBe(true);
+  });
+
+  it("compte toutes les annonces des biens de l'agence (même compteur que la création)", async () => {
+    prisma.annonce.count.mockResolvedValue(4);
+    await expect(service.countAnnonces('A')).resolves.toBe(4);
+    expect(prisma.annonce.count).toHaveBeenCalledWith({ where: { property: { agencyId: 'A' } } });
+  });
+});
+
+describe('toUsage', () => {
+  const check = (currentUsage: number, capacity: number | null) => ({
+    feature: 'manage_users',
+    enabled: true,
+    capacity,
+    currentUsage,
+    remaining: capacity === null ? null : Math.max(capacity - currentUsage, 0),
+    allowed: capacity === null || currentUsage < capacity,
+  });
+
+  it('reste OK sous 80 %', () => {
+    expect(toUsage(check(79, 100))).toEqual({
+      feature: 'manage_users',
+      used: 79,
+      limit: 100,
+      remaining: 21,
+      percentage: 79,
+      state: 'OK',
+    });
+  });
+
+  it('signale NEAR_LIMIT dès 80 %', () => {
+    expect(toUsage(check(4, 5)).state).toBe('NEAR_LIMIT');
+  });
+
+  it('signale REACHED à la limite', () => {
+    expect(toUsage(check(5, 5))).toMatchObject({ remaining: 0, percentage: 100, state: 'REACHED' });
+  });
+
+  it('plafonne le pourcentage à 100 quand la consommation dépasse la limite', () => {
+    expect(toUsage(check(8, 1))).toMatchObject({ remaining: 0, percentage: 100, state: 'REACHED' });
+  });
+
+  it('renvoie UNLIMITED sans pourcentage pour une limite nulle', () => {
+    expect(toUsage(check(12, null))).toMatchObject({
+      limit: null,
+      remaining: null,
+      percentage: null,
+      state: 'UNLIMITED',
+    });
   });
 });

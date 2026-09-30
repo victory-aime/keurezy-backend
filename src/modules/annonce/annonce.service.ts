@@ -125,13 +125,7 @@ export class AnnounceService {
 
     const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId);
 
-    const currentProperties = await this.prisma.annonce.count({
-      where: {
-        property: {
-          agencyId: dto.agencyId,
-        },
-      },
-    });
+    const currentProperties = await this.planFeaturePolicy.countAnnonces(dto.agencyId);
 
     const check = this.planFeaturePolicy.checkCapacity(
       context,
