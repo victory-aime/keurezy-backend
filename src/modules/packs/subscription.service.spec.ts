@@ -183,3 +183,104 @@ describe('SubscriptionService.expireEndedPeriods', () => {
     expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('SubscriptionService : résilier, réactiver, impact', () => {
+  const prisma = {
+    subscription: { findUnique: jest.fn(), update: jest.fn() },
+    annonce: { count: jest.fn() },
+    staff: { count: jest.fn() },
+    booking: { count: jest.fn() },
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new SubscriptionService(prisma as never, agencyService as never, {} as never);
+  const end = new Date('2026-10-30T00:00:00Z');
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+  });
+
+  it('programme la résiliation à la fin de la période', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: end,
+    });
+    await expect(service.cancel('A', 'owner-1')).resolves.toEqual({
+      cancelAtPeriodEnd: true,
+      activeUntil: end,
+    });
+    expect(prisma.subscription.update).toHaveBeenCalledWith({
+      where: { agencyId: 'A' },
+      data: { cancelAtPeriodEnd: true, canceledAt: expect.any(Date) },
+    });
+  });
+
+  it('ne réécrit rien si la résiliation est déjà programmée', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: end,
+    });
+    await expect(service.cancel('A', 'owner-1')).resolves.toEqual({
+      cancelAtPeriodEnd: true,
+      activeUntil: end,
+    });
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('réactive un abonnement dont la résiliation est programmée', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: end,
+    });
+    await expect(service.resume('A', 'owner-1')).resolves.toEqual({
+      cancelAtPeriodEnd: false,
+      activeUntil: end,
+    });
+    expect(prisma.subscription.update).toHaveBeenCalledWith({
+      where: { agencyId: 'A' },
+      data: { cancelAtPeriodEnd: false, canceledAt: null },
+    });
+  });
+
+  it('refuse de réactiver sans paiement un abonnement déjà expiré', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'INACTIVE',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: end,
+    });
+    await expect(errorCodeOf(service.resume('A', 'owner-1'))).resolves.toBe('SUBSCRIPTION_EXPIRED');
+  });
+
+  it('répond SUBSCRIPTION_NOT_FOUND à une agence sans souscription', async () => {
+    prisma.subscription.findUnique.mockResolvedValue(null);
+    await expect(errorCodeOf(service.cancel('A', 'owner-1'))).resolves.toBe(
+      'SUBSCRIPTION_NOT_FOUND',
+    );
+  });
+
+  it('refuse le staff', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(errorCodeOf(service.cancel('A', 'staff-1'))).resolves.toBe('OWNER_ONLY');
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it("décrit l'impact de la résiliation", async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: end,
+    });
+    prisma.annonce.count.mockResolvedValue(4);
+    prisma.staff.count.mockResolvedValue(3);
+    prisma.booking.count.mockResolvedValue(2);
+    await expect(service.getCancelImpact('A', 'owner-1')).resolves.toEqual({
+      activeUntil: end,
+      annonces: { online: 4 },
+      members: { active: 3 },
+      bookings: { upcoming: 2 },
+    });
+  });
+});

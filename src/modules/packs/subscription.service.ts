@@ -5,7 +5,9 @@ import { HttpError } from '../../config/http.error';
 import { FeatureCommercial } from '../../config/enum';
 import { AgencyService } from '../agency/agency.service';
 import {
+  AnnonceStatus,
   BillingCycle,
+  BookingStatus,
   Plan,
   PlanCategory,
   SubscriptionStatus,
@@ -16,6 +18,7 @@ import {
   PlanFeaturePolicyService,
   toUsage,
 } from './plan-feature-policy.service';
+import { todayCalendarDate } from '../rentals/calendar-date';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -39,6 +42,24 @@ export interface PlanFeatureSummary {
   limit: number | null;
   /** false = proposée par un autre plan actif */
   included: boolean;
+}
+
+/** État de la résiliation après `cancel` ou `resume`. */
+export interface CancellationState {
+  cancelAtPeriodEnd: boolean;
+  /** Fin de la période en cours ; null si l'abonnement n'a pas d'échéance enregistrée */
+  activeUntil: Date | null;
+}
+
+/** Ce que la résiliation change à l'échéance. */
+export interface CancelImpact {
+  activeUntil: Date | null;
+  /** Annonces en ligne, masquées à l'échéance */
+  annonces: { online: number };
+  /** Membres actifs, qui passeront en lecture seule */
+  members: { active: number };
+  /** Réservations confirmées à venir, qui restent à honorer */
+  bookings: { upcoming: number };
 }
 
 export interface AgencySubscriptionOverview {
@@ -184,6 +205,80 @@ export class SubscriptionService {
     });
     if (count > 0) this.logger.log(`${count} abonnement(s) expiré(s)`);
     return count;
+  }
+
+  /**
+   * Résiliation en fin de période (owner) : rien ne change avant `currentPeriodEnd`, puis le job
+   * d'expiration passe l'abonnement INACTIVE. Idempotent.
+   */
+  async cancel(agencyId: string, userId: string): Promise<CancellationState> {
+    const subscription = await this.findRunningSubscription(agencyId, userId);
+    if (!subscription.cancelAtPeriodEnd) {
+      await this.prisma.subscription.update({
+        where: { agencyId },
+        data: { cancelAtPeriodEnd: true, canceledAt: new Date() },
+      });
+    }
+    return { cancelAtPeriodEnd: true, activeUntil: subscription.currentPeriodEnd };
+  }
+
+  /**
+   * Annule une résiliation programmée, sans paiement (owner). Après expiration, la réactivation
+   * passe par un nouveau paiement : `409 SUBSCRIPTION_EXPIRED`. Idempotent.
+   */
+  async resume(agencyId: string, userId: string): Promise<CancellationState> {
+    const subscription = await this.findRunningSubscription(agencyId, userId);
+    if (subscription.cancelAtPeriodEnd) {
+      await this.prisma.subscription.update({
+        where: { agencyId },
+        data: { cancelAtPeriodEnd: false, canceledAt: null },
+      });
+    }
+    return { cancelAtPeriodEnd: false, activeUntil: subscription.currentPeriodEnd };
+  }
+
+  /** Ce que la résiliation entraîne à l'échéance, affiché avant de confirmer (owner). */
+  async getCancelImpact(agencyId: string, userId: string): Promise<CancelImpact> {
+    const subscription = await this.findRunningSubscription(agencyId, userId);
+    const [online, active, upcoming] = await Promise.all([
+      this.prisma.annonce.count({
+        where: { status: AnnonceStatus.ACTIVE, property: { agencyId } },
+      }),
+      this.prisma.staff.count({ where: { agencyId, isActive: true } }),
+      this.prisma.booking.count({
+        where: { agencyId, status: BookingStatus.CONFIRMED, endDate: { gte: todayCalendarDate() } },
+      }),
+    ]);
+    return {
+      activeUntil: subscription.currentPeriodEnd,
+      annonces: { online },
+      members: { active },
+      bookings: { upcoming },
+    };
+  }
+
+  /** Souscription encore en cours de l'agence (owner) : 404 sans souscription, 409 si expirée. */
+  private async findRunningSubscription(agencyId: string, userId: string) {
+    await this.assertOwner(agencyId, userId);
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { agencyId },
+      select: { status: true, cancelAtPeriodEnd: true, currentPeriodEnd: true },
+    });
+    if (!subscription) {
+      throw new HttpError(
+        "Aucun abonnement n'est associé à cette agence",
+        HttpStatus.NOT_FOUND,
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+    }
+    if (subscription.status === SubscriptionStatus.INACTIVE) {
+      throw new HttpError(
+        'Cet abonnement a expiré : un nouveau paiement est nécessaire pour le réactiver',
+        HttpStatus.CONFLICT,
+        'SUBSCRIPTION_EXPIRED',
+      );
+    }
+    return subscription;
   }
 
   /** L'abonnement (montants compris) n'est visible et modifiable que par le propriétaire. */
