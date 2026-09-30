@@ -1,4 +1,5 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
 import { FeatureCommercial } from '../../config/enum';
@@ -53,6 +54,8 @@ export interface AgencySubscriptionOverview {
  */
 @Injectable()
 export class SubscriptionService {
+  private readonly logger = new Logger(SubscriptionService.name);
+
   /** Fonctionnalités limitées qui ont un compteur réel, dans l'ordre d'affichage. */
   private readonly counters: Record<string, (agencyId: string) => Promise<number>> = {
     [FeatureCommercial.PROPERTIES]: (agencyId) => this.policy.countPropertyAssets(agencyId),
@@ -156,6 +159,31 @@ export class SubscriptionService {
         included: context.features.has(f.name),
       })),
     };
+  }
+
+  /**
+   * Job horaire d'expiration, **désactivé tant que `SUBSCRIPTION_EXPIRY_ENABLED` ne vaut pas
+   * `true`** : sans renouvellement en ligne (module checkout), il bloquerait toutes les agences
+   * dont la première période est déjà terminée.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async runExpiryJob(): Promise<void> {
+    if (process.env.SUBSCRIPTION_EXPIRY_ENABLED !== 'true') return;
+    await this.expireEndedPeriods();
+  }
+
+  /**
+   * Un abonnement actif dont la période est terminée passe INACTIVE, qu'il ait été résilié ou
+   * simplement pas renouvelé. Idempotent. Effets : tableau de bord en lecture seule
+   * (`ActiveSubscriptionGuard`) et annonces masquées (`publicAnnonceWhere`).
+   */
+  async expireEndedPeriods(now = new Date()): Promise<number> {
+    const { count } = await this.prisma.subscription.updateMany({
+      where: { status: SubscriptionStatus.ACTIVE, currentPeriodEnd: { lt: now } },
+      data: { status: SubscriptionStatus.INACTIVE },
+    });
+    if (count > 0) this.logger.log(`${count} abonnement(s) expiré(s)`);
+    return count;
   }
 
   /** L'abonnement (montants compris) n'est visible et modifiable que par le propriétaire. */

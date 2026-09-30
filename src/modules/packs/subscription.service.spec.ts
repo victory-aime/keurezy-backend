@@ -160,3 +160,26 @@ describe('SubscriptionService.getOverview', () => {
     expect(overview.features.every((f) => !f.included)).toBe(true);
   });
 });
+
+describe('SubscriptionService.expireEndedPeriods', () => {
+  const prisma = { subscription: { updateMany: jest.fn() } };
+  const service = new SubscriptionService(prisma as never, {} as never, {} as never);
+
+  it('passe INACTIVE uniquement les abonnements actifs dont la période est échue', async () => {
+    const now = new Date('2026-10-30T10:00:00Z');
+    prisma.subscription.updateMany.mockResolvedValue({ count: 2 });
+
+    await expect(service.expireEndedPeriods(now)).resolves.toBe(2);
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', currentPeriodEnd: { lt: now } },
+      data: { status: 'INACTIVE' },
+    });
+  });
+
+  it("ne fait rien tant que SUBSCRIPTION_EXPIRY_ENABLED n'est pas activé", async () => {
+    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
+    prisma.subscription.updateMany.mockClear();
+    await service.runExpiryJob();
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+  });
+});

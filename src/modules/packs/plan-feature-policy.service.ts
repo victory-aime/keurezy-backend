@@ -107,7 +107,7 @@ export class PlanFeaturePolicyService {
       throw new NotFoundException('Aucun abonnement trouvé');
     }
 
-    // ponytail: l'expiration (currentPeriodEnd) n'est pas vérifiée tant que le renouvellement n'existe pas
+    // Une période échue passe INACTIVE par le job horaire de SubscriptionService
     if (subscription.status !== SubscriptionStatus.ACTIVE) {
       throw new HttpError(
         "L'abonnement de l'agence n'est pas actif",
