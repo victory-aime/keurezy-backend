@@ -9,6 +9,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { createValidationPipe } from './config/validation-pipe';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as process from 'node:process';
+import { IP_HEADERS, resolveClientIp } from './config/throttle';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -37,6 +38,8 @@ async function bootstrap() {
     'RESEND_CLIENT_EMAIL',
     'RESEND_API_KEY',
     'INVITATION_ENCRYPTION_KEY',
+    // Secret partagé avec le proxy Next : sans lui, les visiteurs web anonymes partagent un compteur
+    'INTERNAL_PROXY_SECRET',
     'COOKIE_DOMAIN',
   ];
 
@@ -48,8 +51,22 @@ async function bootstrap() {
   // Access Express instance
   const expressApp = app.getHttpAdapter().getInstance();
 
-  // Derrière le load balancer Render : req.ip / req.ips reflètent X-Forwarded-For
-  expressApp.set('trust proxy', true);
+  // Nombre de proxys de confiance devant le backend (load balancer Render…) : req.ip est lue
+  // dans X-Forwarded-For depuis la droite, jamais l'entrée la plus à gauche écrite par le client
+  expressApp.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
+
+  // IP cliente résolue une fois pour toutes (throttler, Better Auth) ; écrase toute valeur
+  // envoyée par le client. LOG_CLIENT_IP=true : calibrage temporaire de TRUST_PROXY_HOPS.
+  expressApp.use((req, _res, next) => {
+    const ip = resolveClientIp(req);
+    if (process.env.LOG_CLIENT_IP === 'true') {
+      console.info(`[client-ip] xff="${req.headers['x-forwarded-for'] ?? ''}" -> ${ip}`);
+    }
+    req.headers[IP_HEADERS.RESOLVED_IP] = ip;
+    delete req.headers[IP_HEADERS.CLIENT_IP];
+    delete req.headers[IP_HEADERS.PROXY_SECRET];
+    next();
+  });
 
   // Access BetterAuth instance from AuthService
   const authService = app.get<AuthService>(AuthService);

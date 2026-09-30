@@ -15,6 +15,8 @@ import { API_URL } from '../../config/api';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
 import { CreateInvitationDto } from './invitation.dto';
 import { RequirePermission } from '../../guard/permission.guard';
+import { Throttle } from '@nestjs/throttler';
+import { SENSITIVE_THROTTLE } from '../../config/throttle';
 
 @ApiTags('Invitation')
 @ApiBearerAuth()
@@ -52,6 +54,7 @@ export class InvitationController {
   }
 
   @Post(API_URL.INVITATION.ACCEPT_INVITE)
+  @Throttle(SENSITIVE_THROTTLE)
   @AllowAnonymous()
   @ApiOperation({ summary: 'Accepter une invitation via le token reçu par email' })
   @ApiQuery({ name: 'token', required: true, description: "Token d'invitation reçu par email" })

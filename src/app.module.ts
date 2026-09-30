@@ -10,6 +10,7 @@ import { PropertyModule } from './modules/property/property.module';
 import { BetterAuthModule } from './lib/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { SessionThrottlerGuard } from './guard/throttler.guard';
+import { THROTTLE } from './config/throttle';
 import { PermissionGuard } from './guard/permission.guard';
 import { PackModule } from './modules/packs/pack.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -52,14 +53,13 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
       envFilePath: [`.env.${process.env.NODE_ENV}`],
       isGlobal: true,
     }),
+    // Par utilisateur ou par IP : rafale courte et volume soutenu (voir config/throttle.ts)
     ThrottlerModule.forRoot({
       throttlers: [
-        {
-          // ttl en millisecondes (Throttler v6) : 100 requêtes / 10 s par utilisateur
-          ttl: 10_000,
-          limit: 100,
-        },
+        { name: 'burst', ...THROTTLE.burst },
+        { name: 'sustained', ...THROTTLE.sustained },
       ],
+      errorMessage: 'Trop de requêtes, réessayez dans un instant.',
     }),
     BetterAuthModule,
     AuthModule,

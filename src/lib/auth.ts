@@ -11,6 +11,7 @@ import { formatExpiresIn } from '../modules/mail/utils/getExpiresTime';
 import { PrismaClient } from '../../prisma/generated/client';
 import { customSession } from 'better-auth/plugins/custom-session';
 import { i18n } from '@better-auth/i18n';
+import { IP_HEADERS } from '../config/throttle';
 
 let authInstance: ReturnType<typeof createAuth> | null = null;
 
@@ -46,6 +47,21 @@ const createAuth = (prisma: PrismaClient) => {
             sameSite: 'none',
             httpOnly: true,
           },
+      // IP résolue par le middleware de main.ts (non falsifiable) : limites et sessions
+      ipAddress: { ipAddressHeaders: [IP_HEADERS.RESOLVED_IP] },
+    },
+    // Limiteur propre à Better Auth (/api/auth/* n'est pas couvert par le throttler Nest).
+    // Actif en production ; en plus des règles par défaut (connexion, inscription), les codes
+    // 2FA sont limités à 5 essais par minute et par IP.
+    rateLimit: {
+      window: 60,
+      max: 100,
+      customRules: {
+        '/two-factor/verify-totp': { window: 60, max: 5 },
+        '/two-factor/verify-backup-code': { window: 60, max: 5 },
+        '/two-factor/enable': { window: 60, max: 5 },
+        '/two-factor/disable': { window: 60, max: 5 },
+      },
     },
     appName: process.env.APP_NAME,
     baseURL: process.env.BETTER_AUTH_URL,

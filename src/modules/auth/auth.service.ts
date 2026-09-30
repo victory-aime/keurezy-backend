@@ -101,19 +101,13 @@ export class AuthService {
   }
 
   async sendVerificationEmail(data: ResendVerificationDto): Promise<{ message: string }> {
+    // Même réponse pour un compte inconnu, déjà vérifié ou non : ne rien révéler des inscrits
+    const neutral = { message: 'Si ce compte existe, un email a été envoyé.' };
     const user = await this.usersService.findUser({ email: data?.email });
-    if (!user) return { message: 'Si ce compte existe, un email a été envoyé.' };
-    if (user.emailVerified) throw new BadRequestException('Email déjà vérifié.');
+    if (!user || user.emailVerified) return neutral;
 
-    const auth = getAuthInstance();
-
-    await auth.api.sendVerificationEmail({
-      body: {
-        email: data?.email,
-      },
-    });
-
-    return { message: 'Email de vérification renvoyé.' };
+    await getAuthInstance().api.sendVerificationEmail({ body: { email: data?.email } });
+    return neutral;
   }
 
   async resendVerificationOtpEmail(data: ResendVerificationDto) {

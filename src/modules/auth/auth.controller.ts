@@ -18,6 +18,8 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { SENSITIVE_THROTTLE } from '../../config/throttle';
 
 @ApiTags('Auth')
 @Controller()
@@ -26,6 +28,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post(API_URL.AUTH.REGISTER)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Créer un compte utilisateur' })
   @ApiBody({ type: CreateUserDto })
@@ -36,6 +39,7 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.FORGOT_PASSWORD)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Demande de réinitialisation de mot de passe' })
   @ApiBody({ type: ForgotPasswordDto })
@@ -48,6 +52,7 @@ export class AuthController {
   // ─── Mot de passe oublié par code OTP (mobile) ─────────────────
 
   @Post(API_URL.AUTH.FORGOT_PASSWORD_OTP)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Envoyer un code de réinitialisation (mobile)',
@@ -61,6 +66,7 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.VERIFY_RESET_OTP)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Vérifier un code de réinitialisation sans le consommer (mobile)' })
   @ApiBody({ type: VerifyOtpDto })
@@ -71,6 +77,7 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.RESET_PASSWORD_OTP)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Définir un nouveau mot de passe avec le code (mobile)',
@@ -84,16 +91,17 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.SEND_VERIFICATION)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Renvoyer l'email de vérification" })
   @ApiBody({ type: ResendVerificationDto })
   @ApiOkResponse({ description: 'Email de vérification renvoyé avec succès' })
-  @ApiBadRequestResponse({ description: 'Email introuvable ou déjà vérifié' })
   async sendVerificationEmail(@Body() body: ResendVerificationDto) {
     return this.authService.sendVerificationEmail(body);
   }
 
   @Post(API_URL.AUTH.RESEND_VERIFICATION_OTP)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Renvoyer l'email OTP de vérification" })
   async resendVerificationOtpEmail(@Body() body: ResendVerificationDto) {
@@ -101,6 +109,7 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.VERIFY_OTP)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Verifier l'email OTP" })
   async verifyOtpEmail(@Body() body: VerifyOtpDto) {
@@ -108,6 +117,7 @@ export class AuthController {
   }
 
   @Post(API_URL.AUTH.RESET_PASSWORD)
+  @Throttle(SENSITIVE_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Réinitialiser le mot de passe' })
   @ApiBody({ type: ResetPasswordDto })

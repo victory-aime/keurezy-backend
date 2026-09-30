@@ -1,25 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { IP_HEADERS } from '../config/throttle';
 
 interface TrackedRequest {
   session?: { user?: { id?: string } };
-  ips?: string[];
+  headers: Record<string, string | string[] | undefined>;
   ip?: string;
 }
 
 /**
- * Limite le débit par utilisateur connecté plutôt que par IP.
- * Derrière le load balancer Render et le rewrite Next.js, de nombreux utilisateurs partagent
- * la même IP apparente : un suivi par IP seule les ferait tous tomber sous le même quota.
- * Les requêtes anonymes restent suivies par IP (X-Forwarded-For via `trust proxy`).
+ * Limite le débit par utilisateur connecté, sinon par IP cliente. Cette IP est résolue par le
+ * middleware de `main.ts` (`resolveClientIp`) : jamais l'entrée de X-Forwarded-For écrite par
+ * le client, qui permettrait de changer de compteur à chaque requête.
  */
 @Injectable()
 export class SessionThrottlerGuard extends ThrottlerGuard {
   protected getTracker(req: Record<string, any>): Promise<string> {
-    const { session, ips, ip } = req as TrackedRequest;
+    const { session, headers, ip } = req as TrackedRequest;
     const userId = session?.user?.id;
     if (userId) return Promise.resolve(`user:${userId}`);
 
-    return Promise.resolve(`ip:${ips?.length ? ips[0] : ip}`);
+    return Promise.resolve(`ip:${headers[IP_HEADERS.RESOLVED_IP] ?? ip}`);
   }
 }

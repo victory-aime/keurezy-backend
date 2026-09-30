@@ -3,6 +3,7 @@ const authApi = {
   checkVerificationOTP: jest.fn(),
   resetPasswordEmailOTP: jest.fn(),
   verifyEmailOTP: jest.fn(),
+  sendVerificationEmail: jest.fn(),
 };
 
 jest.mock('../../lib/auth', () => ({ getAuthInstance: () => ({ api: authApi }) }));
@@ -76,5 +77,23 @@ describe('AuthService — mot de passe oublié par code OTP', () => {
     expect(authApi.resetPasswordEmailOTP).toHaveBeenCalledWith({
       body: { email: 'awa@example.com', otp: '123456', password: 'NouveauMotDePasse2026' },
     });
+  });
+});
+
+describe('AuthService — renvoi du lien de vérification', () => {
+  const usersService = { findUser: jest.fn() };
+  const service = new AuthService(usersService as never, {} as never);
+
+  it('répond pareil pour un compte inconnu, déjà vérifié ou à vérifier', async () => {
+    const accounts = [null, { emailVerified: true }, { emailVerified: false }];
+    const messages: string[] = [];
+    for (const account of accounts) {
+      usersService.findUser.mockResolvedValue(account);
+      messages.push((await service.sendVerificationEmail({ email: 'awa@example.com' })).message);
+    }
+
+    expect(new Set(messages).size).toBe(1);
+    // Seul le compte existant non vérifié déclenche un envoi
+    expect(authApi.sendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 });

@@ -220,3 +220,18 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `twoFactor` n'a plus `skipVerificationOnEnable` : `two-factor/enable` renvoie le QR code et les codes de secours, mais la 2FA ne s'active qu'au premier code valide (`two-factor/verify-totp`). Un QR code mal scanné ne peut plus bloquer le compte.
 - La connexion par code de secours (`two-factor/verify-backup-code`, Better Auth) est désormais proposée par le web.
 - **Migration `10_two_factor_lockout`** (additive) : colonnes `twofactor.failedVerificationCount` (défaut 0) et `lockedUntil`, exigées par Better Auth 1.6.33 pour verrouiller la 2FA après trop de codes faux. Sans elle, l'activation de la 2FA échoue (`Unknown argument failedVerificationCount`) depuis la montée en 1.6.33 : à appliquer avant tout déploiement de cette version.
+
+## 26. Renvoi du lien de vérification sans énumération
+
+- `auth/send-verification` répond « Si ce compte existe, un email a été envoyé. » pour un compte inconnu, déjà vérifié ou à vérifier (auparavant un 400 « Email déjà vérifié » et un message de succès distinct révélaient les inscrits). Seul un compte non vérifié déclenche l'envoi.
+
+## 27. Limitation de débit non contournable
+
+- **Faille corrigée** : le throttler comptait par `req.ips[0]`, l'entrée de `X-Forwarded-For` écrite par le client. Changer cet en-tête à chaque requête donnait un nouveau compteur. L'IP cliente est désormais résolue une seule fois (`config/throttle.ts`, `resolveClientIp`) par un middleware de `main.ts`, qui écrase `x-keurezy-resolved-ip`, lu par le throttler et par Better Auth.
+- Limites par utilisateur connecté, sinon par IP : `burst` à 20 requêtes/s et `sustained` à 300/min, sur toutes les routes Nest. `@Throttle(SENSITIVE_THROTTLE)` à 5/min sur les routes publiques d'authentification (inscription, mot de passe oublié, OTP, vérification d'e-mail, réinitialisation) et sur `accept-invitation`. Réponse 429 en français.
+- Better Auth (`/api/auth/*`, hors du throttler Nest) : `ipAddressHeaders` sur l'IP résolue, et 5 essais par minute sur `two-factor/verify-totp`, `verify-backup-code`, `enable` et `disable`, en plus des règles par défaut.
+- **Variables d'environnement** (backend et web) :
+  - `INTERNAL_PROXY_SECRET` : secret partagé avec le proxy Next, **identique des deux côtés** (`openssl rand -hex 32`). Sans lui, les visiteurs web anonymes partagent le compteur de l'IP du serveur Next.
+  - `TRUST_PROXY_HOPS` (par défaut 1) : nombre de proxys de confiance devant le service.
+  - `LOG_CLIENT_IP=true` : journalise temporairement la chaîne `X-Forwarded-For` et l'IP retenue, pour calibrer `TRUST_PROXY_HOPS` en UAT. À retirer ensuite.
+- Hors code : une attaque DDoS volumétrique se traite en bordure (protection du fournisseur, WAF Cloudflare). Compteurs en mémoire : prévoir Redis au-delà d'une instance.
