@@ -215,27 +215,28 @@ model Client {
 // ─────────────────────────────────────────
 
 model Agency {
-  id               String         @id @default(uuid())
-  name             String         @unique
-  email            String         @unique
-  phone            String?        @unique
+  id               String               @id @default(uuid())
+  name             String               @unique
+  email            String               @unique
+  phone            String?              @unique
   address          String
   agencyLogo       String?
   description      String?
   documents        String[]
   acceptTerms      Boolean
-  isVerified       Boolean        @default(false)
-  status           AgencyStatus   @default(PENDING)
+  isVerified       Boolean              @default(false)
+  status           AgencyStatus         @default(PENDING)
   // Fermeture demandée par l'owner : exécutée par le cron à cette date, annulable d'ici là
   closeScheduledAt DateTime?
   // ownerId est une donnée dénormalisée (String simple, pas de FK Prisma)
   // La relation réelle passe par Owner.agencyId
-  ownerId          String         @unique // 1 agence = 1 owner
-  owner            Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId          String               @unique // 1 agence = 1 owner
+  owner            Owner                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   staff            Staff[]
   tenants          Tenant[]
   contracts        Contract[]
   subscriptions    Subscription[]
+  payments         PaymentTransaction[]
   tickets          Ticket[]
   transactions     Transaction[]
   reports          Report[]
@@ -267,6 +268,8 @@ model Land {
   address       String?
   landOwner     String?
   status        LandStatus      @default(AVAILABLE)
+  // false = désactivé par un downgrade : invisible au public, hors quota, non modifiable
+  isActive      Boolean         @default(true)
   paymentType   LandPaymentType @default(CASH)
   documents     String[]
 
@@ -294,6 +297,8 @@ model Batiment {
   buildingOwner String
   documents     String[]
   status        BatimentStatus @default(AVAILABLE)
+  // false = désactivé par un downgrade : invisible au public, hors quota, non modifiable
+  isActive      Boolean        @default(true)
   agencyId      String
   landId        String?
   land          Land?          @relation(fields: [landId], references: [id], onDelete: Cascade)
@@ -347,6 +352,8 @@ model Property {
   bathrooms      Int               @default(0)
   area           Float?
   status         PropertyStatus    @default(AVAILABLE)
+  // false = désactivé par un downgrade : invisible au public, hors quota, non modifiable
+  isActive       Boolean           @default(true)
   documents      String[]
   features       PropertyFeature[]
 
@@ -675,6 +682,15 @@ model Subscription {
   cancelAtPeriodEnd Boolean   @default(false)
   canceledAt        DateTime?
 
+  // ⏬ downgrade programmé, appliqué à currentPeriodEnd
+  scheduledPlanId       String?
+  scheduledBillingCycle BillingCycle?
+  // éléments gardés actifs par fonctionnalité limitée : { [feature]: string[] }
+  scheduledKeep         Json?
+
+  // dernier rappel de renouvellement envoyé pour la période (7, 3 ou 1 jour avant)
+  lastRenewalReminder Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -844,6 +860,9 @@ model PaymentTransaction {
   planId         String
   userId         String?
   status         PaymentStatus    @default(PENDING)
+  kind           PaymentKind      @default(ONBOARDING)
+  agencyId       String? // null pour une transaction d'onboarding non encore rattachée
+  agency         Agency?          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   raw_webhook    Json? // payload brut archivé pour audit
   confirmed_at   DateTime? // horodatage de la confirmation
   metadata       Json /**snapshot complet du DTO d'onboarding agence, plan, billingCycle, etc.) lu par le webhook pour finaliser la création*/
@@ -852,6 +871,7 @@ model PaymentTransaction {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
+  @@index([agencyId, createdAt])
   @@map("payment_transaction")
 }
 
@@ -1053,6 +1073,13 @@ enum MessageStatus {
 enum PushPlatform {
   MOBILE_EXPO // jeton Expo → service Expo Push → FCM / APNs
   WEB // jeton FCM du navigateur (Service Worker)
+}
+
+enum PaymentKind {
+  ONBOARDING // création de l'agence
+  RENEWAL // renouvellement de la période
+  UPGRADE // passage à un plan supérieur (différence au prorata)
+  REACTIVATION // nouvelle période après expiration
 }
 
 enum PaymentStatus {

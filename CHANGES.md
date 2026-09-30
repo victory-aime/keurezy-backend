@@ -279,3 +279,12 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Nouvelle route Better Auth `GET /api/auth/two-factor/status` (plugin `two-factor-status.plugin.ts`), accessible seulement avec le cookie signé du défi 2FA : fin du verrouillage (`TwoFactor.lockedUntil`), essais restants et recours (`self` pour un membre, `support` pour l'owner). Limitée à 30 requêtes par minute.
 - Le web affiche le décompte réel quel que soit l'appareil ou la page d'où revient l'utilisateur. À la fin du défi, il affiche « compte bloqué » avec la récupération (membre) ou le support (owner), et ferme la session en silence.
 - Le seuil de verrouillage est partagé (`TWO_FACTOR_MAX_FAILED_ATTEMPTS`).
+
+## 34. Abonnements : fondations de facturation
+
+- **Migration `13_subscription_billing`** (additive, appliquée en dev) :
+  - `payment_transaction.agencyId` (FK, index `agencyId, createdAt`) et `kind` (`ONBOARDING`, `RENEWAL`, `UPGRADE`, `REACTIVATION`). Les transactions d'onboarding existantes sont rattachées à leur agence via `metadata.agencyEmail`.
+  - `subscription.scheduledPlanId`, `scheduledBillingCycle`, `scheduledKeep` (downgrade programmé et éléments gardés actifs), `lastRenewalReminder`.
+  - `isActive` (défaut `true`) sur `property`, `terrains` et `batiment` : bien désactivé par un downgrade.
+- La migration de contraction de l'invitation (section 30) prendra le numéro `14`.
+- Spec : `keurezy-front/docs/subscription-ui/`.
