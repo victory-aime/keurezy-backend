@@ -22,6 +22,7 @@ import {
   MessagePayload,
   SendMessageDto,
 } from './chat.dto';
+import { publicAnnonceWhere } from '../annonce/public-annonce';
 
 const DEFAULT_MESSAGES_PAGE = 30;
 const DEFAULT_CONVERSATIONS_PAGE = 20;
@@ -131,7 +132,7 @@ export class ChatService {
     }
 
     const annonce = await this.prisma.annonce.findFirst({
-      where: { id: annonceId, status: AnnonceStatus.ACTIVE },
+      where: publicAnnonceWhere({ id: annonceId }),
       select: { property: { select: { id: true, agencyId: true } } },
     });
     if (!annonce) {

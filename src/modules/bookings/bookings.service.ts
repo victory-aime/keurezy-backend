@@ -21,6 +21,7 @@ import {
 } from '../rentals/calendar-date';
 import { AgencyBookingsQueryDto, CreateBookingDto } from './bookings.dto';
 import { DomainEventBus } from '../events/domain-events';
+import { publicAnnonceWhere } from '../annonce/public-annonce';
 
 const BOOKING_INCLUDE = {
   property: {
@@ -125,7 +126,7 @@ export class BookingsService {
     }
 
     const annonce = await this.prisma.annonce.findFirst({
-      where: { id: dto.annonceId, status: AnnonceStatus.ACTIVE },
+      where: publicAnnonceWhere({ id: dto.annonceId }),
       select: { property: { select: { id: true, title: true, agencyId: true } } },
     });
     if (!annonce) {

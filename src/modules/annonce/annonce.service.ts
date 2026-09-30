@@ -5,6 +5,7 @@ import { AnnonceStatus, PropertyType } from '../../../prisma/generated/enums';
 import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
+import { publicAnnonceWhere } from './public-annonce';
 import { HttpError } from '../../config/http.error';
 import {
   AnnonceAvailabilityDto,
@@ -242,12 +243,9 @@ export class AnnounceService {
       };
     }
 
-    const filterOptions: Prisma.AnnonceWhereInput = {
-      status: 'ACTIVE',
-      ...(Object.keys(propertyFilter).length > 0 && {
-        property: propertyFilter,
-      }),
-    };
+    const filterOptions = publicAnnonceWhere(
+      Object.keys(propertyFilter).length > 0 ? { property: propertyFilter } : {},
+    );
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.annonce.findMany({
@@ -276,7 +274,7 @@ export class AnnounceService {
   // 2b. DETAIL PUBLIC
   async findPublicAnnonce(id: string) {
     const annonce = await this.prisma.annonce.findFirst({
-      where: { id, status: AnnonceStatus.ACTIVE },
+      where: publicAnnonceWhere({ id }),
       include: {
         ...PUBLIC_ANNONCE_INCLUDE,
         property: {
@@ -315,7 +313,7 @@ export class AnnounceService {
   /** Bien d'une annonce publiée ; seules les annonces actives sont réservables. */
   private async findPublicPropertyId(annonceId: string): Promise<string> {
     const annonce = await this.prisma.annonce.findFirst({
-      where: { id: annonceId, status: AnnonceStatus.ACTIVE },
+      where: publicAnnonceWhere({ id: annonceId }),
       select: { propertyId: true },
     });
 
