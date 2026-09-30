@@ -190,36 +190,38 @@ model Client {
 // ─────────────────────────────────────────
 
 model Agency {
-  id            String         @id @default(uuid())
-  name          String         @unique
-  email         String         @unique
-  phone         String?        @unique
-  address       String
-  agencyLogo    String?
-  description   String?
-  documents     String[]
-  acceptTerms   Boolean
-  isVerified    Boolean        @default(false)
-  status        AgencyStatus   @default(PENDING)
+  id               String         @id @default(uuid())
+  name             String         @unique
+  email            String         @unique
+  phone            String?        @unique
+  address          String
+  agencyLogo       String?
+  description      String?
+  documents        String[]
+  acceptTerms      Boolean
+  isVerified       Boolean        @default(false)
+  status           AgencyStatus   @default(PENDING)
+  // Fermeture demandée par l'owner : exécutée par le cron à cette date, annulable d'ici là
+  closeScheduledAt DateTime?
   // ownerId est une donnée dénormalisée (String simple, pas de FK Prisma)
   // La relation réelle passe par Owner.agencyId
-  ownerId       String         @unique // 1 agence = 1 owner
-  owner         Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  staff         Staff[]
-  tenants       Tenant[]
-  contracts     Contract[]
-  subscriptions Subscription[]
-  tickets       Ticket[]
-  transactions  Transaction[]
-  reports       Report[]
-  visits        Visit[]
-  lands         Land[]
-  batiment      Batiment[]
-  villas        Villa[]
-  properties    Property[]
-  invitations   Invitation[]
-  bookings      Booking[]
-  conversations Conversation[]
+  ownerId          String         @unique // 1 agence = 1 owner
+  owner            Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  staff            Staff[]
+  tenants          Tenant[]
+  contracts        Contract[]
+  subscriptions    Subscription[]
+  tickets          Ticket[]
+  transactions     Transaction[]
+  reports          Report[]
+  visits           Visit[]
+  lands            Land[]
+  batiment         Batiment[]
+  villas           Villa[]
+  properties       Property[]
+  invitations      Invitation[]
+  bookings         Booking[]
+  conversations    Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

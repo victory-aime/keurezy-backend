@@ -5,7 +5,7 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
+import { AgencyStatus, AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
 import { computeImpact, PropertyImpact } from './property-impact';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
@@ -70,7 +70,8 @@ export class PropertyService {
 
   async getAllPublicProperties() {
     return this.prisma.property.findMany({
-      where: { status: 'AVAILABLE' },
+      // Une agence fermée ne publie plus rien (les agences PENDING restent visibles, comme avant)
+      where: { status: 'AVAILABLE', agency: { status: { not: AgencyStatus.CLOSE } } },
       include: {
         agency: {
           select: {

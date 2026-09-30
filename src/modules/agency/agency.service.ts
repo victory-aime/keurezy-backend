@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpStatus,
   Injectable,
+  Logger,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
+  AnnonceStatus,
+  BookingStatus,
   PricingType,
   PropertyStatus,
   Role,
@@ -23,9 +26,16 @@ import { UsersService } from '../users/users.service';
 import { PaymentService } from '../payments/services/payment.service';
 import { HttpError } from '../../config/http.error';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { todayCalendarDate } from '../rentals/calendar-date';
+import { Cron, CronExpression } from '@nestjs/schedule';
+
+/** Délai de grâce entre la demande de fermeture et la fermeture effective. */
+export const AGENCY_CLOSE_DELAY_DAYS = 15;
 
 @Injectable()
 export class AgencyService {
+  private readonly logger = new Logger(AgencyService.name);
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly userService: UsersService,
@@ -267,15 +277,94 @@ export class AgencyService {
   // FERMETURE
   // ─────────────────────────────────────────
 
-  async closeAgency(data: { agencyId: string; userId: string }) {
-    const agency = await this.findAgency(data.agencyId, data.userId);
+  /**
+   * Ce que la fermeture de l'agence entraîne (owner uniquement), affiché avant `agency/close` :
+   * membres qui perdent l'accès, biens retirés de la liste publique, réservations à honorer,
+   * abonnement arrêté. Lecture seule.
+   */
+  async getCloseImpact(agencyId: string, userId: string) {
+    const agency = await this.findOwnedAgency(agencyId, userId);
 
-    const owner = await this.prismaService.owner.findUnique({
-      where: { id: data.userId },
+    const [activeMembers, properties, online, upcoming, pending, subscription] = await Promise.all([
+      this.prismaService.staff.count({ where: { agencyId, isActive: true } }),
+      this.prismaService.property.count({ where: { agencyId } }),
+      this.prismaService.property.count({
+        where: { agencyId, annonces: { some: { status: AnnonceStatus.ACTIVE } } },
+      }),
+      this.prismaService.booking.count({
+        where: { agencyId, status: BookingStatus.CONFIRMED, endDate: { gte: todayCalendarDate() } },
+      }),
+      this.prismaService.booking.count({ where: { agencyId, status: BookingStatus.PENDING } }),
+      this.prismaService.subscription.findUnique({
+        where: { agencyId },
+        select: { currentPeriodEnd: true, plan: { select: { name: true } } },
+      }),
+    ]);
+
+    return {
+      members: { active: activeMembers },
+      properties: { total: properties, online },
+      bookings: { upcoming, pending },
+      subscription: subscription
+        ? { plan: subscription.plan.name, currentPeriodEnd: subscription.currentPeriodEnd }
+        : null,
+      closeScheduledAt: agency.closeScheduledAt,
+      closeDelayDays: AGENCY_CLOSE_DELAY_DAYS,
+    };
+  }
+
+  /**
+   * Programme la fermeture de l'agence (owner uniquement) dans AGENCY_CLOSE_DELAY_DAYS jours.
+   * Rien ne change d'ici là : l'agence fonctionne, et l'owner peut annuler. Idempotent : une
+   * fermeture déjà programmée garde sa date.
+   */
+  async scheduleClose(data: { agencyId: string; userId: string }) {
+    const agency = await this.findOwnedAgency(data.agencyId, data.userId);
+    if (agency.closeScheduledAt) return { closeScheduledAt: agency.closeScheduledAt };
+
+    const closeScheduledAt = new Date(Date.now() + AGENCY_CLOSE_DELAY_DAYS * 86_400_000);
+    await this.prismaService.agency.update({
+      where: { id: agency.id },
+      data: { closeScheduledAt },
     });
-    if (!owner) {
-      throw new BadRequestException('Owner introuvable.');
+    return { closeScheduledAt };
+  }
+
+  /** Annule une fermeture programmée (owner uniquement). */
+  async cancelScheduledClose(data: { agencyId: string; userId: string }) {
+    const agency = await this.findOwnedAgency(data.agencyId, data.userId);
+    await this.prismaService.agency.update({
+      where: { id: agency.id },
+      data: { closeScheduledAt: null },
+    });
+    return { message: 'La fermeture de l’agence est annulée.' };
+  }
+
+  /** Chaque nuit : exécute les fermetures arrivées à échéance. */
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async runScheduledClosures() {
+    const due = await this.prismaService.agency.findMany({
+      where: { closeScheduledAt: { lte: new Date() }, status: { not: AgencyStatus.CLOSE } },
+      select: { id: true },
+    });
+    for (const { id } of due) {
+      await this.executeClose(id).catch((error: unknown) =>
+        this.logger.error(`Fermeture de l'agence ${id} échouée`, error as Error),
+      );
     }
+  }
+
+  /**
+   * Fermeture effective : agence CLOSE, owner rétrogradé, membres désactivés, toutes les
+   * sessions fermées, abonnement arrêté. Appelée par le cron, jamais directement par une route.
+   */
+  async executeClose(agencyId: string) {
+    const agency = await this.prismaService.agency.findUnique({
+      where: { id: agencyId },
+      select: { id: true, owner: { select: { userId: true } } },
+    });
+    if (!agency) return;
+    const ownerUserId = agency.owner.userId;
 
     await this.prismaService.$transaction(async (tx) => {
       await tx.agency.update({
@@ -283,15 +372,42 @@ export class AgencyService {
         data: { status: AgencyStatus.CLOSE },
       });
       await tx.user.update({
-        where: { id: owner.userId },
+        where: { id: ownerUserId },
         data: { role: Role.USER },
       });
-      // Annuler l'abonnement actif
-      await tx.subscription.update({
+      // Les membres perdent l'accès avec l'agence : comptes désactivés, sessions fermées
+      const members = await tx.staff.findMany({
+        where: { agencyId: agency.id },
+        select: { userId: true },
+      });
+      const memberIds = members.map((m) => m.userId);
+      await tx.staff.updateMany({ where: { agencyId: agency.id }, data: { isActive: false } });
+      await tx.user.updateMany({ where: { id: { in: memberIds } }, data: { status: 'INACTIVE' } });
+      await tx.session.deleteMany({ where: { userId: { in: [...memberIds, ownerUserId] } } });
+      // Arrêter l'abonnement
+      await tx.subscription.updateMany({
         where: { agencyId: agency.id },
         data: { status: SubscriptionStatus.INACTIVE },
       });
     });
+  }
+
+  /** Agence de l'owner connecté ; refuse un membre du staff (`OWNER_ONLY`). */
+  private async findOwnedAgency(agencyId: string, userId: string) {
+    const actor = await this.agencyAccessControl(agencyId, userId);
+    if (actor.type !== 'OWNER') {
+      throw new HttpError(
+        "Seul le propriétaire de l'agence peut la fermer",
+        HttpStatus.FORBIDDEN,
+        'OWNER_ONLY',
+      );
+    }
+    const agency = await this.prismaService.agency.findUnique({
+      where: { id: agencyId },
+      select: { id: true, closeScheduledAt: true },
+    });
+    if (!agency) throw new NotFoundException('Agency not found');
+    return agency;
   }
 
   // ─────────────────────────────────────────

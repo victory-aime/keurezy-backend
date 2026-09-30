@@ -131,3 +131,33 @@ describe('VisitsService.getVisitsByAgency — période', () => {
     );
   });
 });
+
+describe('VisitsService.cancelVisit — destinataires', () => {
+  const prisma = { visit: { findUnique: jest.fn(), update: jest.fn() } };
+  const notifications = { createNotification: jest.fn() };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new VisitsService(
+    prisma as never,
+    notifications as never,
+    agencyService as never,
+  );
+
+  it("notifie le compte utilisateur de l'agent, pas son identifiant Staff", async () => {
+    prisma.visit.findUnique.mockResolvedValue({
+      id: 'visit-1',
+      agencyId: 'A',
+      status: VisitStatus.PLANNED,
+      agentId: 'staff-7',
+      agent: { userId: 'user-of-staff-7' },
+      client: { user: { id: 'client-user' } },
+      property: { title: 'Villa' },
+      agency: { owner: { userId: 'owner-user' } },
+    });
+
+    await service.cancelVisit('visit-1', 'owner-1');
+
+    const { recipients } = notifications.createNotification.mock.calls[0][0];
+    expect(recipients).toEqual(['client-user', 'owner-user', 'user-of-staff-7']);
+    expect(recipients).not.toContain('staff-7');
+  });
+});

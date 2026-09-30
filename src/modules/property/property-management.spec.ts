@@ -202,3 +202,19 @@ describe('PropertyService.getMonthlyRevenue', () => {
     );
   });
 });
+
+describe('PropertyService.getAllPublicProperties', () => {
+  const prisma = { property: { findMany: jest.fn() } };
+  const service = new PropertyService(prisma as never, {} as never, {} as never, {} as never);
+
+  it("n'affiche pas les biens d'une agence fermée", async () => {
+    prisma.property.findMany.mockResolvedValue([]);
+
+    await service.getAllPublicProperties();
+
+    expect(prisma.property.findMany.mock.calls[0][0].where).toEqual({
+      status: 'AVAILABLE',
+      agency: { status: { not: 'CLOSE' } },
+    });
+  });
+});

@@ -9,6 +9,7 @@ describe('TeamService.enableOrDisabledAccount', () => {
   const prisma = {
     staff: { findFirst: jest.fn(), update: jest.fn() },
     user: { update: jest.fn() },
+    session: { deleteMany: jest.fn() },
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
@@ -49,6 +50,18 @@ describe('TeamService.enableOrDisabledAccount', () => {
       expect.objectContaining({ where: { id: 'user-of-staff-2' } }),
     );
     expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('ferme les sessions à la désactivation, pas à la réactivation', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({ id: 'staff-2', userId: 'user-2' });
+
+    await service.enableOrDisabledAccount({ status: false, id: 'staff-2' }, 'agency-A', 'owner-1');
+    expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-2' } });
+
+    prisma.session.deleteMany.mockClear();
+    await service.enableOrDisabledAccount({ status: true, id: 'staff-2' }, 'agency-A', 'owner-1');
+    expect(prisma.session.deleteMany).not.toHaveBeenCalled();
   });
 });
 

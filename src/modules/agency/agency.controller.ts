@@ -153,19 +153,37 @@ export class AgencyController {
     );
   }
 
+  @Get(API_URL.AGENCY.CLOSE_IMPACT)
+  @ApiOperation({ summary: "Impact de la fermeture de l'agence (propriétaire uniquement)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: 'Membres, biens, réservations et abonnement concernés' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
+  async closeImpact(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.agencyService.getCloseImpact(agencyId, userId);
+  }
+
   @Post(API_URL.AGENCY.CLOSE_AGENCY)
-  @ApiOperation({ summary: 'Fermer une agence' })
-  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence à fermer" })
-  @ApiQuery({
-    name: 'ownerId',
-    required: true,
-    description: "Identifiant du propriétaire de l'agence",
+  @ApiOperation({
+    summary: "Programmer la fermeture de l'agence (propriétaire uniquement)",
+    description:
+      'La fermeture est effective après le délai de grâce (15 jours), exécutée par un cron ; annulable d’ici là.',
   })
-  @ApiOkResponse({ description: 'Agence fermée avec succès' })
-  @ApiBadRequestResponse({ description: 'Agence introuvable ou erreur serveur' })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence à fermer" })
+  @ApiOkResponse({ description: 'Date de fermeture programmée' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
   async closeAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
-    return this.agencyService.closeAgency({ agencyId, userId });
+    return this.agencyService.scheduleClose({ agencyId, userId });
+  }
+
+  @Post(API_URL.AGENCY.CANCEL_CLOSE)
+  @ApiOperation({
+    summary: "Annuler la fermeture programmée de l'agence (propriétaire uniquement)",
+  })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: 'Fermeture annulée' })
+  @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
+  async cancelClose(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.agencyService.cancelScheduledClose({ agencyId, userId });
   }
 
   @AllowAnonymous()

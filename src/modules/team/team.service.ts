@@ -87,6 +87,10 @@ export class TeamService {
         where: { id: member.id },
         data: { isActive: data.status },
       }),
+      // Désactivation : déconnexion immédiate, comme pour un retrait
+      ...(data.status
+        ? []
+        : [this.prisma.session.deleteMany({ where: { userId: member.userId } })]),
     ]);
     return {
       message: `Le compte a été ${data.status ? 'activé' : 'désactivé'} avec succès.`,

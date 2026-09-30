@@ -235,3 +235,15 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - `TRUST_PROXY_HOPS` (par défaut 1) : nombre de proxys de confiance devant le service.
   - `LOG_CLIENT_IP=true` : journalise temporairement la chaîne `X-Forwarded-For` et l'IP retenue, pour calibrer `TRUST_PROXY_HOPS` en UAT. À retirer ensuite.
 - Hors code : une attaque DDoS volumétrique se traite en bordure (protection du fournisseur, WAF Cloudflare). Compteurs en mémoire : prévoir Redis au-delà d'une instance.
+
+## 28. Actions destructrices : intégrité et impact de la fermeture d'agence
+
+- `visits/cancel` notifie désormais le **compte** de l'agent (`agent.userId`). Il recevait un identifiant Staff et n'était jamais notifié.
+- `team/change-status` : désactiver un membre ferme aussi ses sessions (déconnexion immédiate, comme un retrait).
+- **Fermeture d'agence différée (15 jours)** : `POST agency/close` **programme** la fermeture (`Agency.closeScheduledAt`, migration additive `11_agency_close_schedule`) au lieu de fermer tout de suite. `POST agency/cancel-close` l'annule. Un cron quotidien (2 h) exécute les fermetures échues : agence CLOSE, owner rétrogradé, membres désactivés (`Staff.isActive`, `User.status`), toutes les sessions fermées, abonnement arrêté. Le délai se règle par `AGENCY_CLOSE_DELAY_DAYS`.
+- `GET unsecured/property` exclut les biens des agences fermées (CLOSE). Les agences en attente (PENDING) restent visibles, comme avant.
+- `GET agency/close-impact?agencyId` (owner, `OWNER_ONLY` sinon) : membres actifs, biens (total et en ligne), réservations confirmées à venir et en attente, abonnement (plan, fin de période). Affiché avant la fermeture.
+
+## 29. Connexion refusée aux comptes désactivés
+
+- Hook Better Auth `databaseHooks.session.create.before` : aucune session n'est créée pour un compte dont `User.status` n'est pas `ACTIVE` (membre désactivé ou retiré, agence fermée, compte banni). Erreur 403 `ACCOUNT_DISABLED`. Couvre mot de passe, passkey, 2FA et mobile. Auparavant, un membre désactivé pouvait se reconnecter et naviguer, et seules les routes métier lui refusaient l'accès.

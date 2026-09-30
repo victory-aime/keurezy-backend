@@ -464,6 +464,8 @@ export class VisitsService {
         include: {
           client: { include: { user: true } },
           property: true,
+          // agentId est un Staff.id : la notification s'adresse à son compte utilisateur
+          agent: { select: { userId: true } },
           agency: {
             include: {
               owner: true,
@@ -504,7 +506,7 @@ export class VisitsService {
       const recipients = [
         visit.client?.user?.id,
         visit.agency?.owner?.userId,
-        visit.agentId,
+        visit.agent?.userId,
       ].filter((id): id is string => Boolean(id));
 
       if (recipients.length) {
