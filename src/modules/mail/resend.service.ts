@@ -75,6 +75,11 @@ export class ResendService {
     const { to, template, variables, subject, replyTo, tags } = options;
     const recipients = Array.isArray(to) ? to : [to];
     const templateId = EMAIL_TEMPLATE_RUNTIME_ID[template];
+    // Modèle pas encore créé dans Resend : l'action métier continue, l'envoi est ignoré
+    if (!templateId) {
+      this.logger.warn(`Modèle Resend ${template} non configuré : e-mail ignoré`);
+      return null as unknown as EmailResult;
+    }
 
     this.logger.log(`Variables [${variables}]`);
     this.logger.log(`Sending [${template}] → ${recipients.join(', ')}`);
@@ -145,6 +150,7 @@ export class ResendService {
         USERNAME: username,
         USER_EMAIL: email,
         AGENCY_NAME: agencyName,
+        APP_NAME: process.env.APP_NAME,
       },
     });
   }
@@ -174,12 +180,17 @@ export class ResendService {
   async sendVerificationOTP(
     to: string,
     otp: string,
-    purpose: 'email-verification' | 'forget-password' | 'invitation' = 'email-verification',
+    purpose:
+      | 'email-verification'
+      | 'forget-password'
+      | 'invitation'
+      | 'account-recovery' = 'email-verification',
   ): Promise<EmailResult> {
     const subject = {
       'forget-password': 'Code de réinitialisation de votre mot de passe',
       'email-verification': 'Code de vérification de votre adresse email',
       invitation: 'Code de confirmation de votre invitation',
+      'account-recovery': 'Code de récupération de votre compte',
     }[purpose];
 
     return this.sendTemplateEmail({
@@ -192,6 +203,90 @@ export class ResendService {
         // Durée identique à la configuration emailOTP de Better Auth
         EXPIRE_TIME: formatExpiresIn(OTP_SETTINGS.expiresIn),
         OTP: otp,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
+  /** Demande de récupération enregistrée : date d'exécution et lien d'annulation. */
+  async sendAccountRecoveryRequested(p: {
+    sendTo: string;
+    username: string;
+    executeAt: string;
+    cancelLink: string;
+  }) {
+    const subject = 'Demande de récupération de votre compte';
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.ACCOUNT_RECOVERY_REQUESTED,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: p.username,
+        EXECUTE_AT: p.executeAt,
+        CANCEL_LINK: p.cancelLink,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
+  /** Récupération exécutée : 2FA désactivée, à reconfigurer. */
+  async sendAccountRecoveryCompleted(p: { sendTo: string; username: string; loginLink: string }) {
+    const subject = 'Double authentification désactivée sur votre compte';
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.ACCOUNT_RECOVERY_COMPLETED,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: p.username,
+        LOGIN_LINK: p.loginLink,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
+  /** L'owner a réinitialisé la 2FA d'un membre. */
+  async sendTwoFactorReset(p: {
+    sendTo: string;
+    username: string;
+    agencyName: string;
+    loginLink: string;
+  }) {
+    const subject = 'Votre double authentification a été réinitialisée';
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.TWO_FACTOR_RESET,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: p.username,
+        AGENCY_NAME: p.agencyName,
+        LOGIN_LINK: p.loginLink,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
+  /** Fermeture de l'agence programmée : date et lien pour l'annuler. */
+  async sendAgencyCloseScheduled(p: {
+    sendTo: string;
+    username: string;
+    agencyName: string;
+    closeDate: string;
+    cancelLink: string;
+  }) {
+    const subject = `Fermeture de ${p.agencyName} programmée`;
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.AGENCY_CLOSE_SCHEDULED,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: p.username,
+        AGENCY_NAME: p.agencyName,
+        CLOSE_DATE: p.closeDate,
+        CANCEL_LINK: p.cancelLink,
         APP_NAME: process.env.APP_NAME,
       },
     });

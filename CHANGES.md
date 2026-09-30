@@ -253,5 +253,23 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `GET unsecured/invite/preview?token` : aperçu **en lecture seule** (agence, qui invite, rôle, permissions, e-mail masqué, expiration). L'ouverture du lien ne consomme plus l'invitation. Auparavant, l'acceptation partait au chargement de la page : un double appel (StrictMode) ou un scanner de liens (Outlook, Gmail) la consommait avant l'invité.
 - `POST unsecured/invite/send-code { token }` : code à 6 chiffres, envoyé à l'adresse invitée (modèle OTP, objet « Code de confirmation de votre invitation »). Il est stocké **haché** dans `verification` (`invitation-<id>`) : validité `OTP_SETTINGS`, délai de renvoi, 5 essais.
 - `POST unsecured/invite/accept-invitation { token, code, password }` (**nouveau contrat**, web livré en même temps) : l'invité choisit son mot de passe. En une transaction : compte créé avec `emailVerified = true` (plus d'e-mail de vérification) ou ancien membre réactivé (même `userId`), Staff, permissions encore dans le plan, invitation ACCEPTED. La réponse ne contient que l'e-mail, **jamais de mot de passe** (auparavant renvoyé en clair).
-- **Plus de mot de passe temporaire** : ni généré (il l'était côté navigateur), ni stocké, ni envoyé par e-mail. `Invitation.temporaryPassword` n'est plus écrit (expand). La migration de contraction `12_drop_invitation_temp_password` suivra.
+- **Plus de mot de passe temporaire** : ni généré (il l'était côté navigateur), ni stocké, ni envoyé par e-mail. `Invitation.temporaryPassword` n'est plus écrit (expand). La migration de contraction `13_drop_invitation_temp_password` suivra.
 - Modèle Resend de l'invitation : la variable `USER_PASSWORD` n'est plus envoyée ; le texte du modèle est à mettre à jour (action manuelle).
+
+## 31. Récupération de compte (2FA perdue) et prévention
+
+- **Migration `12_account_recovery`** (additive, appliquée en dev) : table `account_recovery_request` (`status` PENDING, CANCELLED ou COMPLETED, `executeAt`, empreinte du jeton d'annulation).
+- **Récupération en libre-service** (`POST unsecured/auth/two-factor-recovery/request`, `confirm`, `cancel`) : mot de passe vérifié côté serveur, puis code envoyé à l'e-mail du compte (haché, 5 essais, délai de renvoi), puis désactivation de la 2FA programmée dans **72 h**. Annulation par le lien de l'e-mail (jeton haché, usage unique) ou par **toute connexion réussie** (hook `session.create.after`). Un cron horaire exécute les demandes échues : 2FA supprimée, sessions fermées, e-mail de confirmation.
+- **`POST team/reset-two-factor`** (owner uniquement) : réinitialise la 2FA d'un membre (configuration supprimée, sessions fermées) et le prévient par e-mail. La liste de l'équipe expose `twoFactorEnabled`.
+- **`GET users/backup-codes/remaining`** : nombre de codes de secours restants (jamais les codes).
+- **E-mail à l'owner quand la fermeture de son agence est programmée.**
+- Codes à usage unique mutualisés (`config/one-time-code.ts`) entre l'invitation et la récupération.
+- `ResendService.sendTemplateEmail` ignore un modèle non configuré (avertissement), sans interrompre l'action.
+- **Modèles Resend** (texte et variables) dans `src/modules/mail/templates/*.md`, avec l'inventaire dans `README.md`. Variables d'environnement à renseigner : `RESEND_TEMPLATE_ACCOUNT_RECOVERY_REQUESTED_ID`, `RESEND_TEMPLATE_ACCOUNT_RECOVERY_COMPLETED_ID`, `RESEND_TEMPLATE_TWO_FACTOR_RESET_ID`, `RESEND_TEMPLATE_AGENCY_CLOSE_SCHEDULED_ID`, `RESEND_TEMPLATE_BOOKING_STATUS_ID`.
+
+## 32. Codes à usage unique robustes, modèles HTML Resend
+
+- **Consommation atomique des codes** (`consumeOneTimeCode`) : deux vérifications simultanées du même code (double envoi du formulaire) provoquaient une erreur 500 (`verification.delete` sans enregistrement). Désormais, une seule consomme le code, et l'autre reçoit `*_CODE_EXPIRED`.
+- **2FA** : verrouillage du compte après 5 codes faux consécutifs, pendant 15 min (`accountLockout`), aligné sur les 5 essais par connexion de Better Auth et en plus de la limite par IP.
+- **Modèles Resend en HTML** prêts à coller, dans `src/modules/mail/templates/*.html` (10 modèles, variables vérifiées contre le code). L'invitation envoie aussi `APP_NAME`.
+- **Suppression** de `otp.hbs`, de `CompileTemplateService` (inutilisé), de `invoice.pdf` (inutilisé) et de la dépendance `handlebars`. Tous les e-mails passent par Resend.

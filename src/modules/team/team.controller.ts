@@ -95,6 +95,21 @@ export class TeamController {
     return this.teamService.removeMember(id, agencyId, ownerId);
   }
 
+  @Post(API_URL.TEAM.RESET_TWO_FACTOR)
+  @ApiOperation({
+    summary: "Réinitialiser la double authentification d'un membre (owner uniquement)",
+  })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'id', required: true, description: 'Identifiant du membre (Staff)' })
+  @ApiOkResponse({ description: '2FA supprimée, sessions fermées, membre prévenu par e-mail' })
+  async resetTwoFactor(
+    @Query('id') id: string,
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() ownerId: string,
+  ) {
+    return this.teamService.resetMemberTwoFactor(id, agencyId, ownerId);
+  }
+
   @Get(API_URL.TEAM.MEMBER_IMPACT)
   @ApiOperation({ summary: "Ce que le retrait d'un membre entraîne (owner uniquement)" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })

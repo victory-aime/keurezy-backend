@@ -7,9 +7,10 @@ import { DatabaseModule } from '../../database/database.module';
 import { UsersModule } from '../users/users.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { EmailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [UsersModule, DatabaseModule, CloudinaryModule, PaymentsModule],
+  imports: [UsersModule, DatabaseModule, CloudinaryModule, PaymentsModule, EmailModule],
   controllers: [AgencyController, AdminAgencyController],
   providers: [AgencyService, AgencyAdminService],
   exports: [AgencyService],

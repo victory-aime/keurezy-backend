@@ -37,6 +37,15 @@ export class UsersController {
     return this.userService.userInfo(userId);
   }
 
+  @Get(API_URL.USER.BACKUP_CODES_REMAINING)
+  @ApiOperation({
+    summary: 'Nombre de codes de secours 2FA encore utilisables (jamais les codes eux-mêmes)',
+  })
+  @ApiOkResponse({ description: '{ remaining } ; 0 si la 2FA est inactive' })
+  async backupCodesRemaining(@CurrentUserId() userId: string) {
+    return this.userService.backupCodesRemaining(userId);
+  }
+
   @AllowAnonymous()
   @Post(API_URL.USER.CHECK_EMAIL)
   @ApiOperation({ summary: 'Verifier un email' })

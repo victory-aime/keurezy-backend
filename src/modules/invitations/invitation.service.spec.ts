@@ -1,6 +1,6 @@
 import { InvitationService } from './invitation.service';
 import { HttpError } from '../../config/http.error';
-import { encodeStoredCode } from './invitation-code';
+import { encodeStoredCode } from '../../config/one-time-code';
 
 // Dépendances mockées : évite de charger Better Auth (ESM) dans Jest
 const hashPassword = async (value: string) => `hash:${value}`;
@@ -157,7 +157,11 @@ describe('InvitationService — aperçu, code et acceptation', () => {
   const resend = { sendVerificationOTP: jest.fn() };
   const service = new InvitationService(prisma as never, resend as never, {} as never, {} as never);
 
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    // Code consommé par une suppression atomique (voir consumeOneTimeCode)
+    prisma.verification.deleteMany.mockResolvedValue({ count: 1 });
+  });
 
   const pending = (overrides: Record<string, unknown> = {}) => ({
     id: 'inv-1',
@@ -214,12 +218,11 @@ describe('InvitationService — aperçu, code et acceptation', () => {
 
     await service.sendInvitationCode('tok');
 
-    const [, create] = prisma.$transaction.mock.calls[0][0];
-    expect(prisma.verification.create).toHaveBeenCalled();
     const code = resend.sendVerificationOTP.mock.calls[0][1];
     expect(code).toMatch(/^\d{6}$/);
-    expect(prisma.verification.create.mock.calls[0][0].data.value).not.toContain(code);
-    expect(create).toBeUndefined();
+    const stored = prisma.verification.create.mock.calls[0][0].data;
+    expect(stored.identifier).toBe('invitation-inv-1');
+    expect(stored.value).not.toContain(code);
 
     prisma.verification.findFirst.mockResolvedValue({ createdAt: new Date() });
     expect(await errorCodeOf(service.sendInvitationCode('tok'))).toBe('INVITATION_CODE_TOO_SOON');

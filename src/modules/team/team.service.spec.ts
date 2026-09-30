@@ -4,6 +4,7 @@ import { HttpError } from '../../config/http.error';
 // Dépendance mockée : évite de charger Better Auth (ESM) dans Jest
 jest.mock('../agency/agency.service', () => ({ AgencyService: class {} }));
 jest.mock('../packs/permissions.service', () => ({ PermissionsService: class {} }));
+jest.mock('../mail/resend.service', () => ({ ResendService: class {} }));
 
 describe('TeamService.enableOrDisabledAccount', () => {
   const prisma = {
@@ -13,7 +14,7 @@ describe('TeamService.enableOrDisabledAccount', () => {
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never);
+  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -76,8 +77,7 @@ describe('TeamService.updateMemberPermissions', () => {
   const service = new TeamService(
     prisma as never,
     agencyService as never,
-    permissionsService as never,
-  );
+    permissionsService as never, {} as never);
 
   const errorCode = async (promise: Promise<unknown>) => {
     try {
@@ -160,7 +160,7 @@ describe('TeamService.removeMember', () => {
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never);
+  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -212,7 +212,7 @@ describe('TeamService.getMemberImpact', () => {
     ticket: { count: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never);
+  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -242,5 +242,53 @@ describe('TeamService.getMemberImpact', () => {
       tickets: 2,
       permissions: 4,
     });
+  });
+});
+
+describe('TeamService.resetMemberTwoFactor', () => {
+  const prisma = {
+    staff: { findFirst: jest.fn() },
+    twoFactor: { deleteMany: jest.fn() },
+    user: { update: jest.fn() },
+    session: { deleteMany: jest.fn() },
+    $transaction: jest.fn(),
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const resend = { sendTwoFactorReset: jest.fn() };
+  const service = new TeamService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    resend as never,
+  );
+
+  beforeEach(() => jest.resetAllMocks());
+
+  it("refuse l'action à un membre qui n'est pas le propriétaire", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(service.resetMemberTwoFactor('s2', 'A', 's1')).rejects.toBeInstanceOf(HttpError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('supprime la 2FA, ferme les sessions et prévient le membre', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({
+      userId: 'u2',
+      user: { name: 'Awa', email: 'awa@example.com' },
+      agency: { name: 'Agence Dakar' },
+    });
+
+    await service.resetMemberTwoFactor('s2', 'A', 'owner-1');
+
+    expect(prisma.staff.findFirst.mock.calls[0][0].where).toEqual({ id: 's2', agencyId: 'A' });
+    expect(prisma.twoFactor.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u2' } });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'u2' },
+      data: { twoFactorEnabled: false },
+    });
+    expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u2' } });
+    expect(resend.sendTwoFactorReset).toHaveBeenCalledWith(
+      expect.objectContaining({ sendTo: 'awa@example.com', agencyName: 'Agence Dakar' }),
+    );
   });
 });

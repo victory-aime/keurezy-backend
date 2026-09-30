@@ -7,8 +7,12 @@ import {
   ResendVerificationDto,
   ResetPasswordDto,
   ResetPasswordOtpDto,
+  TwoFactorRecoveryCancelDto,
+  TwoFactorRecoveryConfirmDto,
+  TwoFactorRecoveryRequestDto,
   VerifyOtpDto,
 } from './auth.dto';
+import { AccountRecoveryService } from './account-recovery.service';
 import { API_URL } from '../../config/api';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import {
@@ -25,7 +29,10 @@ import { SENSITIVE_THROTTLE } from '../../config/throttle';
 @Controller()
 @AllowAnonymous()
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly accountRecoveryService: AccountRecoveryService,
+  ) {}
 
   @Post(API_URL.AUTH.REGISTER)
   @Throttle(SENSITIVE_THROTTLE)
@@ -36,6 +43,37 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Email déjà utilisé ou données invalides' })
   async registerUser(@Body() body: CreateUserDto) {
     return this.authService.registerUser(body);
+  }
+
+  @Post(API_URL.AUTH.TWO_FACTOR_RECOVERY_REQUEST)
+  @Throttle(SENSITIVE_THROTTLE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Récupération (2FA perdue), étape 1 : identifiants, puis code envoyé par e-mail',
+  })
+  @ApiBody({ type: TwoFactorRecoveryRequestDto })
+  async requestTwoFactorRecovery(@Body() { email, password }: TwoFactorRecoveryRequestDto) {
+    return this.accountRecoveryService.requestRecovery(email, password);
+  }
+
+  @Post(API_URL.AUTH.TWO_FACTOR_RECOVERY_CONFIRM)
+  @Throttle(SENSITIVE_THROTTLE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Récupération, étape 2 : code valide, 2FA désactivée après 72 h (annulable)',
+  })
+  @ApiBody({ type: TwoFactorRecoveryConfirmDto })
+  async confirmTwoFactorRecovery(@Body() { email, password, code }: TwoFactorRecoveryConfirmDto) {
+    return this.accountRecoveryService.confirmRecovery(email, password, code);
+  }
+
+  @Post(API_URL.AUTH.TWO_FACTOR_RECOVERY_CANCEL)
+  @Throttle(SENSITIVE_THROTTLE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Annuler une récupération en cours (lien de l'e-mail)" })
+  @ApiBody({ type: TwoFactorRecoveryCancelDto })
+  async cancelTwoFactorRecovery(@Body() { token }: TwoFactorRecoveryCancelDto) {
+    return this.accountRecoveryService.cancelRecovery(token);
   }
 
   @Post(API_URL.AUTH.FORGOT_PASSWORD)

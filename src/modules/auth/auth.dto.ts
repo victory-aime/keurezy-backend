@@ -81,3 +81,29 @@ export class ResetPasswordOtpDto extends VerifyOtpDto {
   @MinLength(12)
   newPassword: string;
 }
+
+/** Récupération de compte (2FA perdue), étape 1 : identifiants du compte. */
+export class TwoFactorRecoveryRequestDto {
+  @ApiProperty({ example: 'user@example.com', description: 'Adresse e-mail du compte' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'MotDePasse2026', description: 'Mot de passe du compte' })
+  @IsString()
+  @MinLength(1)
+  password: string;
+}
+
+/** Étape 2 : mêmes identifiants et code reçu par e-mail. */
+export class TwoFactorRecoveryConfirmDto extends TwoFactorRecoveryRequestDto {
+  @ApiProperty({ example: '482913', description: 'Code à 6 chiffres reçu par e-mail' })
+  @Matches(/^\d{6}$/, { message: 'Le code doit contenir 6 chiffres' })
+  code: string;
+}
+
+/** Lien « Ce n'est pas moi » de l'e-mail de récupération. */
+export class TwoFactorRecoveryCancelDto {
+  @ApiProperty({ description: "Jeton d'annulation reçu par e-mail" })
+  @IsString()
+  token: string;
+}

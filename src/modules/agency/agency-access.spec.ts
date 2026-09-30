@@ -6,6 +6,9 @@ jest.mock('../../lib/auth', () => ({ getAuthInstance: jest.fn() }));
 jest.mock('../users/users.service', () => ({ UsersService: class {} }));
 jest.mock('../payments/services/payment.service', () => ({ PaymentService: class {} }));
 jest.mock('../cloudinary/uploads.service', () => ({ UploadsService: class {} }));
+jest.mock('../mail/resend.service', () => ({ ResendService: class {} }));
+
+const resend = { sendAgencyCloseScheduled: jest.fn() };
 
 /** Code d'erreur métier porté par la réponse d'une HttpError */
 const errorCodeOf = (promise: Promise<unknown>) =>
@@ -19,7 +22,13 @@ describe('AgencyService.agencyAccessControl', () => {
     owner: { findUnique: jest.fn() },
     staff: { findFirst: jest.fn() },
   };
-  const service = new AgencyService(prisma as never, {} as never, {} as never, {} as never);
+  const service = new AgencyService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    resend as never,
+  );
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -74,7 +83,13 @@ describe('AgencyService — fermeture programmée', () => {
     subscription: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   };
-  const service = new AgencyService(prisma as never, {} as never, {} as never, {} as never);
+  const service = new AgencyService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    resend as never,
+  );
 
   it('refuse un membre qui n’est pas le propriétaire', async () => {
     jest.spyOn(service, 'agencyAccessControl').mockResolvedValue({ type: 'STAFF' } as never);
@@ -88,7 +103,12 @@ describe('AgencyService — fermeture programmée', () => {
 
   it('programme la fermeture dans 15 jours, sans rien fermer tout de suite', async () => {
     jest.spyOn(service, 'agencyAccessControl').mockResolvedValue({ type: 'OWNER' } as never);
-    prisma.agency.findUnique.mockResolvedValue({ id: 'A', closeScheduledAt: null });
+    prisma.agency.findUnique.mockResolvedValue({
+      id: 'A',
+      name: 'Agence Dakar',
+      closeScheduledAt: null,
+      owner: { user: { name: 'Awa', email: 'awa@example.com' } },
+    });
 
     const { closeScheduledAt } = await service.scheduleClose({ agencyId: 'A', userId: 'o1' });
 
@@ -99,6 +119,9 @@ describe('AgencyService — fermeture programmée', () => {
       data: { closeScheduledAt },
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(resend.sendAgencyCloseScheduled).toHaveBeenCalledWith(
+      expect.objectContaining({ sendTo: 'awa@example.com', agencyName: 'Agence Dakar' }),
+    );
   });
 
   it('garde la date déjà programmée et permet d’annuler', async () => {

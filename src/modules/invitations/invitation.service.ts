@@ -7,14 +7,10 @@ import { AcceptInvitationDto, CreateInvitationDto } from './invitation.dto';
 import { EXPIRE_TIME, FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
 import { OTP_SETTINGS } from '../../config/otp';
-import {
-  INVITATION_CODE_MAX_ATTEMPTS,
-  checkInvitationCode,
-  encodeStoredCode,
-  generateInvitationCode,
-  invitationCodeIdentifier,
-  maskEmail,
-} from './invitation-code';
+import { consumeOneTimeCode, issueOneTimeCode, maskEmail } from '../../config/one-time-code';
+
+/** Identifiant du code d'invitation dans `verification` : lié à l'invitation. */
+const invitationCodeIdentifier = (invitationId: string) => `invitation-${invitationId}`;
 import { getAuthInstance } from '../../lib/auth';
 
 @Injectable()
@@ -220,72 +216,14 @@ export class InvitationService {
    */
   async sendInvitationCode(token: string) {
     const invitation = await this.findPendingInvitation(token);
-    const identifier = invitationCodeIdentifier(invitation.id);
-
-    const previous = await this.prisma.verification.findFirst({
-      where: { identifier },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
-    const cooldownMs = OTP_SETTINGS.resendCooldown * 1000;
-    if (previous && Date.now() - previous.createdAt.getTime() < cooldownMs) {
-      throw new HttpError(
-        'Un code vient d’être envoyé : patientez avant d’en demander un autre.',
-        HttpStatus.TOO_MANY_REQUESTS,
-        'INVITATION_CODE_TOO_SOON',
-      );
-    }
-
-    const code = generateInvitationCode();
-    await this.prisma.$transaction([
-      this.prisma.verification.deleteMany({ where: { identifier } }),
-      this.prisma.verification.create({
-        data: {
-          identifier,
-          value: encodeStoredCode(code),
-          expiresAt: new Date(Date.now() + OTP_SETTINGS.expiresIn * 1000),
-        },
-      }),
-    ]);
+    const code = await issueOneTimeCode(
+      this.prisma,
+      invitationCodeIdentifier(invitation.id),
+      'INVITATION_CODE',
+      OTP_SETTINGS,
+    );
     await this.resendService.sendVerificationOTP(invitation.email, code, 'invitation');
-
     return { expiresIn: OTP_SETTINGS.expiresIn, retryIn: OTP_SETTINGS.resendCooldown };
-  }
-
-  /** Vérifie le code (5 essais), puis le consomme : il ne sert qu'une fois. */
-  private async consumeInvitationCode(invitationId: string, code: string) {
-    const identifier = invitationCodeIdentifier(invitationId);
-    const stored = await this.prisma.verification.findFirst({ where: { identifier } });
-    if (!stored || stored.expiresAt < new Date()) {
-      throw new HttpError(
-        'Code expiré : demandez-en un nouveau.',
-        HttpStatus.BAD_REQUEST,
-        'INVITATION_CODE_EXPIRED',
-      );
-    }
-
-    const { valid, attempts } = checkInvitationCode(stored.value, code);
-    if (!valid) {
-      const used = attempts + 1;
-      if (used >= INVITATION_CODE_MAX_ATTEMPTS) {
-        await this.prisma.verification.delete({ where: { id: stored.id } });
-        throw new HttpError(
-          'Trop d’essais : demandez un nouveau code.',
-          HttpStatus.TOO_MANY_REQUESTS,
-          'INVITATION_CODE_LOCKED',
-        );
-      }
-      await this.prisma.verification.update({
-        where: { id: stored.id },
-        data: { value: `${stored.value.split(':')[0]}:${used}` },
-      });
-      throw new HttpError(
-        `Code incorrect : ${INVITATION_CODE_MAX_ATTEMPTS - used} essai(s) restant(s).`,
-        HttpStatus.BAD_REQUEST,
-        'INVITATION_CODE_INVALID',
-      );
-    }
-    await this.prisma.verification.delete({ where: { id: stored.id } });
   }
 
   /**
@@ -296,7 +234,12 @@ export class InvitationService {
    */
   async acceptInvitation({ token, code, password }: AcceptInvitationDto) {
     const invitation = await this.findPendingInvitation(token);
-    await this.consumeInvitationCode(invitation.id, code);
+    await consumeOneTimeCode(
+      this.prisma,
+      invitationCodeIdentifier(invitation.id),
+      code,
+      'INVITATION_CODE',
+    );
 
     // Features encore autorisées au moment de l'acceptation (le plan a pu changer)
     const currentPlanFeatures = await this.prisma.planFeature.findMany({

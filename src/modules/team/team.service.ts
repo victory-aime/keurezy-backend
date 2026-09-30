@@ -6,9 +6,10 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { PermissionsService } from '../packs/permissions.service';
 import { UpdateStaffPermissionsDto } from './team.dto';
+import { ResendService } from '../mail/resend.service';
 
 const TEAM_MEMBER_INCLUDE = {
-  user: { select: { id: true, name: true, email: true, status: true } },
+  user: { select: { id: true, name: true, email: true, status: true, twoFactorEnabled: true } },
   permissions: { include: { permission: { include: { feature: true } } } },
 } satisfies Prisma.StaffInclude;
 
@@ -21,6 +22,7 @@ const toTeamMember = (member: TeamMemberRecord) => ({
   email: member.user.email,
   role: member.agencyRole,
   status: member.user?.status,
+  twoFactorEnabled: !!member.user?.twoFactorEnabled,
   createdAt: member.createdAt,
   permissions: member.permissions,
 });
@@ -38,7 +40,46 @@ export class TeamService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly permissionsService: PermissionsService,
+    private readonly resendService: ResendService,
   ) {}
+
+  /**
+   * Réinitialise la 2FA d'un membre qui a perdu son téléphone et ses codes (owner uniquement) :
+   * configuration 2FA supprimée, sessions fermées ; le membre est prévenu par e-mail et
+   * reconfigure la 2FA depuis Sécurité. Voie rapide pour le staff (la récupération en
+   * libre-service impose 72 h d'attente).
+   */
+  async resetMemberTwoFactor(staffId: string, agencyId: string, ownerId: string) {
+    const actor = await this.agencyService.agencyAccessControl(agencyId, ownerId);
+    if (actor.type !== 'OWNER')
+      throw ownerOnly("réinitialiser la double authentification d'un membre");
+
+    const member = await this.prisma.staff.findFirst({
+      where: { id: staffId, agencyId },
+      select: {
+        userId: true,
+        user: { select: { name: true, email: true } },
+        agency: { select: { name: true } },
+      },
+    });
+    if (!member) {
+      throw new HttpError('Membre introuvable', HttpStatus.NOT_FOUND, 'STAFF_NOT_FOUND');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.twoFactor.deleteMany({ where: { userId: member.userId } }),
+      this.prisma.user.update({ where: { id: member.userId }, data: { twoFactorEnabled: false } }),
+      this.prisma.session.deleteMany({ where: { userId: member.userId } }),
+    ]);
+    await this.resendService.sendTwoFactorReset({
+      sendTo: member.user.email,
+      username: member.user.name,
+      agencyName: member.agency.name,
+      loginLink: `${process.env.WEB_APP_URL}/auth/signin`,
+    });
+
+    return { message: 'La double authentification du membre a été réinitialisée.' };
+  }
 
   async getTeamListByAgencyId(agencyId: string, userId: string) {
     await this.agencyService.agencyAccessControl(agencyId, userId);

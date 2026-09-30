@@ -50,6 +50,7 @@ model User {
   preference               UserPreference?
   deviceTokens             DeviceToken[]
   integrationProvider      IntegrationProvider[]
+  recoveryRequests         AccountRecoveryRequest[]
 
   @@map("user")
 }
@@ -100,6 +101,30 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Récupération de compte quand la 2FA est perdue (téléphone et codes de secours) :
+/// exécutée après un délai de grâce, annulable par lien ou par toute connexion réussie.
+model AccountRecoveryRequest {
+  id              String                @id @default(uuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          AccountRecoveryStatus @default(PENDING)
+  executeAt       DateTime
+  /// Empreinte SHA-256 du jeton d'annulation envoyé par e-mail (jamais le jeton en clair)
+  cancelTokenHash String                @unique
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([status, executeAt])
+  @@index([userId])
+  @@map("account_recovery_request")
+}
+
+enum AccountRecoveryStatus {
+  PENDING
+  CANCELLED
+  COMPLETED
 }
 
 model TwoFactor {

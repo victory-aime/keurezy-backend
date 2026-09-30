@@ -88,6 +88,14 @@ const createAuth = (prisma: PrismaClient) => {
               });
             }
           },
+          // Connexion réussie = le titulaire a encore accès à son compte : toute demande de
+          // récupération (2FA perdue) en attente est annulée
+          after: async (session) => {
+            await prisma.accountRecoveryRequest.updateMany({
+              where: { userId: session.userId, status: 'PENDING' },
+              data: { status: 'CANCELLED' },
+            });
+          },
         },
       },
     },
@@ -177,6 +185,10 @@ const createAuth = (prisma: PrismaClient) => {
         issuer: process.env.APP_NAME,
         // Pas de skipVerificationOnEnable : la 2FA ne s'active qu'après un premier code valide
         // (verifyTotp), sinon un QR code mal scanné bloque le compte à la connexion suivante.
+        // Verrouillage du compte après 5 codes faux consécutifs (15 min), quelle que soit l'IP :
+        // aligné sur la limite de 5 essais par connexion de Better Auth, et complète la limite par
+        // IP (5/min). Le web affiche alors le blocage, son décompte et la récupération de compte.
+        accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 },
       }),
       passkey(),
       expo(),

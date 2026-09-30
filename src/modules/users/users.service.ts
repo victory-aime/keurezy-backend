@@ -147,4 +147,20 @@ export class UsersService {
       sessions: user.sessions,
     };
   }
+
+  /**
+   * Codes de secours 2FA restants (utilisés = retirés par Better Auth). Seul le nombre sort :
+   * les codes déchiffrés restent côté serveur.
+   */
+  async backupCodesRemaining(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorEnabled: true },
+    });
+    if (!user?.twoFactorEnabled) return { remaining: 0 };
+    const result = await getAuthInstance()
+      .api.viewBackupCodes({ body: { userId } })
+      .catch(() => null);
+    return { remaining: result?.backupCodes?.length ?? 0 };
+  }
 }

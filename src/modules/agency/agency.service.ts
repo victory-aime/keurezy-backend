@@ -26,6 +26,7 @@ import { UsersService } from '../users/users.service';
 import { PaymentService } from '../payments/services/payment.service';
 import { HttpError } from '../../config/http.error';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { ResendService } from '../mail/resend.service';
 import { todayCalendarDate } from '../rentals/calendar-date';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -41,6 +42,7 @@ export class AgencyService {
     private readonly userService: UsersService,
     private readonly paymentService: PaymentService,
     private readonly uploadsService: UploadsService,
+    private readonly resendService: ResendService,
   ) {}
 
   // ─────────────────────────────────────────
@@ -327,6 +329,14 @@ export class AgencyService {
       where: { id: agency.id },
       data: { closeScheduledAt },
     });
+    // Trace hors de l'application : l'owner est prévenu même si la demande ne vient pas de lui
+    await this.resendService.sendAgencyCloseScheduled({
+      sendTo: agency.owner.user.email,
+      username: agency.owner.user.name,
+      agencyName: agency.name,
+      closeDate: closeScheduledAt.toLocaleDateString('fr-FR'),
+      cancelLink: `${process.env.WEB_APP_URL}/dashboard/security`,
+    });
     return { closeScheduledAt };
   }
 
@@ -404,7 +414,12 @@ export class AgencyService {
     }
     const agency = await this.prismaService.agency.findUnique({
       where: { id: agencyId },
-      select: { id: true, closeScheduledAt: true },
+      select: {
+        id: true,
+        name: true,
+        closeScheduledAt: true,
+        owner: { select: { user: { select: { name: true, email: true } } } },
+      },
     });
     if (!agency) throw new NotFoundException('Agency not found');
     return agency;
