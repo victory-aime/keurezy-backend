@@ -19,6 +19,7 @@ import { UploadsService } from '../cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { MultipartJson } from '../../config/multipart-json.decorator';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Agency')
 @Controller()
@@ -162,6 +163,7 @@ export class AgencyController {
     return this.agencyService.getCloseImpact(agencyId, userId);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.AGENCY.CLOSE_AGENCY)
   @ApiOperation({
     summary: "Programmer la fermeture de l'agence (propriétaire uniquement)",
@@ -175,6 +177,7 @@ export class AgencyController {
     return this.agencyService.scheduleClose({ agencyId, userId });
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.AGENCY.CANCEL_CLOSE)
   @ApiOperation({
     summary: "Annuler la fermeture programmée de l'agence (propriétaire uniquement)",

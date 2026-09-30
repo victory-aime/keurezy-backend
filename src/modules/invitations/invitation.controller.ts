@@ -17,6 +17,7 @@ import { AcceptInvitationDto, CreateInvitationDto, InvitationTokenDto } from './
 import { RequirePermission } from '../../guard/permission.guard';
 import { Throttle } from '@nestjs/throttler';
 import { SENSITIVE_THROTTLE } from '../../config/throttle';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Invitation')
 @ApiBearerAuth()
@@ -90,6 +91,7 @@ export class InvitationController {
     return this.invitationService.acceptInvitation(data);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.INVITATION.CANCEL_INVITE)
   @RequirePermission('cancel_invitation')
   @ApiOperation({ summary: 'Annuler une invitation (Owner + Admin)' })

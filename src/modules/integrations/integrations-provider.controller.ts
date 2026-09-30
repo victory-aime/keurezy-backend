@@ -15,6 +15,7 @@ import { Session } from '@thallesp/nestjs-better-auth';
 import { IntegrationsService } from './services/integrations.service';
 import { IntegrationProviderType } from '../../../prisma/generated/enums';
 import { API_URL } from '../../config/api';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @Controller()
 export class IntegrationsController {
@@ -49,6 +50,7 @@ export class IntegrationsController {
     return this.integrationsService.getStatus(session.user.id, provider);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.PROVIDERS.DISCONNECT)
   disconnect(
     @Query('provider', new ParseEnumPipe(IntegrationProviderType))

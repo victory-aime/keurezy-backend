@@ -10,6 +10,7 @@ import { PropertyModule } from './modules/property/property.module';
 import { BetterAuthModule } from './lib/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { SessionThrottlerGuard } from './guard/throttler.guard';
+import { ActiveSubscriptionGuard } from './guard/active-subscription.guard';
 import { THROTTLE } from './config/throttle';
 import { PermissionGuard } from './guard/permission.guard';
 import { PackModule } from './modules/packs/pack.module';
@@ -86,6 +87,8 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
     // Après l'authentification : applique les @RequirePermission des routes agence
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: SessionThrottlerGuard },
+    // Abonnement expiré : écritures des utilisateurs d'agence refusées, sauf @AllowWhenInactive
+    { provide: APP_GUARD, useClass: ActiveSubscriptionGuard },
   ],
 })
 export class AppModule {}

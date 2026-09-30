@@ -14,6 +14,7 @@ import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
 import { RequirePermission } from '../../guard/permission.guard';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Visits')
 @ApiBearerAuth()
@@ -108,6 +109,7 @@ export class VisitsController {
 
   // DELETE v1/secure/visits/delete?visitId=
   // Accessible : Owner + AGENCY_ADMIN
+  @AllowWhenInactive()
   @Patch(API_URL.VISITS.CANCEL_VISIT)
   @RequirePermission('cancel_visit')
   @ApiOperation({ summary: 'Supprimer une visite' })

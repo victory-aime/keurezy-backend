@@ -290,3 +290,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - La consommation réutilise les compteurs qui bloquent la création (`countPropertyAssets`, `countUserSeats`, et `countAnnonces`, extrait d'`annonce.service.ts`) : une jauge ne peut pas contredire un refus.
 - La migration de contraction de l'invitation (section 30) prendra le numéro `14`.
 - Spec : `keurezy-front/docs/subscription-ui/`.
+
+## 35. Abonnement expiré : tableau de bord en lecture seule
+
+- **`ActiveSubscriptionGuard`** (guard global) : quand l'abonnement de l'agence est `INACTIVE`, toute écriture (`POST`, `PUT`, `PATCH`, `DELETE`) d'un owner ou d'un membre du staff est refusée (`403 SUBSCRIPTION_INACTIVE`). Refus par défaut : **une nouvelle route d'écriture est bloquée tant qu'elle ne porte pas `@AllowWhenInactive()`**. Clients mobiles, super admin et routes anonymes non concernés ; agence sans souscription non bloquée.
+- Routes autorisées pendant l'expiration : messages et lecture des discussions ; refus et annulation (agence) des réservations ; annulation des visites ; désactivation, retrait et réinitialisation 2FA d'un membre ; annulation d'une invitation ; profil, préférences, notifications, jetons push ; fermeture d'agence et son annulation ; déconnexion des intégrations.

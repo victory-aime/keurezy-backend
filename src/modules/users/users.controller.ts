@@ -14,6 +14,7 @@ import { AllowAnonymous, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CurrentUserId } from '../../guard/current-user.decorator';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiBearerAuth()
 @ApiTags(SWAGGER_TAGS.USER_MANAGEMENT)
@@ -59,6 +60,7 @@ export class UsersController {
     return this.userService.checkUserEmail(data?.email);
   }
 
+  @AllowWhenInactive()
   @Patch(API_URL.USER.UPDATE)
   async updateUserInfo(@CurrentUserId() userId: string, @Body() data: UpdateUserDto) {
     return this.userService.updateUser(userId, data);

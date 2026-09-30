@@ -21,6 +21,7 @@ import {
   RejectBookingDto,
 } from './bookings.dto';
 import { RequirePermission } from '../../guard/permission.guard';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Réservations')
 @ApiBearerAuth()
@@ -92,6 +93,7 @@ export class BookingsController {
     return this.bookingsService.confirmBooking(query.id, profileId);
   }
 
+  @AllowWhenInactive()
   @Patch(API_URL.BOOKINGS.REJECT)
   @RequirePermission('manage_bookings')
   @ApiOperation({ summary: 'Refuser une demande avec un motif' })
@@ -105,6 +107,7 @@ export class BookingsController {
     return this.bookingsService.rejectBooking(query.id, profileId, dto.reason);
   }
 
+  @AllowWhenInactive()
   @Patch(API_URL.BOOKINGS.AGENCY_CANCEL)
   @RequirePermission('manage_bookings')
   @ApiOperation({

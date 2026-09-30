@@ -4,6 +4,7 @@ import { API_URL } from '../../config/api';
 import { CurrentUserId } from '../../guard/current-user.decorator';
 import { PreferencesService } from './preferences.service';
 import { UpdateNotificationPreferencesDto } from './preferences.dto';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Préférences')
 @ApiBearerAuth()
@@ -22,6 +23,7 @@ export class PreferencesController {
     return this.preferencesService.getMyPreferences(userId);
   }
 
+  @AllowWhenInactive()
   @Patch(API_URL.PREFERENCES.NOTIFICATIONS)
   @ApiOperation({
     summary: 'Mettre à jour mes préférences de notification',

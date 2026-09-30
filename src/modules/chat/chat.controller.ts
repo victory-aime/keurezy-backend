@@ -33,6 +33,7 @@ import {
   OpenPropertyConversationDto,
   SendMessageDto,
 } from './chat.dto';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
@@ -88,6 +89,7 @@ export class ChatController {
     return this.chatService.getMessages(userId, query);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.CHAT.MESSAGES)
   @UseInterceptors(ChatFilesInterceptor)
   @ApiConsumes('multipart/form-data')
@@ -109,6 +111,7 @@ export class ChatController {
     return this.chatGateway.dispatchMessage(sent, userId, dto.tempId);
   }
 
+  @AllowWhenInactive()
   @Patch(API_URL.CHAT.READ)
   @ApiOperation({ summary: 'Marquer la conversation comme lue (hors socket)' })
   @ApiBody({ type: ConversationIdDto })

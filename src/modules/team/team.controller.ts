@@ -15,6 +15,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { RequirePermission } from '../../guard/permission.guard';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @ApiTags('Team')
 @ApiBearerAuth()
@@ -36,6 +37,7 @@ export class TeamController {
   ) {
     return this.teamService.getTeamListByAgencyId(agencyId, userId);
   }
+  @AllowWhenInactive()
   @Post(API_URL.TEAM.CHANGE_STATUS)
   @ApiOperation({ summary: "Activer ou désactiver le compte d'un membre (Owner uniquement)" })
   @ApiQuery({ name: 'id', required: true, description: "Identifiant du membre de l'équipe" })
@@ -82,6 +84,7 @@ export class TeamController {
     return this.teamService.updateMemberPermissions(dto, agencyId, profileId);
   }
 
+  @AllowWhenInactive()
   @Delete(API_URL.TEAM.REMOVE_MEMBER)
   @ApiOperation({ summary: "Retirer un membre de l'équipe (owner uniquement)" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
@@ -95,6 +98,7 @@ export class TeamController {
     return this.teamService.removeMember(id, agencyId, ownerId);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.TEAM.RESET_TWO_FACTOR)
   @ApiOperation({
     summary: "Réinitialiser la double authentification d'un membre (owner uniquement)",

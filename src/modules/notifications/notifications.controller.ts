@@ -3,6 +3,7 @@ import { ApiBadRequestResponse, ApiBearerAuth, ApiOkResponse, ApiOperation } fro
 import { API_URL } from '../../config/api';
 import { NotificationsService } from './notifications.service';
 import { CurrentUserId } from '../../guard/current-user.decorator';
+import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 
 @Controller()
 export class NotificationsController {
@@ -21,6 +22,7 @@ export class NotificationsController {
     return this.notificationsService.getUserNotifications(userId);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.NOTIFICATION.READ_ALL)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lire toutes les notifications' })
@@ -34,6 +36,7 @@ export class NotificationsController {
     return this.notificationsService.readAllNotifications(userId);
   }
 
+  @AllowWhenInactive()
   @Post(API_URL.NOTIFICATION.READ_ONE)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lire une notification' })
