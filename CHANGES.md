@@ -247,3 +247,11 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 ## 29. Connexion refusée aux comptes désactivés
 
 - Hook Better Auth `databaseHooks.session.create.before` : aucune session n'est créée pour un compte dont `User.status` n'est pas `ACTIVE` (membre désactivé ou retiré, agence fermée, compte banni). Erreur 403 `ACCOUNT_DISABLED`. Couvre mot de passe, passkey, 2FA et mobile. Auparavant, un membre désactivé pouvait se reconnecter et naviguer, et seules les routes métier lui refusaient l'accès.
+
+## 30. Acceptation d'invitation : aperçu, code et mot de passe choisi
+
+- `GET unsecured/invite/preview?token` : aperçu **en lecture seule** (agence, qui invite, rôle, permissions, e-mail masqué, expiration). L'ouverture du lien ne consomme plus l'invitation. Auparavant, l'acceptation partait au chargement de la page : un double appel (StrictMode) ou un scanner de liens (Outlook, Gmail) la consommait avant l'invité.
+- `POST unsecured/invite/send-code { token }` : code à 6 chiffres, envoyé à l'adresse invitée (modèle OTP, objet « Code de confirmation de votre invitation »). Il est stocké **haché** dans `verification` (`invitation-<id>`) : validité `OTP_SETTINGS`, délai de renvoi, 5 essais.
+- `POST unsecured/invite/accept-invitation { token, code, password }` (**nouveau contrat**, web livré en même temps) : l'invité choisit son mot de passe. En une transaction : compte créé avec `emailVerified = true` (plus d'e-mail de vérification) ou ancien membre réactivé (même `userId`), Staff, permissions encore dans le plan, invitation ACCEPTED. La réponse ne contient que l'e-mail, **jamais de mot de passe** (auparavant renvoyé en clair).
+- **Plus de mot de passe temporaire** : ni généré (il l'était côté navigateur), ni stocké, ni envoyé par e-mail. `Invitation.temporaryPassword` n'est plus écrit (expand). La migration de contraction `12_drop_invitation_temp_password` suivra.
+- Modèle Resend de l'invitation : la variable `USER_PASSWORD` n'est plus envoyée ; le texte du modèle est à mettre à jour (action manuelle).

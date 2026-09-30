@@ -13,7 +13,7 @@ import { MiddlewareGuard } from '../../guard/middleware.guard';
 import { InvitationService } from './invitation.service';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId, CurrentUserId } from '../../guard/current-user.decorator';
-import { CreateInvitationDto } from './invitation.dto';
+import { AcceptInvitationDto, CreateInvitationDto, InvitationTokenDto } from './invitation.dto';
 import { RequirePermission } from '../../guard/permission.guard';
 import { Throttle } from '@nestjs/throttler';
 import { SENSITIVE_THROTTLE } from '../../config/throttle';
@@ -53,15 +53,41 @@ export class InvitationController {
     return this.invitationService.createInvitation(data, { adminId, userId });
   }
 
+  @Get(API_URL.INVITATION.PREVIEW_INVITE)
+  @AllowAnonymous()
+  @ApiOperation({
+    summary: "Aperçu d'une invitation (lecture seule)",
+    description:
+      "Affiché à l'ouverture du lien : agence, rôle, permissions, e-mail masqué. Ne modifie rien.",
+  })
+  @ApiQuery({ name: 'token', required: true, description: "Jeton d'invitation reçu par e-mail" })
+  @ApiOkResponse({ description: "Aperçu de l'invitation" })
+  @ApiBadRequestResponse({ description: 'Invitation expirée, déjà utilisée ou annulée' })
+  async previewInvitation(@Query('token') token: string) {
+    return this.invitationService.previewInvitation(token);
+  }
+
+  @Post(API_URL.INVITATION.SEND_INVITE_CODE)
+  @Throttle(SENSITIVE_THROTTLE)
+  @AllowAnonymous()
+  @ApiOperation({ summary: "Envoyer le code de confirmation à l'adresse invitée" })
+  @ApiBody({ type: InvitationTokenDto })
+  @ApiOkResponse({ description: 'Code envoyé (validité et délai avant renvoi, en secondes)' })
+  async sendInvitationCode(@Body() { token }: InvitationTokenDto) {
+    return this.invitationService.sendInvitationCode(token);
+  }
+
   @Post(API_URL.INVITATION.ACCEPT_INVITE)
   @Throttle(SENSITIVE_THROTTLE)
   @AllowAnonymous()
-  @ApiOperation({ summary: 'Accepter une invitation via le token reçu par email' })
-  @ApiQuery({ name: 'token', required: true, description: "Token d'invitation reçu par email" })
-  @ApiOkResponse({ description: 'Invitation acceptée avec succès' })
-  @ApiBadRequestResponse({ description: 'Token invalide ou expiré' })
-  async acceptInvitation(@Query('token') token: string) {
-    return this.invitationService.acceptInvitation(token);
+  @ApiOperation({
+    summary: 'Accepter une invitation avec le code reçu et le mot de passe choisi',
+  })
+  @ApiBody({ type: AcceptInvitationDto })
+  @ApiOkResponse({ description: 'Invitation acceptée : compte créé ou réactivé, e-mail vérifié' })
+  @ApiBadRequestResponse({ description: 'Code invalide ou expiré, invitation non valable' })
+  async acceptInvitation(@Body() data: AcceptInvitationDto) {
+    return this.invitationService.acceptInvitation(data);
   }
 
   @Post(API_URL.INVITATION.CANCEL_INVITE)

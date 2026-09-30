@@ -130,7 +130,6 @@ export class ResendService {
   async sendInvitationEmail({
     sendTo,
     email,
-    password,
     username,
     agencyName,
     token,
@@ -145,7 +144,6 @@ export class ResendService {
         REDIRECT_LINK: `${process.env.FRONTEND_VERIFY_INVITATION_URL}/?token=${token}`,
         USERNAME: username,
         USER_EMAIL: email,
-        USER_PASSWORD: password,
         AGENCY_NAME: agencyName,
       },
     });
@@ -176,12 +174,13 @@ export class ResendService {
   async sendVerificationOTP(
     to: string,
     otp: string,
-    purpose: 'email-verification' | 'forget-password' = 'email-verification',
+    purpose: 'email-verification' | 'forget-password' | 'invitation' = 'email-verification',
   ): Promise<EmailResult> {
-    const subject =
-      purpose === 'forget-password'
-        ? 'Code de réinitialisation de votre mot de passe'
-        : 'Code de vérification de votre adresse email';
+    const subject = {
+      'forget-password': 'Code de réinitialisation de votre mot de passe',
+      'email-verification': 'Code de vérification de votre adresse email',
+      invitation: 'Code de confirmation de votre invitation',
+    }[purpose];
 
     return this.sendTemplateEmail({
       to,

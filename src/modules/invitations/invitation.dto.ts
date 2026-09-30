@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsString,
+  Matches,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 import { AgencyRole } from '../../../prisma/generated/enums';
 
 export class InvitationPermissionDto {
@@ -31,13 +40,6 @@ export class InvitationPayloadDto {
   role: AgencyRole;
 
   @ApiProperty({
-    example: 'TempPass123!',
-    description: "Mot de passe temporaire généré pour l'invité",
-  })
-  @IsString()
-  temporaryPassword: string;
-
-  @ApiProperty({
     description: "Liste des permissions accordées à l'invité",
     type: [InvitationPermissionDto],
   })
@@ -56,4 +58,29 @@ export class CreateInvitationDto {
   @ValidateNested()
   @Type(() => InvitationPayloadDto)
   payload: InvitationPayloadDto;
+}
+
+/** Jeton reçu par e-mail (lien d'invitation). */
+export class InvitationTokenDto {
+  @ApiProperty({ example: 'uuid-du-jeton', description: "Jeton d'invitation reçu par e-mail" })
+  @IsString()
+  token: string;
+}
+
+/** Acceptation : code reçu par e-mail et mot de passe choisi par l'invité. */
+export class AcceptInvitationDto extends InvitationTokenDto {
+  @ApiProperty({ example: '482913', description: 'Code à 6 chiffres reçu par e-mail' })
+  @Matches(/^\d{6}$/, { message: 'Le code doit contenir 6 chiffres' })
+  code: string;
+
+  @ApiProperty({
+    example: 'MotDePasse2026',
+    description: 'Mot de passe choisi (12 caractères, une majuscule, une minuscule, un chiffre)',
+  })
+  @IsString()
+  @MinLength(12, { message: 'Le mot de passe doit contenir au moins 12 caractères' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$/, {
+    message: 'Le mot de passe doit contenir une majuscule, une minuscule et un chiffre',
+  })
+  password: string;
 }

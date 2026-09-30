@@ -1,5 +1,6 @@
 import { InvitationService } from './invitation.service';
 import { HttpError } from '../../config/http.error';
+import { encodeStoredCode } from './invitation-code';
 
 // Dépendances mockées : évite de charger Better Auth (ESM) dans Jest
 const hashPassword = async (value: string) => `hash:${value}`;
@@ -54,20 +55,18 @@ describe('InvitationService.resendInvitation', () => {
     expect(resend.sendInvitationEmail).not.toHaveBeenCalled();
   });
 
-  it('prolonge l’invitation et renvoie l’e-mail avec un nouveau mot de passe temporaire', async () => {
+  it('prolonge l’invitation et renvoie le lien, sans aucun mot de passe', async () => {
     prisma.invitation.findUnique.mockResolvedValue(invitation());
 
     await service.resendInvitation('inv-1', 'owner-1');
 
     expect(agencyService.agencyAccessControl).toHaveBeenCalledWith('A', 'owner-1');
-    const { data } = prisma.invitation.update.mock.calls[0][0] as {
-      data: { expiresAt: Date; temporaryPassword: string };
-    };
+    const { data } = prisma.invitation.update.mock.calls[0][0] as { data: { expiresAt: Date } };
     expect(data.expiresAt.getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 3600_000);
-    expect(data.temporaryPassword).toBe('enc:Nouveau#2');
-    expect(resend.sendInvitationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ sendTo: 'awa@example.com', password: 'Nouveau#2', token: 'tok' }),
-    );
+    expect(data).not.toHaveProperty('temporaryPassword');
+    const email = resend.sendInvitationEmail.mock.calls[0][0];
+    expect(email).toMatchObject({ sendTo: 'awa@example.com', token: 'tok' });
+    expect(email).not.toHaveProperty('password');
   });
 });
 
@@ -134,51 +133,167 @@ describe('InvitationService — réinvitation d’un compte désactivé', () => 
   });
 });
 
-describe('InvitationService.acceptInvitation — compte existant', () => {
+describe('InvitationService — aperçu, code et acceptation', () => {
   const tx = {
     staff: { create: jest.fn() },
     staffPermission: { createMany: jest.fn() },
-    user: { update: jest.fn() },
-    account: { updateMany: jest.fn() },
+    user: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+    account: { updateMany: jest.fn(), create: jest.fn() },
     invitation: { update: jest.fn() },
   };
   const prisma = {
-    invitation: { findUniqueOrThrow: jest.fn() },
+    invitation: { findUnique: jest.fn(), update: jest.fn() },
     planFeature: { findMany: jest.fn() },
     user: { findUnique: jest.fn() },
+    verification: {
+      findFirst: jest.fn(),
+      deleteMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
-  const service = new InvitationService(prisma as never, {} as never, {} as never, {} as never);
+  const resend = { sendVerificationOTP: jest.fn() };
+  const service = new InvitationService(prisma as never, resend as never, {} as never, {} as never);
 
-  it('réactive le compte désactivé avec le mot de passe temporaire, sans en créer un nouveau', async () => {
-    prisma.invitation.findUniqueOrThrow.mockResolvedValue({
-      id: 'inv-1',
-      email: 'awa@example.com',
-      name: 'Awa',
-      agencyId: 'A',
-      agencyRole: 'AGENT',
-      invitedBy: 'owner',
-      status: 'PENDING',
-      expiresAt: new Date(Date.now() + 3600_000),
-      temporaryPassword: 'enc:Secret#1',
-      permissions: [],
+  beforeEach(() => jest.resetAllMocks());
+
+  const pending = (overrides: Record<string, unknown> = {}) => ({
+    id: 'inv-1',
+    email: 'awa@example.com',
+    name: 'Awa',
+    agencyId: 'A',
+    agencyRole: 'AGENT',
+    invitedBy: 'owner-user',
+    status: 'PENDING',
+    expiresAt: new Date(Date.now() + 3600_000),
+    agency: { name: 'Agence Dakar', agencyLogo: null },
+    permissions: [
+      {
+        permissionId: 'p1',
+        granted: true,
+        Permission: { featureId: 'f1', name: 'view_visits', description: 'Voir les visites' },
+      },
+    ],
+    ...overrides,
+  });
+  const validCode = () => ({
+    id: 'v1',
+    value: encodeStoredCode('482913'),
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+
+  it("l'aperçu ne modifie rien et masque l'e-mail", async () => {
+    prisma.invitation.findUnique.mockResolvedValue(pending());
+    prisma.user.findUnique.mockResolvedValue({ name: 'Moussa' });
+
+    await expect(service.previewInvitation('tok')).resolves.toMatchObject({
+      agency: { name: 'Agence Dakar' },
+      invitedBy: 'Moussa',
+      permissions: ['Voir les visites'],
+      maskedEmail: 'a*a@example.com',
     });
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-2', email: 'awa@example.com' });
+    expect(prisma.invitation.update).not.toHaveBeenCalled();
+  });
+
+  it('signale une invitation expirée ou déjà utilisée', async () => {
+    prisma.invitation.findUnique.mockResolvedValue(
+      pending({ expiresAt: new Date(Date.now() - 1) }),
+    );
+    expect(await errorCodeOf(service.previewInvitation('tok'))).toBe('INVITATION_EXPIRED');
+    prisma.invitation.findUnique.mockResolvedValue(pending({ status: 'ACCEPTED' }));
+    expect(await errorCodeOf(service.previewInvitation('tok'))).toBe(
+      'INVITATION_ALREADY_USED_OR_CANCELLED',
+    );
+  });
+
+  it('envoie un code haché, et refuse un renvoi trop rapproché', async () => {
+    prisma.invitation.findUnique.mockResolvedValue(pending());
+    prisma.verification.findFirst.mockResolvedValue(null);
+
+    await service.sendInvitationCode('tok');
+
+    const [, create] = prisma.$transaction.mock.calls[0][0];
+    expect(prisma.verification.create).toHaveBeenCalled();
+    const code = resend.sendVerificationOTP.mock.calls[0][1];
+    expect(code).toMatch(/^\d{6}$/);
+    expect(prisma.verification.create.mock.calls[0][0].data.value).not.toContain(code);
+    expect(create).toBeUndefined();
+
+    prisma.verification.findFirst.mockResolvedValue({ createdAt: new Date() });
+    expect(await errorCodeOf(service.sendInvitationCode('tok'))).toBe('INVITATION_CODE_TOO_SOON');
+  });
+
+  it('refuse un code faux en décomptant les essais, puis bloque au 5e', async () => {
+    prisma.invitation.findUnique.mockResolvedValue(pending());
+    prisma.verification.findFirst.mockResolvedValue(validCode());
+    expect(
+      await errorCodeOf(service.acceptInvitation({ token: 'tok', code: '000000', password: 'x' })),
+    ).toBe('INVITATION_CODE_INVALID');
+    expect(prisma.verification.update).toHaveBeenCalled();
+
+    prisma.verification.findFirst.mockResolvedValue({
+      ...validCode(),
+      value: encodeStoredCode('482913', 4),
+    });
+    expect(
+      await errorCodeOf(service.acceptInvitation({ token: 'tok', code: '000000', password: 'x' })),
+    ).toBe('INVITATION_CODE_LOCKED');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('crée le compte vérifié avec le mot de passe choisi, sans renvoyer de secret', async () => {
+    prisma.invitation.findUnique.mockResolvedValue(pending());
+    prisma.verification.findFirst.mockResolvedValue(validCode());
+    prisma.planFeature.findMany.mockResolvedValue([{ featureId: 'f1' }]);
+    prisma.$transaction.mockImplementation((callback: (client: typeof tx) => unknown) =>
+      callback(tx),
+    );
+    tx.user.findUnique.mockResolvedValue(null);
+    tx.user.create.mockResolvedValue({ id: 'user-new' });
+    tx.staff.create.mockResolvedValue({ id: 'staff-new' });
+
+    const result = await service.acceptInvitation({
+      token: 'tok',
+      code: '482913',
+      password: 'MotDePasse2026',
+    });
+
+    expect(tx.user.create.mock.calls[0][0].data).toMatchObject({
+      email: 'awa@example.com',
+      emailVerified: true,
+      status: 'ACTIVE',
+    });
+    expect(tx.account.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-new',
+        accountId: 'user-new',
+        providerId: 'credential',
+        password: 'hash:MotDePasse2026',
+      },
+    });
+    expect(tx.staffPermission.createMany.mock.calls[0][0].data).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain('MotDePasse2026');
+  });
+
+  it('réactive un ancien membre : même compte, nouveau mot de passe', async () => {
+    prisma.invitation.findUnique.mockResolvedValue(pending({ permissions: [] }));
+    prisma.verification.findFirst.mockResolvedValue(validCode());
     prisma.planFeature.findMany.mockResolvedValue([]);
     prisma.$transaction.mockImplementation((callback: (client: typeof tx) => unknown) =>
       callback(tx),
     );
+    tx.user.findUnique.mockResolvedValue({ id: 'user-2' });
+    tx.account.updateMany.mockResolvedValue({ count: 1 });
     tx.staff.create.mockResolvedValue({ id: 'staff-new' });
 
-    await service.acceptInvitation('tok');
+    await service.acceptInvitation({ token: 'tok', code: '482913', password: 'MotDePasse2026' });
 
+    expect(tx.user.create).not.toHaveBeenCalled();
     expect(tx.account.updateMany).toHaveBeenCalledWith({
       where: { userId: 'user-2', providerId: 'credential' },
-      data: { password: 'hash:Secret#1' },
-    });
-    expect(tx.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-2' },
-      data: { role: 'AGENT', status: 'ACTIVE' },
+      data: { password: 'hash:MotDePasse2026' },
     });
     expect(tx.staff.create).toHaveBeenCalledWith({
       data: { userId: 'user-2', agencyId: 'A', agencyRole: 'AGENT' },

@@ -29,7 +29,6 @@ export type TemplateVariables = {
     USERNAME: string;
     REDIRECT_LINK: string;
     USER_EMAIL: string;
-    USER_PASSWORD: string;
     AGENCY_NAME: string;
   };
   [EMAIL_TEMPLATE_ID.UPDATE_EMAIL_VERIFY]: {
@@ -108,6 +107,5 @@ export class SendInviteEmailPayload {
   username: string;
   token: string;
   email: string;
-  password: string;
   agencyName: string;
 }

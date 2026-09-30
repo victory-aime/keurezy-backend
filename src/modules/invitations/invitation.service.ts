@@ -3,10 +3,18 @@ import { AgencyService } from '../agency/agency.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ResendService } from '../mail/resend.service';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
-import { CreateInvitationDto } from './invitation.dto';
+import { AcceptInvitationDto, CreateInvitationDto } from './invitation.dto';
 import { EXPIRE_TIME, FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
-import { decryptPassword, encryptPassword, generateTemporaryPassword } from '../../config/crypto';
+import { OTP_SETTINGS } from '../../config/otp';
+import {
+  INVITATION_CODE_MAX_ATTEMPTS,
+  checkInvitationCode,
+  encodeStoredCode,
+  generateInvitationCode,
+  invitationCodeIdentifier,
+  maskEmail,
+} from './invitation-code';
 import { getAuthInstance } from '../../lib/auth';
 
 @Injectable()
@@ -86,15 +94,11 @@ export class InvitationService {
       throw new BadRequestException('Certaines permissions ne sont pas incluses dans votre plan.');
     }
 
-    // 4. Générer le mot de passe côté serveur (jamais côté client)
-    const encryptedPassword = encryptPassword(payload.temporaryPassword);
-
-    // 5. Créer l'invitation avec les permissions pré-configurées
+    // 4. Créer l'invitation avec les permissions pré-configurées
     const invitation = await this.prisma.invitation.create({
       data: {
         name: payload.name,
         email: payload.email,
-        temporaryPassword: encryptedPassword,
         agencyId,
         agencyRole: payload.role,
         invitedBy: adminId,
@@ -109,11 +113,10 @@ export class InvitationService {
       include: { permissions: true },
     });
 
-    // 6. Envoyer l'email avec le mot de passe en clair
+    // 5. E-mail avec le seul lien : l'invité choisit son mot de passe à l'acceptation
     await this.resendService.sendInvitationEmail({
       sendTo: invitation.email,
       email: invitation.email,
-      password: payload.temporaryPassword,
       token: invitation.token,
       agencyName: agency.name,
       username: invitation.name,
@@ -155,19 +158,23 @@ export class InvitationService {
     await this.prisma.invitation.deleteMany({ where: { email, status: { not: 'PENDING' } } });
   }
 
-  async acceptInvitation(token: string) {
-    // 1. Valider le token
-    const invitation = await this.prisma.invitation.findUniqueOrThrow({
+  /**
+   * Invitation en attente pour ce jeton, avec ce qu'il faut pour l'aperçu et l'acceptation.
+   * Une invitation expirée est marquée EXPIRED. Erreurs neutres : rien sur le compte ciblé.
+   */
+  private async findPendingInvitation(token: string) {
+    const invitation = await this.prisma.invitation.findUnique({
       where: { token },
       include: {
+        agency: { select: { name: true, agencyLogo: true } },
         permissions: {
-          include: {
-            Permission: { select: { featureId: true } }, // 🔑 on remonte au featureId
-          },
+          include: { Permission: { select: { featureId: true, name: true, description: true } } },
         },
       },
     });
-
+    if (!invitation) {
+      throw new HttpError('Invitation introuvable.', HttpStatus.NOT_FOUND, 'INVITATION_NOT_FOUND');
+    }
     if (invitation.status !== 'PENDING') {
       throw new HttpError(
         'Invitation déjà utilisée ou annulée.',
@@ -180,11 +187,118 @@ export class InvitationService {
         where: { id: invitation.id },
         data: { status: 'EXPIRED' },
       });
-      throw new BadRequestException('Invitation expirée.');
+      throw new HttpError('Invitation expirée.', HttpStatus.BAD_REQUEST, 'INVITATION_EXPIRED');
+    }
+    return invitation;
+  }
+
+  /**
+   * Aperçu en lecture seule, affiché à l'ouverture du lien : ne modifie rien (un scanner de
+   * liens qui ouvre l'URL ne consomme plus l'invitation).
+   */
+  async previewInvitation(token: string) {
+    const invitation = await this.findPendingInvitation(token);
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: invitation.invitedBy },
+      select: { name: true },
+    });
+    return {
+      agency: { name: invitation.agency.name, logo: invitation.agency.agencyLogo },
+      invitedBy: inviter?.name ?? invitation.agency.name,
+      role: invitation.agencyRole,
+      permissions: invitation.permissions
+        .filter((p) => p.granted && p.Permission)
+        .map((p) => p.Permission!.description ?? p.Permission!.name),
+      maskedEmail: maskEmail(invitation.email),
+      expiresAt: invitation.expiresAt,
+    };
+  }
+
+  /**
+   * Envoie un code à 6 chiffres à l'adresse invitée : il prouve la possession de la boîte.
+   * Le code est stocké haché, lié à l'invitation, avec un délai minimal entre deux envois.
+   */
+  async sendInvitationCode(token: string) {
+    const invitation = await this.findPendingInvitation(token);
+    const identifier = invitationCodeIdentifier(invitation.id);
+
+    const previous = await this.prisma.verification.findFirst({
+      where: { identifier },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    const cooldownMs = OTP_SETTINGS.resendCooldown * 1000;
+    if (previous && Date.now() - previous.createdAt.getTime() < cooldownMs) {
+      throw new HttpError(
+        'Un code vient d’être envoyé : patientez avant d’en demander un autre.',
+        HttpStatus.TOO_MANY_REQUESTS,
+        'INVITATION_CODE_TOO_SOON',
+      );
     }
 
-    // 2. Features encore autorisées au moment de l'acceptation
-    //    (le plan a pu changer entre l'invitation et l'acceptation)
+    const code = generateInvitationCode();
+    await this.prisma.$transaction([
+      this.prisma.verification.deleteMany({ where: { identifier } }),
+      this.prisma.verification.create({
+        data: {
+          identifier,
+          value: encodeStoredCode(code),
+          expiresAt: new Date(Date.now() + OTP_SETTINGS.expiresIn * 1000),
+        },
+      }),
+    ]);
+    await this.resendService.sendVerificationOTP(invitation.email, code, 'invitation');
+
+    return { expiresIn: OTP_SETTINGS.expiresIn, retryIn: OTP_SETTINGS.resendCooldown };
+  }
+
+  /** Vérifie le code (5 essais), puis le consomme : il ne sert qu'une fois. */
+  private async consumeInvitationCode(invitationId: string, code: string) {
+    const identifier = invitationCodeIdentifier(invitationId);
+    const stored = await this.prisma.verification.findFirst({ where: { identifier } });
+    if (!stored || stored.expiresAt < new Date()) {
+      throw new HttpError(
+        'Code expiré : demandez-en un nouveau.',
+        HttpStatus.BAD_REQUEST,
+        'INVITATION_CODE_EXPIRED',
+      );
+    }
+
+    const { valid, attempts } = checkInvitationCode(stored.value, code);
+    if (!valid) {
+      const used = attempts + 1;
+      if (used >= INVITATION_CODE_MAX_ATTEMPTS) {
+        await this.prisma.verification.delete({ where: { id: stored.id } });
+        throw new HttpError(
+          'Trop d’essais : demandez un nouveau code.',
+          HttpStatus.TOO_MANY_REQUESTS,
+          'INVITATION_CODE_LOCKED',
+        );
+      }
+      await this.prisma.verification.update({
+        where: { id: stored.id },
+        data: { value: `${stored.value.split(':')[0]}:${used}` },
+      });
+      throw new HttpError(
+        `Code incorrect : ${INVITATION_CODE_MAX_ATTEMPTS - used} essai(s) restant(s).`,
+        HttpStatus.BAD_REQUEST,
+        'INVITATION_CODE_INVALID',
+      );
+    }
+    await this.prisma.verification.delete({ where: { id: stored.id } });
+  }
+
+  /**
+   * Acceptation volontaire : code valide et mot de passe choisi par l'invité. En une seule
+   * transaction : compte créé (ou ancien membre réactivé, même userId) avec l'e-mail vérifié,
+   * profil Staff, permissions encore couvertes par le plan, invitation ACCEPTED. Aucun secret
+   * n'est renvoyé : le front connecte l'invité avec le mot de passe qu'il vient de saisir.
+   */
+  async acceptInvitation({ token, code, password }: AcceptInvitationDto) {
+    const invitation = await this.findPendingInvitation(token);
+    await this.consumeInvitationCode(invitation.id, code);
+
+    // Features encore autorisées au moment de l'acceptation (le plan a pu changer)
     const currentPlanFeatures = await this.prisma.planFeature.findMany({
       where: {
         enabled: true,
@@ -196,71 +310,67 @@ export class InvitationService {
       },
       select: { featureId: true },
     });
-    const currentAllowedFeatureIds = new Set(currentPlanFeatures.map((f) => f.featureId));
+    const allowedFeatureIds = new Set(currentPlanFeatures.map((f) => f.featureId));
+    const validPermissions = invitation.permissions.filter((p) =>
+      allowedFeatureIds.has(p?.Permission?.featureId!),
+    );
 
-    return this.prisma.$transaction(async (tx) => {
-      // 3. Compte : ancien membre retiré (désactivé) réactivé, sinon création via better-auth
-      const auth = getAuthInstance();
-      const temporaryPassword = decryptPassword(invitation.temporaryPassword!);
-      const existingUser = await this.prisma.user.findUnique({
+    const { password: hasher } = await getAuthInstance().$context;
+    const passwordHash = await hasher.hash(password);
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
         where: { email: invitation.email },
-        select: { id: true, email: true },
+        select: { id: true },
       });
-      let user: { id: string; email: string };
-      if (existingUser) {
-        const { password } = await auth.$context;
-        await tx.account.updateMany({
-          where: { userId: existingUser.id, providerId: 'credential' },
-          data: { password: await password.hash(temporaryPassword) },
+      const userData = {
+        role: invitation.agencyRole,
+        status: 'ACTIVE' as const,
+        emailVerified: true,
+      };
+
+      let userId: string;
+      if (existing) {
+        // Ancien membre retiré puis réinvité : même compte, nouveau mot de passe
+        userId = existing.id;
+        await tx.user.update({ where: { id: userId }, data: userData });
+        const updated = await tx.account.updateMany({
+          where: { userId, providerId: 'credential' },
+          data: { password: passwordHash },
         });
-        user = existingUser;
+        if (!updated.count) {
+          await tx.account.create({
+            data: { userId, accountId: userId, providerId: 'credential', password: passwordHash },
+          });
+        }
       } else {
-        ({ user } = await auth.api.signUpEmail({
-          body: { email: invitation.email, password: temporaryPassword, name: invitation.name },
-        }));
+        const user = await tx.user.create({
+          data: { name: invitation.name, email: invitation.email, ...userData },
+        });
+        userId = user.id;
+        await tx.account.create({
+          data: { userId, accountId: userId, providerId: 'credential', password: passwordHash },
+        });
       }
 
-      // 4. Créer le Staff
-      const newStaff = await tx.staff.create({
-        data: {
-          userId: user.id,
-          agencyId: invitation.agencyId,
-          agencyRole: invitation.agencyRole,
-        },
+      const staff = await tx.staff.create({
+        data: { userId, agencyId: invitation.agencyId, agencyRole: invitation.agencyRole },
       });
-
-      // 5. Filtrer les permissions dont la feature parente est encore dans le plan
-      const validPermissions = invitation.permissions.filter((p) =>
-        currentAllowedFeatureIds.has(p?.Permission?.featureId!),
-      );
-
       await tx.staffPermission.createMany({
         data: validPermissions.map((p) => ({
-          staffId: newStaff.id,
+          staffId: staff.id,
           permissionId: p.permissionId,
           granted: p.granted,
           grantedBy: invitation.invitedBy,
         })),
       });
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { role: invitation.agencyRole, status: 'ACTIVE' },
-      });
-
-      // 6. Clôturer l'invitation et effacer le mot de passe chiffré
       await tx.invitation.update({
         where: { id: invitation.id },
-        data: {
-          status: 'ACCEPTED',
-          temporaryPassword: null, // plus utile après création du compte
-        },
+        data: { status: 'ACCEPTED', temporaryPassword: null },
       });
-      return {
-        email: user.email,
-        password: temporaryPassword,
-      };
     });
+
+    return { message: 'Invitation acceptée.', email: invitation.email };
   }
 
   async cancelledInvitation(id: string, userId: string) {
@@ -284,7 +394,7 @@ export class InvitationService {
     };
   }
 
-  /** Renvoie une invitation en attente : nouveau mot de passe temporaire et 7 jours de validité en plus. */
+  /** Renvoie une invitation en attente : 7 jours de validité en plus et le lien par e-mail. */
   async resendInvitation(id: string, userId: string) {
     const invitation = await this.prisma.invitation.findUnique({
       where: { id },
@@ -295,7 +405,7 @@ export class InvitationService {
     }
     await this.agencyService.agencyAccessControl(invitation.agencyId, userId);
 
-    if (invitation.status !== 'PENDING' || !invitation.temporaryPassword) {
+    if (invitation.status !== 'PENDING') {
       throw new HttpError(
         'Seule une invitation en attente peut être renvoyée',
         HttpStatus.BAD_REQUEST,
@@ -303,19 +413,13 @@ export class InvitationService {
       );
     }
 
-    // Nouveau mot de passe temporaire : l'ancien, déjà envoyé, n'est plus valable
-    const temporaryPassword = generateTemporaryPassword();
     await this.prisma.invitation.update({
       where: { id },
-      data: {
-        temporaryPassword: encryptPassword(temporaryPassword),
-        expiresAt: new Date(Date.now() + EXPIRE_TIME._7_DAYS * 1000),
-      },
+      data: { expiresAt: new Date(Date.now() + EXPIRE_TIME._7_DAYS * 1000) },
     });
     await this.resendService.sendInvitationEmail({
       sendTo: invitation.email,
       email: invitation.email,
-      password: temporaryPassword,
       token: invitation.token,
       agencyName: invitation.agency.name,
       username: invitation.name,
