@@ -1,3 +1,4 @@
+import { planLabel } from '../../config/plan-labels';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { NotificationType } from '../../../prisma/generated/enums';
 import { PrismaService } from '../../database/prisma.service';
@@ -14,15 +15,6 @@ import { NotificationsService } from './notifications.service';
 const frDate = (date: Date) => date.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
 const frAmount = (xof: number) =>
   `${new Intl.NumberFormat('fr-FR').format(xof).replace(/ | /g, ' ')} F CFA`;
-
-/** Noms affichés des plans (mêmes libellés que le web). */
-const PLAN_LABELS: Record<string, string> = {
-  FREE_SUB: 'Gratuit',
-  BASIC_SUB: 'Débutant',
-  STANDARD_SUB: 'Standard',
-  PREMIUM_SUB: 'Entreprise',
-};
-const planLabel = (name: string | undefined) => (name ? (PLAN_LABELS[name] ?? name) : '');
 
 /** Contenu d'un avis : e-mail (modèle générique) et notification in-app. */
 interface Notice {

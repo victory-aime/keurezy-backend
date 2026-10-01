@@ -472,3 +472,11 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
 - **Migration `20_payment_receipts`** (appliquée en dev, additive) : `payment_transaction.receiptNumber` (unique) et `receiptAgency` (JSON : l'agence telle qu'au jour du paiement), séquence `receipt_number_seq`. Les paiements déjà payés reçoivent un numéro dans l'ordre de paiement, avec les informations actuelles de l'agence (dev : `KRZ-2026-000001`).
 - Numéro **continu** `KRZ-{année}-{rang sur 6 chiffres}`, tiré de la séquence (pas de doublon en concurrence), attribué **une seule fois** dans la transaction qui passe le paiement en payé : application d'un paiement d'abonnement et webhook d'inscription (`payments/receipts/issue-receipt.ts`).
 - **Correctif** : le webhook d'inscription ne rattachait pas le paiement à l'agence créée (`agencyId` vide) ; il n'apparaissait donc pas dans l'historique de facturation. Il est maintenant rattaché.
+
+## 58. Reçus de paiement : PDF et téléchargement (R2)
+
+- Nouvelle dépendance **`pdfkit`** (0.17, avec `@types/pdfkit`) : reçu A4 standard (`payments/receipts/receipt-pdf.ts`), polices standard du PDF, sans fichier stocké. Le PDF est régénéré à la demande à partir des données figées au paiement (numéro, montant, plan, période, agence).
+- Contenu : émetteur Keurezy (variables `KEUREZY_LEGAL_NAME`, `KEUREZY_NINEA`, `KEUREZY_RCCM`, `KEUREZY_ADDRESS`, `KEUREZY_BILLING_EMAIL`, ajoutées vides dans `.env` et `.env.uat` ; « à compléter » tant qu'elles sont vides), agence (raison sociale, forme juridique, adresse, NINEA, RCCM, e-mail de facturation), ligne d'abonnement et période, total réglé, référence NabooPay, mention « Reçu de paiement, non soumis à la TVA ».
+- **`GET secured/agency/subscription/payments/receipt?agencyId&paymentId`** (owner) → `application/pdf`, `recu-KRZ-AAAA-NNNNNN.pdf`. `404 RECEIPT_NOT_FOUND` : autre agence, paiement non payé ou sans reçu.
+- `GET …/subscription/payments` : chaque paiement a en plus `receiptNumber`.
+- Le calcul de la période d'un paiement est partagé par l'historique et le reçu (`paymentPeriod`) ; les libellés de plans sont partagés par les e-mails et les reçus (`config/plan-labels.ts`).

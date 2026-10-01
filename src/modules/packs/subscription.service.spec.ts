@@ -662,3 +662,55 @@ describe('SubscriptionService.getLimits', () => {
     );
   });
 });
+
+describe('SubscriptionService.getReceipt', () => {
+  const prisma = { paymentTransaction: { findFirst: jest.fn() } };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+  });
+
+  it("cherche un paiement payé, avec reçu, de l'agence de l'appelant", async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue({
+      naboo_order_id: 'o1',
+      amount_to_pay: { toString: () => '10000' },
+      confirmed_at: new Date('2026-10-02T10:00:00Z'),
+      updatedAt: new Date('2026-10-02T10:00:00Z'),
+      metadata: { periodStart: '2026-10-02T10:00:00Z', periodEnd: '2026-11-02T10:00:00Z' },
+      receiptNumber: 'KRZ-2026-000001',
+      receiptAgency: { name: 'Keur Immo', address: 'Dakar', email: 'a@b.sn' },
+      plan: { name: 'STANDARD_SUB' },
+    });
+    const { filename, pdf } = await service.getReceipt('A', 'owner-1', 'p1');
+    expect(filename).toBe('recu-KRZ-2026-000001.pdf');
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(prisma.paymentTransaction.findFirst.mock.calls[0][0].where).toEqual({
+      agencyId: 'A',
+      id: 'p1',
+      status: 'PAID',
+      receiptNumber: { not: null },
+    });
+  });
+
+  it('paiement introuvable pour cette agence (autre agence, non payé) : 404', async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue(null);
+    await expect(errorCodeOf(service.getReceipt('A', 'owner-1', 'p-other'))).resolves.toBe(
+      'RECEIPT_NOT_FOUND',
+    );
+  });
+
+  it('refuse le staff', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(errorCodeOf(service.getReceipt('A', 'staff-1', 'p1'))).resolves.toBe('OWNER_ONLY');
+    expect(prisma.paymentTransaction.findFirst).not.toHaveBeenCalled();
+  });
+});

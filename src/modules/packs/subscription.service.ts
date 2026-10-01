@@ -1,3 +1,5 @@
+import { findReceiptData, paymentPeriod } from '../payments/receipts/receipt-data';
+import { renderReceiptPdf } from '../payments/receipts/receipt-pdf';
 import { ExitFeedbackDto } from '../agency/dto/exit-feedback.dto';
 import { recordExitFeedback } from '../agency/exit-feedback';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
@@ -26,7 +28,6 @@ import { FeatureCommercial } from '../../config/enum';
 import { AssetType } from './asset-activation';
 import { SubscriptionBillingService } from './subscription-billing.service';
 import { DomainEventBus } from '../events/domain-events';
-import { addBillingCycle } from './subscription-quote';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -99,14 +100,9 @@ export interface AgencyPayment {
   periodEnd: Date | null;
   paidAt: Date | null;
   createdAt: Date;
+  /** Numéro du reçu (paiement payé) ; null sinon */
+  receiptNumber: string | null;
 }
-
-/** Seules ces clés de `metadata` sont lues (celle d'un onboarding contient des données sensibles). */
-type PaymentPeriodMetadata = {
-  periodStart?: string;
-  periodEnd?: string;
-  billingCycle?: BillingCycle | null;
-};
 
 const MAX_PAGE_SIZE = 50;
 
@@ -489,6 +485,7 @@ export class SubscriptionService {
           confirmed_at: true,
           createdAt: true,
           metadata: true,
+          receiptNumber: true,
           plan: { select: { name: true } },
         },
       }),
@@ -496,13 +493,8 @@ export class SubscriptionService {
     ]);
 
     const content: AgencyPayment[] = rows.map((row) => {
-      const meta = (row.metadata ?? {}) as PaymentPeriodMetadata;
       const paidAt = row.status === PaymentStatus.PAID ? row.confirmed_at : null;
-      // Onboardings antérieurs à l'historique : période déduite du paiement et du cycle choisi
-      const derivedEnd =
-        !meta.periodEnd && paidAt && meta.billingCycle
-          ? addBillingCycle(paidAt, meta.billingCycle)
-          : null;
+      const { periodStart, periodEnd } = paymentPeriod(row.metadata, paidAt);
       return {
         id: row.id,
         kind: row.kind,
@@ -510,10 +502,11 @@ export class SubscriptionService {
         amount: Number(row.amount_to_pay.toString()),
         currency: 'XOF',
         status: row.status,
-        periodStart: meta.periodStart ? new Date(meta.periodStart) : derivedEnd ? paidAt : null,
-        periodEnd: meta.periodEnd ? new Date(meta.periodEnd) : derivedEnd,
+        periodStart,
+        periodEnd,
         paidAt,
         createdAt: row.createdAt,
+        receiptNumber: row.receiptNumber,
       };
     });
 
@@ -524,6 +517,19 @@ export class SubscriptionService {
       currentPage,
       totalPages: Math.ceil(total / take),
     };
+  }
+
+  /**
+   * Reçu PDF d'un paiement payé de l'agence (owner). Régénéré à partir des données figées au
+   * paiement ; `404` pour un paiement d'une autre agence, non payé ou sans reçu.
+   */
+  async getReceipt(agencyId: string, userId: string, paymentId: string) {
+    await this.assertOwner(agencyId, userId);
+    const data = await findReceiptData(this.prisma, { agencyId, id: paymentId });
+    if (!data) {
+      throw new HttpError('Reçu introuvable', HttpStatus.NOT_FOUND, 'RECEIPT_NOT_FOUND');
+    }
+    return { filename: `recu-${data.number}.pdf`, pdf: await renderReceiptPdf(data) };
   }
 
   /**

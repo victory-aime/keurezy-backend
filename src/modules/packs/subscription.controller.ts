@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -191,6 +192,30 @@ export class SubscriptionController {
     return this.changeService.cancelScheduledChange(agencyId, userId);
   }
 
+  @AllowWhenInactive()
+  @Get(API_URL.AGENCY.SUBSCRIPTION_RECEIPT)
+  @ApiOperation({ summary: "Reçu PDF d'un paiement payé (propriétaire)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'paymentId', required: true, description: 'Identifiant du paiement' })
+  @ApiOkResponse({ description: 'application/pdf, recu-KRZ-AAAA-NNNNNN.pdf' })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  @ApiNotFoundResponse({ description: 'RECEIPT_NOT_FOUND : autre agence, non payé ou sans reçu' })
+  async getReceipt(
+    @Query('agencyId') agencyId: string,
+    @Query('paymentId') paymentId: string,
+    @AgencyProfileId() userId: string,
+  ) {
+    const { filename, pdf } = await this.subscriptionService.getReceipt(
+      agencyId,
+      userId,
+      paymentId,
+    );
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
   @Get(API_URL.AGENCY.SUBSCRIPTION_PAYMENTS)
   @ApiOperation({ summary: "Historique de facturation de l'agence (propriétaire)" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
@@ -202,7 +227,7 @@ export class SubscriptionController {
   })
   @ApiOkResponse({
     description:
-      '{ content: { id, kind, plan, amount, currency, status, periodStart, periodEnd, paidAt, createdAt }[], totalItems, totalPages, currentPage, totalDataPerPage }',
+      '{ content: { id, kind, plan, amount, currency, status, periodStart, periodEnd, paidAt, createdAt, receiptNumber }[], totalItems, totalPages, currentPage, totalDataPerPage }',
   })
   @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
   listPayments(
