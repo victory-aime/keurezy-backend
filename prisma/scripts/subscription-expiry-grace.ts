@@ -1,5 +1,5 @@
 import { prisma } from '../seed/client';
-import { SubscriptionStatus } from '../generated/enums';
+import { Plan, SubscriptionStatus } from '../generated/enums';
 
 /**
  * Délai de grâce, à lancer une fois juste avant d'activer `SUBSCRIPTION_EXPIRY_ENABLED=true`.
@@ -9,7 +9,8 @@ import { SubscriptionStatus } from '../generated/enums';
  * l'activation, sans avoir été prévenues. Le script repousse leur échéance à J+7 : elles reçoivent
  * les rappels (J-7, J-3, J-1) et peuvent renouveler en ligne.
  *
- * Concernés : abonnements ACTIVE, non résiliés, dont l'échéance est passée ou absente.
+ * Concernés : abonnements ACTIVE, non résiliés, dont l'échéance est passée ou absente. Le plan
+ * Gratuit n'a jamais d'échéance : il est exclu.
  * Aperçu par défaut ; `--apply` pour écrire. Idempotent (une échéance déjà repoussée n'est plus
  * passée).
  */
@@ -22,6 +23,7 @@ async function main() {
   const where = {
     status: SubscriptionStatus.ACTIVE,
     cancelAtPeriodEnd: false,
+    plan: { name: { not: Plan.FREE_SUB } },
     OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { lt: now } }],
   };
 
