@@ -251,6 +251,17 @@ describe('SubscriptionBillingService.applyScheduledChanges', () => {
     expect(deactivate).toHaveBeenCalledWith(tx, 'A', keep);
   });
 
+  it("vers le Gratuit : ni cycle ni échéance (plus de rappel ni d'expiration)", async () => {
+    tx.planPricing.findUniqueOrThrow.mockResolvedValue({ price: decimal(0), currency: 'XOF' });
+    await service.applyScheduledChanges(now);
+    expect(tx.subscription.updateMany.mock.calls[0][0].data).toMatchObject({
+      billingCycle: null,
+      currentPeriodStart: now,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    });
+  });
+
   it('déjà appliqué (relance du job) : rien ne se refait', async () => {
     tx.subscription.updateMany.mockResolvedValue({ count: 0 });
     await expect(service.applyScheduledChanges(now)).resolves.toBe(0);

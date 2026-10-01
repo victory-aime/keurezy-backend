@@ -50,6 +50,7 @@ describe('SubscriptionChangeService.getQuote', () => {
     policy as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
   const standard = planRecord('standard', 10_000, { manage_users: 8, publish_properties: null });
@@ -170,6 +171,7 @@ describe('SubscriptionChangeService.createCheckout', () => {
     { counters: {} } as never,
     naboo as never,
     {} as never,
+    {} as never,
   );
 
   beforeEach(() => {
@@ -288,6 +290,7 @@ describe('SubscriptionChangeService.validateKeep', () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   const excess = [
     {
@@ -336,6 +339,7 @@ describe('SubscriptionChangeService.getPaymentStatus', () => {
     {} as never,
     naboo as never,
     events as never,
+    {} as never,
   );
 
   beforeEach(() => jest.clearAllMocks());
@@ -389,6 +393,7 @@ describe('SubscriptionChangeService.getPaymentStatus', () => {
 describe('SubscriptionChangeService : downgrade programmé', () => {
   const standard = planRecord('standard', 10_000, { manage_users: 8 });
   const basic = planRecord('basic', 5_000, { manage_users: 1 });
+  const free = planRecord('free', 0, { manage_users: 0 });
   const end = new Date(Date.now() + 20 * 86_400_000);
   const prisma = {
     subscription: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
@@ -397,12 +402,14 @@ describe('SubscriptionChangeService : downgrade programmé', () => {
     invitation: { findMany: jest.fn() },
   };
   const policy = { counters: { manage_users: jest.fn() } };
+  const billing = { activateFreePlan: jest.fn() };
   const service = new SubscriptionChangeService(
     prisma as never,
     { assertOwner: jest.fn() } as never,
     policy as never,
     {} as never,
     {} as never,
+    billing as never,
   );
 
   beforeEach(() => {
@@ -418,7 +425,13 @@ describe('SubscriptionChangeService : downgrade programmé', () => {
       plan: standard,
     });
     prisma.subscriptionPlan.findUnique.mockImplementation(({ where }) =>
-      Promise.resolve(where.id === 'basic' ? basic : planRecord('premium', 20_000, {})),
+      Promise.resolve(
+        where.id === 'basic'
+          ? basic
+          : where.id === 'free'
+            ? free
+            : planRecord('premium', 20_000, {}),
+      ),
     );
     policy.counters.manage_users.mockResolvedValue(2);
     prisma.staff.findMany.mockResolvedValue([
@@ -456,6 +469,33 @@ describe('SubscriptionChangeService : downgrade programmé', () => {
       'SELECTION_INVALID',
     );
     await expect(errorCodeOf(schedule('premium', []))).resolves.toBe('NOT_A_DOWNGRADE');
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it("Gratuit avec une période en cours : programmé pour l'échéance, comme tout downgrade", async () => {
+    await schedule('free', []);
+    expect(prisma.subscription.update.mock.calls[0][0].data).toMatchObject({
+      scheduledPlanId: 'free',
+      scheduledAt: end,
+    });
+    expect(billing.activateFreePlan).not.toHaveBeenCalled();
+  });
+
+  it('Gratuit après expiration : appliqué tout de suite, sans paiement, avec le choix', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'INACTIVE',
+      billingCycle: 'MONTHLY',
+      price: decimal(10_000),
+      currentPeriodStart: new Date(Date.now() - 40 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() - 10 * 86_400_000),
+      scheduledPlanId: null,
+      scheduledBillingCycle: null,
+      plan: standard,
+    });
+    await schedule('free', []);
+    expect(billing.activateFreePlan).toHaveBeenCalledWith('A', 'free', [
+      { feature: 'manage_users', ids: [] },
+    ]);
     expect(prisma.subscription.update).not.toHaveBeenCalled();
   });
 

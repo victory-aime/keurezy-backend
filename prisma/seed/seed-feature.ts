@@ -350,6 +350,35 @@ async function seed() {
     // 👉 AVEC PRICING + RÉDUCTION ICI UNIQUEMENT
     // =========================================================
 
+    // FREE SUB : entrée de gamme, sans cycle ni échéance (prix 0 sur les deux cycles pour que le
+    // devis le classe sous les autres plans)
+    const freePricings = [
+      { billingCycle: BillingCycle.MONTHLY, price: 0, currency: 'XOF' },
+      { billingCycle: BillingCycle.YEARLY, price: 0, currency: 'XOF' },
+    ];
+    const freeFeatures = [
+      feature('manage_properties', 2),
+      feature('publish_properties', 2),
+      feature('manage_conversations'),
+      feature('manage_bookings'),
+      feature('manage_users', 0),
+    ];
+    await tx.subscriptionPlan.upsert({
+      where: { name: Plan.FREE_SUB },
+      update: {
+        pricings: { deleteMany: {}, create: freePricings },
+        planFeatures: { deleteMany: {}, create: freeFeatures },
+      },
+      create: {
+        name: Plan.FREE_SUB,
+        pricingType: PricingType.SUBSCRIPTION,
+        planCategory: PlanCategory.SUBSCRIPTION_BASED,
+        isActive: true,
+        pricings: { create: freePricings },
+        planFeatures: { create: freeFeatures },
+      },
+    });
+
     // BASIC SUB
     await tx.subscriptionPlan.upsert({
       where: { name: Plan.BASIC_SUB },

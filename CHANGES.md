@@ -379,3 +379,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **`GET agency/subscription/limits?agencyId`** (owner **et** staff de l'agence) : `{ plan: { id, name }, usage, hasPaymentHistory }`. `usage` vient des mêmes compteurs que la page abonnement et l'enforcement. Aucun prix ni montant n'est renvoyé.
 - `hasPaymentHistory` : l'agence a un paiement payé autre que l'inscription. Le web s'en sert pour n'afficher l'aperçu du plan supérieur qu'aux agences sans historique.
 - Sert au pop-up « limite atteinte » des boutons « Ajouter » (biens, annonces, invitations). Le backend reste la barrière : les créations au-delà de la limite sont toujours refusées.
+
+## 47. Plan Gratuit
+
+- **Migration `16_free_plan`** (appliquée en dev) : valeur `FREE_SUB` ajoutée à l'enum `Plan`. Le plan est créé par le seed (`db:seed:dev-feature`, `db:seed:uat-feature`) : prix 0 sur les deux cycles, 2 biens, 2 annonces en ligne, 0 collaborateur, messagerie et réservations, sans support premium.
+- Un abonnement Gratuit n'a **ni cycle ni échéance** (`currentPeriodEnd` nul) : ni rappel, ni expiration. Sa résiliation est refusée (`409 FREE_PLAN_NO_PERIOD`).
+- **Passer au Gratuit** : un downgrade programmé à l'échéance, avec le choix des éléments gardés. Une agence **expirée** y passe tout de suite, sans paiement (`POST agency/subscription/schedule-change`, devis de réactivation à 0).
+- **Quitter le Gratuit** : un paiement plein tarif, avec une nouvelle période à partir du paiement (devis de type `REACTIVATION`).

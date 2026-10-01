@@ -16,6 +16,7 @@ import {
 } from '../../../prisma/generated/enums';
 import { PlanFeaturePolicyService } from './plan-feature-policy.service';
 import { SubscriptionService } from './subscription.service';
+import { SubscriptionBillingService } from './subscription-billing.service';
 import { Quote, QuotePlan, quoteChange } from './subscription-quote';
 
 /** Élément actif qui compte dans une limite du plan, proposé au choix lors d'un downgrade. */
@@ -104,6 +105,7 @@ export class SubscriptionChangeService {
     private readonly policy: PlanFeaturePolicyService,
     private readonly naboo: NabooService,
     private readonly events: DomainEventBus,
+    private readonly billing: SubscriptionBillingService,
   ) {}
 
   /**
@@ -290,7 +292,9 @@ export class SubscriptionChangeService {
       target.billingCycle,
       new Date(),
     );
-    if (quote.kind !== 'DOWNGRADE') {
+    // Agence expirée qui choisit le Gratuit : rien à payer, le passage est immédiat
+    const freeNow = quote.kind === 'REACTIVATION' && quote.amount === 0;
+    if (quote.kind !== 'DOWNGRADE' && !freeNow) {
       throw new HttpError(
         "Ce changement n'est pas un downgrade : il se paie maintenant",
         HttpStatus.BAD_REQUEST,
@@ -298,6 +302,15 @@ export class SubscriptionChangeService {
       );
     }
     const keep = this.validateKeep(await this.findExcess(agencyId, targetPlan), target.keep ?? []);
+    if (freeNow) {
+      await this.billing.activateFreePlan(agencyId, targetPlan.id, keep);
+      return {
+        planId: targetPlan.id,
+        billingCycle: target.billingCycle,
+        effectiveAt: quote.effectiveAt,
+        keep,
+      };
+    }
     await this.prisma.subscription.update({
       where: { agencyId },
       data: {

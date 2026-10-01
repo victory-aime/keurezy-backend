@@ -544,6 +544,13 @@ export class SubscriptionService {
         'SUBSCRIPTION_EXPIRED',
       );
     }
+    if (!subscription.currentPeriodEnd) {
+      throw new HttpError(
+        "Le plan Gratuit n'a pas d'échéance : il n'y a rien à résilier",
+        HttpStatus.CONFLICT,
+        'FREE_PLAN_NO_PERIOD',
+      );
+    }
     return subscription;
   }
 

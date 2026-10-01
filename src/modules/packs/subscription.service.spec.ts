@@ -301,6 +301,16 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     await expect(errorCodeOf(service.resume('A', 'owner-1'))).resolves.toBe('SUBSCRIPTION_EXPIRED');
   });
 
+  it("refuse la résiliation du plan Gratuit (pas d'échéance)", async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+    });
+    await expect(errorCodeOf(service.cancel('A', 'owner-1'))).resolves.toBe('FREE_PLAN_NO_PERIOD');
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
   it('répond SUBSCRIPTION_NOT_FOUND à une agence sans souscription', async () => {
     prisma.subscription.findUnique.mockResolvedValue(null);
     await expect(errorCodeOf(service.cancel('A', 'owner-1'))).resolves.toBe(

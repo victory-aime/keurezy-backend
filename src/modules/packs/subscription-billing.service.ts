@@ -16,6 +16,26 @@ import type { KeepSelection, SubscriptionCheckoutMetadata } from './subscription
 type Tx = Prisma.TransactionClient;
 
 /**
+ * Période d'un abonnement Gratuit : ni cycle ni échéance, donc ni rappel, ni expiration, ni
+ * résiliation (les jobs ne regardent que `currentPeriodEnd`).
+ */
+const freePeriod = (now: Date) => ({
+  billingCycle: null,
+  currentPeriodStart: now,
+  currentPeriodEnd: null,
+  cancelAtPeriodEnd: false,
+  canceledAt: null,
+  lastRenewalReminder: null,
+});
+
+const NO_SCHEDULED_CHANGE = {
+  scheduledPlanId: null,
+  scheduledBillingCycle: null,
+  scheduledKeep: Prisma.DbNull,
+  scheduledAt: null,
+};
+
+/**
  * Applique les paiements d'abonnement confirmés par NabooPay, et les désactivations d'un
  * downgrade. Écoute `subscription.payment.confirmed` (webhook ou polling) : le module paiements
  * ne dépend pas du module abonnement.
@@ -135,10 +155,7 @@ export class SubscriptionBillingService implements OnModuleInit {
       billingCycle: meta.billingCycle,
       price: pricing.price,
       currency: pricing.currency,
-      scheduledPlanId: null,
-      scheduledBillingCycle: null,
-      scheduledKeep: Prisma.DbNull,
-      scheduledAt: null,
+      ...NO_SCHEDULED_CHANGE,
     };
 
     if (!running) {
@@ -215,6 +232,7 @@ export class SubscriptionBillingService implements OnModuleInit {
             where: { planId_billingCycle: { planId, billingCycle } },
             select: { price: true, currency: true },
           });
+          const free = Number(pricing.price.toString()) === 0;
           const claim = await tx.subscription.updateMany({
             where: { agencyId, scheduledAt: { lt: now } },
             data: {
@@ -222,10 +240,8 @@ export class SubscriptionBillingService implements OnModuleInit {
               billingCycle,
               price: pricing.price,
               currency: pricing.currency,
-              scheduledPlanId: null,
-              scheduledBillingCycle: null,
-              scheduledKeep: Prisma.DbNull,
-              scheduledAt: null,
+              ...NO_SCHEDULED_CHANGE,
+              ...(free ? freePeriod(now) : {}),
             },
           });
           if (claim.count !== 1) return false;
@@ -239,6 +255,27 @@ export class SubscriptionBillingService implements OnModuleInit {
     }
     if (applied > 0) this.logger.log(`${applied} downgrade(s) appliqué(s)`);
     return applied;
+  }
+
+  /**
+   * Passage immédiat au plan Gratuit d'une agence sans période en cours (expirée) : rien à payer,
+   * l'abonnement redevient actif, sans échéance, et ce qui n'a pas été gardé est désactivé.
+   */
+  async activateFreePlan(agencyId: string, planId: string, keep: KeepSelection, now = new Date()) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subscription.update({
+        where: { agencyId },
+        data: {
+          planId,
+          status: SubscriptionStatus.ACTIVE,
+          price: 0,
+          currency: 'XOF',
+          ...NO_SCHEDULED_CHANGE,
+          ...freePeriod(now),
+        },
+      });
+      await this.deactivateExcess(tx, agencyId, keep);
+    });
   }
 
   /**
