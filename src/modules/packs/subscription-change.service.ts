@@ -284,14 +284,16 @@ export class SubscriptionChangeService {
     target: { planId: string; billingCycle: BillingCycle; keep?: KeepSelection },
   ) {
     await this.subscriptions.assertOwner(agencyId, userId);
-    const { quote, targetPlan } = await this.buildQuote(
+    const { quote, targetPlan, currentPlanId } = await this.buildQuote(
       agencyId,
       target.planId,
       target.billingCycle,
       new Date(),
     );
-    // Agence expirée qui choisit le Gratuit : rien à payer, le passage est immédiat
-    const freeNow = quote.kind === 'REACTIVATION' && quote.amount === 0;
+    // Agence expirée qui choisit le Gratuit : rien à payer, le passage est immédiat. Déjà au
+    // Gratuit : pas de changement.
+    const freeNow =
+      quote.kind === 'REACTIVATION' && quote.amount === 0 && targetPlan.id !== currentPlanId;
     if (quote.kind !== 'DOWNGRADE' && !freeNow) {
       throw new HttpError(
         "Ce changement n'est pas un downgrade : il se paie maintenant",
@@ -445,7 +447,7 @@ export class SubscriptionChangeService {
       { plan: quotePlanOf(targetPlan), billingCycle, price: targetPrice },
       now,
     );
-    return { quote, targetPlan };
+    return { quote, targetPlan, currentPlanId: subscription.plan.id };
   }
 
   /** Plan en vente (actif). */

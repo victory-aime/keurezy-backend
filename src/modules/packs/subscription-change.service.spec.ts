@@ -492,6 +492,21 @@ describe('SubscriptionChangeService : downgrade programmé', () => {
     expect(prisma.subscription.update).not.toHaveBeenCalled();
   });
 
+  it('déjà au Gratuit : le rechoisir est refusé', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      billingCycle: null,
+      price: decimal(0),
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: null,
+      scheduledPlanId: null,
+      scheduledBillingCycle: null,
+      plan: free,
+    });
+    await expect(errorCodeOf(schedule('free', []))).resolves.toBe('NOT_A_DOWNGRADE');
+    expect(billing.activateFreePlan).not.toHaveBeenCalled();
+  });
+
   it('annulation : efface le downgrade programmé', async () => {
     await service.cancelScheduledChange('A', 'u');
     expect(prisma.subscription.updateMany.mock.calls[0][0]).toMatchObject({
