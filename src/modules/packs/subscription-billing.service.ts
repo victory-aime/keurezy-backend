@@ -175,6 +175,61 @@ export class SubscriptionBillingService implements OnModuleInit {
   }
 
   /**
+   * Applique les downgrades dont la date d'effet (`scheduledAt`) est passée : plan, cycle et prix
+   * du plan programmé, puis désactivation de ce que l'owner n'a pas gardé, en une transaction par
+   * agence. Idempotent (réclamation sur `scheduledAt`). Une agence en échec est journalisée et
+   * retentée au prochain passage, sans bloquer les autres.
+   *
+   * ponytail: une fonctionnalité passée en surplus après le choix (création entre-temps) n'est
+   * pas réduite ; l'agence reste simplement bloquée à la création jusqu'à revenir sous la limite.
+   */
+  async applyScheduledChanges(now = new Date()): Promise<number> {
+    const due = await this.prisma.subscription.findMany({
+      where: { status: SubscriptionStatus.ACTIVE, scheduledAt: { lt: now } },
+      select: {
+        agencyId: true,
+        scheduledPlanId: true,
+        scheduledBillingCycle: true,
+        scheduledKeep: true,
+      },
+    });
+    let applied = 0;
+    for (const change of due) {
+      const { agencyId, scheduledPlanId: planId, scheduledBillingCycle: billingCycle } = change;
+      if (!planId || !billingCycle) continue;
+      try {
+        const done = await this.prisma.$transaction(async (tx) => {
+          const pricing = await tx.planPricing.findUniqueOrThrow({
+            where: { planId_billingCycle: { planId, billingCycle } },
+            select: { price: true, currency: true },
+          });
+          const claim = await tx.subscription.updateMany({
+            where: { agencyId, scheduledAt: { lt: now } },
+            data: {
+              planId,
+              billingCycle,
+              price: pricing.price,
+              currency: pricing.currency,
+              scheduledPlanId: null,
+              scheduledBillingCycle: null,
+              scheduledKeep: Prisma.DbNull,
+              scheduledAt: null,
+            },
+          });
+          if (claim.count !== 1) return false;
+          await this.deactivateExcess(tx, agencyId, (change.scheduledKeep ?? []) as KeepSelection);
+          return true;
+        });
+        if (done) applied++;
+      } catch (error) {
+        this.logger.error(`Downgrade de l'agence ${agencyId} non appliqué : ${String(error)}`);
+      }
+    }
+    if (applied > 0) this.logger.log(`${applied} downgrade(s) appliqué(s)`);
+    return applied;
+  }
+
+  /**
    * Désactive ce qui n'a pas été gardé, pour chaque fonctionnalité en surplus choisie par l'owner
    * (réactivation sur un plan plus petit, downgrade). Rien n'est supprimé ; un élément créé après
    * le choix est désactivé aussi. Un bien désactivé retire ses annonces en ligne ; un membre

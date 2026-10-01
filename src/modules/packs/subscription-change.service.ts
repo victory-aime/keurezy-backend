@@ -275,6 +275,62 @@ export class SubscriptionChangeService {
   }
 
   /**
+   * Programme un downgrade pour l'échéance (owner), avec les éléments gardés actifs. Remplace un
+   * downgrade déjà programmé (modification du choix). Rien ne change avant la date d'effet.
+   */
+  async scheduleChange(
+    agencyId: string,
+    userId: string,
+    target: { planId: string; billingCycle: BillingCycle; keep?: KeepSelection },
+  ) {
+    await this.subscriptions.assertOwner(agencyId, userId);
+    const { quote, targetPlan } = await this.buildQuote(
+      agencyId,
+      target.planId,
+      target.billingCycle,
+      new Date(),
+    );
+    if (quote.kind !== 'DOWNGRADE') {
+      throw new HttpError(
+        "Ce changement n'est pas un downgrade : il se paie maintenant",
+        HttpStatus.BAD_REQUEST,
+        'NOT_A_DOWNGRADE',
+      );
+    }
+    const keep = this.validateKeep(await this.findExcess(agencyId, targetPlan), target.keep ?? []);
+    await this.prisma.subscription.update({
+      where: { agencyId },
+      data: {
+        scheduledPlanId: targetPlan.id,
+        scheduledBillingCycle: target.billingCycle,
+        scheduledKeep: keep,
+        scheduledAt: quote.effectiveAt,
+      },
+    });
+    return {
+      planId: targetPlan.id,
+      billingCycle: target.billingCycle,
+      effectiveAt: quote.effectiveAt,
+      keep,
+    };
+  }
+
+  /** Annule le downgrade programmé (owner). Idempotent. */
+  async cancelScheduledChange(agencyId: string, userId: string) {
+    await this.subscriptions.assertOwner(agencyId, userId);
+    await this.prisma.subscription.updateMany({
+      where: { agencyId },
+      data: {
+        scheduledPlanId: null,
+        scheduledBillingCycle: null,
+        scheduledKeep: Prisma.DbNull,
+        scheduledAt: null,
+      },
+    });
+    return { scheduledChange: null };
+  }
+
+  /**
    * Vérifie le choix de l'owner face au surplus : pour chaque fonctionnalité en surplus, des
    * éléments actifs de l'agence, sans dépasser la limite visée. Renvoie le choix normalisé
    * (une entrée par fonctionnalité en surplus).

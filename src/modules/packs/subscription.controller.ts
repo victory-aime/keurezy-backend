@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -149,5 +159,30 @@ export class SubscriptionController {
     @AgencyProfileId() userId: string,
   ) {
     return this.changeService.getPaymentStatus(agencyId, userId, orderId);
+  }
+
+  @Post(API_URL.AGENCY.SUBSCRIPTION_SCHEDULE_CHANGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Programmer un downgrade pour l'échéance (propriétaire)" })
+  @ApiOkResponse({ description: '{ planId, billingCycle, effectiveAt, keep }' })
+  @ApiBadRequestResponse({
+    description: 'NOT_A_DOWNGRADE : un upgrade ou un renouvellement se paie',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'SELECTION_REQUIRED, SELECTION_INVALID, SELECTION_EXCEEDS_LIMIT',
+  })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  scheduleChange(@Body() body: CheckoutDto, @AgencyProfileId() userId: string) {
+    const { agencyId, ...target } = body;
+    return this.changeService.scheduleChange(agencyId, userId, target);
+  }
+
+  @Delete(API_URL.AGENCY.SUBSCRIPTION_SCHEDULED_CHANGE)
+  @ApiOperation({ summary: 'Annuler le downgrade programmé (propriétaire, idempotent)' })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: '{ scheduledChange: null }' })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  cancelScheduledChange(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.changeService.cancelScheduledChange(agencyId, userId);
   }
 }

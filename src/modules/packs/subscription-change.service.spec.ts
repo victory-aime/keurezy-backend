@@ -379,3 +379,85 @@ describe('SubscriptionChangeService.getPaymentStatus', () => {
     expect(naboo.getTransactionById).not.toHaveBeenCalled();
   });
 });
+
+describe('SubscriptionChangeService : downgrade programmé', () => {
+  const standard = planRecord('standard', 10_000, { manage_users: 8 });
+  const basic = planRecord('basic', 5_000, { manage_users: 1 });
+  const end = new Date(Date.now() + 20 * 86_400_000);
+  const prisma = {
+    subscription: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    subscriptionPlan: { findUnique: jest.fn() },
+    staff: { findMany: jest.fn() },
+    invitation: { findMany: jest.fn() },
+  };
+  const policy = { counters: { manage_users: jest.fn() } };
+  const service = new SubscriptionChangeService(
+    prisma as never,
+    { assertOwner: jest.fn() } as never,
+    policy as never,
+    {} as never,
+    {} as never,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      billingCycle: 'MONTHLY',
+      price: decimal(10_000),
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: end,
+      scheduledPlanId: null,
+      scheduledBillingCycle: null,
+      plan: standard,
+    });
+    prisma.subscriptionPlan.findUnique.mockImplementation(({ where }) =>
+      Promise.resolve(where.id === 'basic' ? basic : planRecord('premium', 20_000, {})),
+    );
+    policy.counters.manage_users.mockResolvedValue(2);
+    prisma.staff.findMany.mockResolvedValue([
+      { id: 's1', user: { name: 'Awa', email: 'a' } },
+      { id: 's2', user: { name: 'Moussa', email: 'm' } },
+    ]);
+    prisma.invitation.findMany.mockResolvedValue([]);
+  });
+
+  const schedule = (planId: string, ids: string[]) =>
+    service.scheduleChange('A', 'u', {
+      planId,
+      billingCycle: 'MONTHLY',
+      keep: [{ feature: 'manage_users', ids }],
+    });
+
+  it("enregistre le plan, le choix et la date d'effet (échéance actuelle)", async () => {
+    await schedule('basic', ['s2']);
+    expect(prisma.subscription.update).toHaveBeenCalledWith({
+      where: { agencyId: 'A' },
+      data: {
+        scheduledPlanId: 'basic',
+        scheduledBillingCycle: 'MONTHLY',
+        scheduledKeep: [{ feature: 'manage_users', ids: ['s2'] }],
+        scheduledAt: end,
+      },
+    });
+  });
+
+  it('refuse un choix au-delà de la limite, un élément étranger, un upgrade', async () => {
+    await expect(errorCodeOf(schedule('basic', ['s1', 's2']))).resolves.toBe(
+      'SELECTION_EXCEEDS_LIMIT',
+    );
+    await expect(errorCodeOf(schedule('basic', ['other-agency-staff']))).resolves.toBe(
+      'SELECTION_INVALID',
+    );
+    await expect(errorCodeOf(schedule('premium', []))).resolves.toBe('NOT_A_DOWNGRADE');
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('annulation : efface le downgrade programmé', async () => {
+    await service.cancelScheduledChange('A', 'u');
+    expect(prisma.subscription.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { agencyId: 'A' },
+      data: { scheduledPlanId: null, scheduledAt: null },
+    });
+  });
+});

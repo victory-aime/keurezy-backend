@@ -20,6 +20,7 @@ import {
 import { todayCalendarDate } from '../rentals/calendar-date';
 import { FeatureCommercial } from '../../config/enum';
 import { AssetType } from './asset-activation';
+import { SubscriptionBillingService } from './subscription-billing.service';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -32,6 +33,13 @@ export interface SubscriptionSummary {
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
   canceledAt: Date | null;
+  /** Downgrade programmé (null sinon) : plan visé, date d'effet et éléments gardés actifs */
+  scheduledChange: {
+    plan: { id: string; name: Plan };
+    billingCycle: BillingCycle;
+    effectiveAt: Date;
+    keep: { feature: string; ids: string[] }[];
+  } | null;
 }
 
 /** Fonctionnalité commerciale, incluse ou non dans le plan de l'agence. */
@@ -82,6 +90,7 @@ export class SubscriptionService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly policy: PlanFeaturePolicyService,
+    private readonly billing: SubscriptionBillingService,
   ) {}
 
   /**
@@ -102,6 +111,10 @@ export class SubscriptionService {
         currentPeriodEnd: true,
         cancelAtPeriodEnd: true,
         canceledAt: true,
+        scheduledPlanId: true,
+        scheduledBillingCycle: true,
+        scheduledAt: true,
+        scheduledKeep: true,
         plan: {
           select: {
             id: true,
@@ -162,12 +175,35 @@ export class SubscriptionService {
       ),
     );
 
-    const { plan, price, ...period } = subscription;
+    const {
+      plan,
+      price,
+      scheduledPlanId,
+      scheduledBillingCycle,
+      scheduledAt,
+      scheduledKeep,
+      ...period
+    } = subscription;
+    const scheduledPlan = scheduledPlanId
+      ? await this.prisma.subscriptionPlan.findUnique({
+          where: { id: scheduledPlanId },
+          select: { id: true, name: true },
+        })
+      : null;
     return {
       subscription: {
         ...period,
         plan: { id: plan.id, name: plan.name },
         price: price === null ? null : Number(price.toString()),
+        scheduledChange:
+          scheduledPlan && scheduledBillingCycle && scheduledAt
+            ? {
+                plan: scheduledPlan,
+                billingCycle: scheduledBillingCycle,
+                effectiveAt: scheduledAt,
+                keep: (scheduledKeep ?? []) as { feature: string; ids: string[] }[],
+              }
+            : null,
       },
       usage,
       features: catalog.map((f) => ({
@@ -179,14 +215,18 @@ export class SubscriptionService {
   }
 
   /**
-   * Job horaire d'expiration. Une résiliation (demande explicite de l'owner) est toujours
+   * Job horaire d'échéance : downgrades programmés, puis expiration. Une résiliation (demande explicite de l'owner) est toujours
    * appliquée à l'échéance. Les périodes simplement non renouvelées n'expirent qu'avec
    * `SUBSCRIPTION_EXPIRY_ENABLED=true` : sans renouvellement en ligne (module checkout), cela
    * bloquerait toutes les agences dont la première période est déjà terminée.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async runExpiryJob(): Promise<void> {
-    await this.expireEndedPeriods(new Date(), process.env.SUBSCRIPTION_EXPIRY_ENABLED === 'true');
+    const now = new Date();
+    // Le downgrade programmé passe avant : une agence qui n'a pas renouvelé expire sur son
+    // nouveau plan, et ses éléments hors choix sont déjà désactivés
+    await this.billing.applyScheduledChanges(now);
+    await this.expireEndedPeriods(now, process.env.SUBSCRIPTION_EXPIRY_ENABLED === 'true');
   }
 
   /**

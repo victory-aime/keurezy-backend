@@ -342,3 +342,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - upgrade : plan et prix immédiats, échéance inchangée sur le même cycle, nouvelle période sur un cycle plus long ; le downgrade programmé est annulé ;
   - toujours : résiliation programmée annulée, rappels réarmés (`lastRenewalReminder = null`).
 - Désactivation (`deactivateExcess`, réutilisée par le downgrade) : biens non gardés `isActive = false` et leurs annonces retirées ; annonces non gardées `INACTIVE` ; membres non gardés désactivés et déconnectés ; invitations non gardées annulées. Rien n'est supprimé.
+
+## 41. Downgrade programmé
+
+- **`POST agency/subscription/schedule-change`** `{ agencyId, planId, billingCycle, keep }` (propriétaire) : programme le downgrade pour l'échéance (`scheduledAt` = échéance au moment du choix) avec les éléments gardés actifs. Remplace un downgrade déjà programmé. `400 NOT_A_DOWNGRADE` (un upgrade ou un renouvellement se paie) ; `422 SELECTION_REQUIRED`, `SELECTION_INVALID` (élément d'une autre agence ou inactif), `SELECTION_EXCEEDS_LIMIT`.
+- **`DELETE agency/subscription/scheduled-change?agencyId`** (propriétaire, idempotent) : annule le downgrade programmé.
+- **Job horaire** : applique d'abord les downgrades échus (`applyScheduledChanges` : plan, cycle et prix programmés, puis désactivation de ce qui n'a pas été gardé, en une transaction par agence, idempotent ; une agence en échec est retentée sans bloquer les autres), puis l'expiration.
+- `GET agency/subscription` renvoie aussi `subscription.scheduledChange` (`{ plan, billingCycle, effectiveAt, keep }` ou `null`), pour le bandeau « Passage au plan … le … ».

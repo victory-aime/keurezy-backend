@@ -28,6 +28,7 @@ describe('SubscriptionService.getOverview', () => {
     prisma as never,
     agencyService as never,
     new PlanFeaturePolicyService(prisma as never),
+    {} as never,
   );
 
   const standardSubscription = {
@@ -89,6 +90,7 @@ describe('SubscriptionService.getOverview', () => {
       currentPeriodEnd: standardSubscription.currentPeriodEnd,
       cancelAtPeriodEnd: false,
       canceledAt: null,
+      scheduledChange: null,
     });
   });
 
@@ -163,7 +165,13 @@ describe('SubscriptionService.getOverview', () => {
 
 describe('SubscriptionService.expireEndedPeriods', () => {
   const prisma = { subscription: { updateMany: jest.fn() } };
-  const service = new SubscriptionService(prisma as never, {} as never, {} as never);
+  const billing = { applyScheduledChanges: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    billing as never,
+  );
 
   it('passe INACTIVE uniquement les abonnements actifs dont la période est échue', async () => {
     const now = new Date('2026-10-30T10:00:00Z');
@@ -191,6 +199,17 @@ describe('SubscriptionService.expireEndedPeriods', () => {
     });
   });
 
+  it("applique les downgrades programmés avant l'expiration", async () => {
+    const order: string[] = [];
+    billing.applyScheduledChanges.mockImplementation(async () => order.push('downgrade'));
+    prisma.subscription.updateMany.mockImplementation(async () => {
+      order.push('expire');
+      return { count: 0 };
+    });
+    await service.runExpiryJob();
+    expect(order).toEqual(['downgrade', 'expire']);
+  });
+
   it('avec SUBSCRIPTION_EXPIRY_ENABLED, expire aussi les périodes non renouvelées', async () => {
     process.env.SUBSCRIPTION_EXPIRY_ENABLED = 'true';
     prisma.subscription.updateMany.mockClear();
@@ -212,7 +231,12 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     booking: { count: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new SubscriptionService(prisma as never, agencyService as never, {} as never);
+  const service = new SubscriptionService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+  );
   const end = new Date('2026-10-30T00:00:00Z');
 
   beforeEach(() => {
@@ -313,7 +337,12 @@ describe('SubscriptionService.activateAsset', () => {
   };
   const agencyService = { agencyAccessControl: jest.fn() };
   const policy = { hasRoomFor: jest.fn() };
-  const service = new SubscriptionService(prisma as never, agencyService as never, policy as never);
+  const service = new SubscriptionService(
+    prisma as never,
+    agencyService as never,
+    policy as never,
+    {} as never,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();

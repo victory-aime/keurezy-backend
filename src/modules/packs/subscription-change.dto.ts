@@ -44,12 +44,15 @@ export class KeepSelectionDto {
   ids: string[];
 }
 
-/** Paiement d'un renouvellement, d'un upgrade ou d'une réactivation. */
+/**
+ * Paiement (renouvellement, upgrade, réactivation) ou downgrade programmé. `keep` : éléments
+ * gardés actifs quand le plan visé est plus petit que l'usage actuel.
+ */
 export class CheckoutDto extends SubscriptionTargetDto {
   @ApiProperty({
     type: [KeepSelectionDto],
     required: false,
-    description: 'Réactivation sur un plan plus petit : éléments gardés actifs',
+    description: 'Éléments gardés actifs, par fonctionnalité en surplus',
   })
   @IsOptional()
   @IsArray()

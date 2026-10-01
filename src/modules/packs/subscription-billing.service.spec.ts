@@ -184,3 +184,72 @@ describe('SubscriptionBillingService.deactivateExcess', () => {
     });
   });
 });
+
+describe('SubscriptionBillingService.applyScheduledChanges', () => {
+  const tx = {
+    planPricing: { findUniqueOrThrow: jest.fn() },
+    subscription: { updateMany: jest.fn() },
+  };
+  const prisma = {
+    subscription: { findMany: jest.fn() },
+    $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+  };
+  const service = new SubscriptionBillingService(prisma as never, {} as never);
+  const deactivate = jest.spyOn(service, 'deactivateExcess').mockResolvedValue();
+  const now = new Date('2026-10-31T01:00:00Z');
+  const keep = [{ feature: 'manage_users', ids: ['s1'] }];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.subscription.findMany.mockResolvedValue([
+      {
+        agencyId: 'A',
+        scheduledPlanId: 'basic',
+        scheduledBillingCycle: 'MONTHLY',
+        scheduledKeep: keep,
+      },
+    ]);
+    tx.planPricing.findUniqueOrThrow.mockResolvedValue({ price: decimal(5_000), currency: 'XOF' });
+    tx.subscription.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("passe au plan programmé et désactive exactement ce qui n'a pas été gardé", async () => {
+    await expect(service.applyScheduledChanges(now)).resolves.toBe(1);
+    expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
+      status: 'ACTIVE',
+      scheduledAt: { lt: now },
+    });
+    expect(tx.subscription.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { agencyId: 'A', scheduledAt: { lt: now } },
+      data: { planId: 'basic', billingCycle: 'MONTHLY', scheduledPlanId: null, scheduledAt: null },
+    });
+    expect(deactivate).toHaveBeenCalledWith(tx, 'A', keep);
+  });
+
+  it('déjà appliqué (relance du job) : rien ne se refait', async () => {
+    tx.subscription.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.applyScheduledChanges(now)).resolves.toBe(0);
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+
+  it("une agence en échec n'empêche pas les autres", async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      {
+        agencyId: 'A',
+        scheduledPlanId: 'gone',
+        scheduledBillingCycle: 'MONTHLY',
+        scheduledKeep: [],
+      },
+      {
+        agencyId: 'B',
+        scheduledPlanId: 'basic',
+        scheduledBillingCycle: 'MONTHLY',
+        scheduledKeep: [],
+      },
+    ]);
+    tx.planPricing.findUniqueOrThrow
+      .mockRejectedValueOnce(new Error('pricing absent'))
+      .mockResolvedValueOnce({ price: decimal(5_000), currency: 'XOF' });
+    await expect(service.applyScheduledChanges(now)).resolves.toBe(1);
+  });
+});
