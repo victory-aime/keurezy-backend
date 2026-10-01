@@ -485,3 +485,13 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
 
 - L'avis « paiement confirmé » porte le reçu PDF en pièce jointe (`recu-KRZ-…pdf`). Si le reçu ne peut pas être généré, l'e-mail part sans pièce jointe (journalisé) et renvoie vers l'historique de facturation.
 - `sendTemplateEmail` accepte des pièces jointes (Resend les accepte avec un modèle) ; l'événement `subscription.payment.applied` porte l'`orderId`.
+
+## 60. Facturation client, I1 : données, variables et rendu (T1, T2)
+
+- **Migration `21_invoice_templates`** (appliquée en dev, additive) : sur `agency`, coordonnées bancaires (`bankName`, `bankAccount`, `mobileMoneyNumber`), `vatRate` (0 par défaut), `invoicePrefix` (`FAC`), `defaultInvoiceTemplateId` ; table `invoice_template` (agence nullable pour les modèles par défaut, `defaultKey`, nom, configuration JSON).
+- `PATCH agency/legal` accepte les coordonnées bancaires (facultatives, sans effet sur la vérification).
+- Module `invoicing` (fonctions pures, testées) :
+  - configuration structurée d'un modèle (`InvoiceTemplateConfigDto` : mise en page, couleurs, police, logo, colonnes, blocs, textes) et **3 modèles par défaut** (Classique, Moderne, Minimal), définis une seule fois dans le code ;
+  - catalogue des variables `{{groupe.cle}}` (agence, client, facture, réservation, bien), refus des variables inconnues ou mal formées, remplacement en texte brut ;
+  - **montant en lettres** en français (« quatre cent quarante-deux mille cinq cents francs CFA ») ;
+  - `renderInvoicePdf(config, data)` : un seul moteur pour l'aperçu et les factures ; totaux HT, TVA, TTC ; « TVA non applicable » à 0 % ; mention « ANNULÉE » ; logo passé en mémoire (aucun appel réseau au rendu).

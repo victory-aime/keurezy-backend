@@ -215,48 +215,57 @@ model Client {
 // ─────────────────────────────────────────
 
 model Agency {
-  id               String               @id @default(uuid())
-  name             String               @unique
-  email            String               @unique
-  phone            String?              @unique
-  address          String
-  agencyLogo       String?
-  description      String?
-  documents        String[]
-  acceptTerms      Boolean
+  id                       String               @id @default(uuid())
+  name                     String               @unique
+  email                    String               @unique
+  phone                    String?              @unique
+  address                  String
+  agencyLogo               String?
+  description              String?
+  documents                String[]
+  acceptTerms              Boolean
   // Vérifiée par le SUPER_ADMIN, seulement si les informations légales sont complètes
-  isVerified       Boolean              @default(false)
+  isVerified               Boolean              @default(false)
   // Informations légales (factures, vérification) : jamais publiques
-  companyName      String?
-  legalForm        LegalForm?
-  ninea            String?
-  rccm             String?
-  billingAddress   String?
-  billingEmail     String?
-  status           AgencyStatus         @default(PENDING)
+  companyName              String?
+  legalForm                LegalForm?
+  ninea                    String?
+  rccm                     String?
+  billingAddress           String?
+  billingEmail             String?
+  // Coordonnées bancaires (bloc « coordonnées bancaires » des factures)
+  bankName                 String?
+  bankAccount              String?
+  mobileMoneyNumber        String?
+  // Facturation aux clients
+  vatRate                  Decimal              @default(0) @db.Decimal(5, 2)
+  invoicePrefix            String               @default("FAC")
+  defaultInvoiceTemplateId String?
+  status                   AgencyStatus         @default(PENDING)
   // Fermeture demandée par l'owner : exécutée par le cron à cette date, annulable d'ici là
-  closeScheduledAt DateTime?
+  closeScheduledAt         DateTime?
   // ownerId est une donnée dénormalisée (String simple, pas de FK Prisma)
   // La relation réelle passe par Owner.agencyId
-  ownerId          String               @unique // 1 agence = 1 owner
-  owner            Owner                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  staff            Staff[]
-  tenants          Tenant[]
-  contracts        Contract[]
-  subscriptions    Subscription[]
-  exitFeedbacks    ExitFeedback[]
-  payments         PaymentTransaction[]
-  tickets          Ticket[]
-  transactions     Transaction[]
-  reports          Report[]
-  visits           Visit[]
-  lands            Land[]
-  batiment         Batiment[]
-  villas           Villa[]
-  properties       Property[]
-  invitations      Invitation[]
-  bookings         Booking[]
-  conversations    Conversation[]
+  ownerId                  String               @unique // 1 agence = 1 owner
+  owner                    Owner                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  staff                    Staff[]
+  tenants                  Tenant[]
+  contracts                Contract[]
+  subscriptions            Subscription[]
+  exitFeedbacks            ExitFeedback[]
+  invoiceTemplates         InvoiceTemplate[]
+  payments                 PaymentTransaction[]
+  tickets                  Ticket[]
+  transactions             Transaction[]
+  reports                  Report[]
+  visits                   Visit[]
+  lands                    Land[]
+  batiment                 Batiment[]
+  villas                   Villa[]
+  properties               Property[]
+  invitations              Invitation[]
+  bookings                 Booking[]
+  conversations            Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1373,4 +1382,28 @@ enum LegalForm {
   GIE
   INDIVIDUAL
   OTHER
+}
+
+// ─────────────────────────────────────────
+// FACTURATION DES AGENCES À LEURS CLIENTS
+// ─────────────────────────────────────────
+
+/**
+ * Modèle de facture : commun (par défaut, `agencyId` nul) ou propre à une agence.
+ */
+model InvoiceTemplate {
+  id         String  @id @default(uuid())
+  agencyId   String?
+  agency     Agency? @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  // Modèle par défaut (CLASSIC, MODERN, MINIMAL) ; null pour un modèle d'agence
+  defaultKey String? @unique
+  name       String
+  // Configuration structurée (InvoiceTemplateConfig), validée par le backend
+  config     Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agencyId])
+  @@map("invoice_template")
 }

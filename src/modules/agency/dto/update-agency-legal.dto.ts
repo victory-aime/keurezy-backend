@@ -45,4 +45,27 @@ export class UpdateAgencyLegalDto {
   @Transform(trim)
   @IsEmail()
   billingEmail?: string;
+
+  // Coordonnées bancaires (facultatives, imprimées par le bloc « coordonnées bancaires »)
+
+  @ApiPropertyOptional({ example: 'CBAO', description: 'Banque' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(2, 100)
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: 'SN012 01001 012345678901 85', description: 'RIB ou IBAN' })
+  @IsOptional()
+  @Transform(trim)
+  @Matches(/^[0-9A-Za-z ]{10,40}$/, {
+    message: 'RIB ou IBAN invalide (10 à 40 chiffres ou lettres)',
+  })
+  bankAccount?: string;
+
+  @ApiPropertyOptional({ example: '+221 77 000 00 00', description: 'Numéro Wave ou Orange Money' })
+  @IsOptional()
+  @Transform(trim)
+  @Matches(/^\+?[0-9 ]{8,20}$/, { message: 'Numéro Wave ou Orange Money invalide' })
+  mobileMoneyNumber?: string;
 }

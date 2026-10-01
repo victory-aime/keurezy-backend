@@ -37,6 +37,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 /** Délai de grâce entre la demande de fermeture et la fermeture effective. */
 export const AGENCY_CLOSE_DELAY_DAYS = 15;
 
+/** Coordonnées bancaires, modifiées avec les informations légales (sans effet sur la vérification). */
+const BANK_SELECT = { bankName: true, bankAccount: true, mobileMoneyNumber: true } as const;
+
 /** Colonnes des informations légales. */
 const LEGAL_SELECT = Object.fromEntries(LEGAL_FIELDS.map((field) => [field, true])) as Record<
   (typeof LEGAL_FIELDS)[number],
@@ -87,7 +90,7 @@ export class AgencyService {
     }
     const current = await this.prismaService.agency.findUnique({
       where: { id: agencyId },
-      select: { isVerified: true, ...LEGAL_SELECT },
+      select: { isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT },
     });
     if (!current) throw new NotFoundException('Agency not found');
 
@@ -95,7 +98,7 @@ export class AgencyService {
     const updated = await this.prismaService.agency.update({
       where: { id: agencyId },
       data: { ...data, ...(unverify ? { isVerified: false } : {}) },
-      select: { isVerified: true, ...LEGAL_SELECT },
+      select: { isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT },
     });
     const { isVerified, ...legal } = updated;
     return { legal, legalMissing: legalMissing(legal), isVerified };
