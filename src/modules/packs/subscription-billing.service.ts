@@ -86,12 +86,12 @@ export class SubscriptionBillingService implements OnModuleInit {
     const agencyId = payment.agencyId;
     const meta = payment.metadata as unknown as SubscriptionCheckoutMetadata;
 
-    const applied = await this.prisma.$transaction(async (tx) => {
+    const period = await this.prisma.$transaction(async (tx) => {
       const claim = await tx.paymentTransaction.updateMany({
         where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
         data: { status: PaymentStatus.PAID, confirmed_at: paidOn },
       });
-      if (claim.count !== 1) return false;
+      if (claim.count !== 1) return null;
       const period = await this.applyToSubscription(tx, agencyId, payment.kind, meta, paidOn);
       // Période couverte, pour l'historique de facturation
       await tx.paymentTransaction.update({
@@ -104,10 +104,18 @@ export class SubscriptionBillingService implements OnModuleInit {
           },
         },
       });
-      return true;
+      return period;
     });
-    if (applied) this.logger.log(`Paiement ${payment.kind} appliqué — agence ${agencyId}`);
-    return applied;
+    if (!period) return false;
+    this.logger.log(`Paiement ${payment.kind} appliqué — agence ${agencyId}`);
+    this.events.emit('subscription.payment.applied', {
+      agencyId,
+      kind: payment.kind as 'RENEWAL' | 'UPGRADE' | 'REACTIVATION',
+      amount: paidAmount,
+      periodStart: period.start,
+      periodEnd: period.end,
+    });
+    return true;
   }
 
   /**
@@ -221,6 +229,8 @@ export class SubscriptionBillingService implements OnModuleInit {
         scheduledPlanId: true,
         scheduledBillingCycle: true,
         scheduledKeep: true,
+        currentPeriodEnd: true,
+        plan: { select: { name: true } },
       },
     });
     let applied = 0;
@@ -245,11 +255,23 @@ export class SubscriptionBillingService implements OnModuleInit {
               ...(free ? freePeriod(now) : {}),
             },
           });
-          if (claim.count !== 1) return false;
+          if (claim.count !== 1) return null;
           await this.deactivateExcess(tx, agencyId, (change.scheduledKeep ?? []) as KeepSelection);
-          return true;
+          return { free };
         });
-        if (done) applied++;
+        if (!done) continue;
+        applied++;
+        if (done.free) {
+          this.events.emit('subscription.moved.to.free', {
+            agencyId,
+            reason: 'SCHEDULED',
+            previousPlan: change.plan.name,
+          });
+        } else if (change.currentPeriodEnd && change.currentPeriodEnd > now) {
+          // Période déjà renouvelée : le nouveau plan continue. Sinon, l'expiration qui suit le
+          // fait passer au Gratuit, et c'est cet e-mail-là qui part.
+          this.events.emit('subscription.downgrade.applied', { agencyId });
+        }
       } catch (error) {
         this.logger.error(`Downgrade de l'agence ${agencyId} non appliqué : ${String(error)}`);
       }
@@ -275,9 +297,12 @@ export class SubscriptionBillingService implements OnModuleInit {
         { status: SubscriptionStatus.INACTIVE },
       ],
     };
-    const due = await this.prisma.subscription.findMany({ where, select: { agencyId: true } });
+    const due = await this.prisma.subscription.findMany({
+      where,
+      select: { agencyId: true, plan: { select: { name: true } } },
+    });
     let moved = 0;
-    for (const { agencyId } of due) {
+    for (const { agencyId, plan } of due) {
       try {
         const done = await this.prisma.$transaction(async (tx) => {
           const claim = await tx.subscription.updateMany({
@@ -288,7 +313,14 @@ export class SubscriptionBillingService implements OnModuleInit {
           await this.moveToFree(tx, agencyId, now);
           return true;
         });
-        if (done) moved++;
+        if (done) {
+          moved++;
+          this.events.emit('subscription.moved.to.free', {
+            agencyId,
+            reason: 'PERIOD_ENDED',
+            previousPlan: plan.name,
+          });
+        }
       } catch (error) {
         this.logger.error(`Passage au Gratuit de l'agence ${agencyId} échoué : ${String(error)}`);
       }

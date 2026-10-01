@@ -17,6 +17,15 @@ const BOOKING_STATUS_LABELS = {
   CANCELLED: 'annulée',
 } as const;
 
+/** Échappe une valeur insérée telle quelle (`{{{…}}}`) dans un modèle HTML Resend. */
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
@@ -292,29 +301,35 @@ export class ResendService {
     });
   }
 
-  /** Échéance d'abonnement proche : rappel de renouvellement à l'owner (J-7, J-3, J-1). */
-  async sendSubscriptionRenewalReminder(p: {
+  /**
+   * Avis d'abonnement à l'owner (rappel, paiement confirmé, passage au Gratuit, downgrade) : un
+   * modèle générique, le texte est rédigé par l'appelant. Les variables sont échappées : le modèle
+   * Resend les insère sans échappement (`{{{…}}}`) et le nom d'agence vient de l'utilisateur.
+   */
+  async sendSubscriptionNotice(p: {
     sendTo: string;
     username: string;
-    agencyName: string;
-    planName: string;
-    endDate: string;
-    daysLeft: string;
-    renewLink: string;
+    subject: string;
+    preheader: string;
+    headline: string;
+    highlight: string;
+    body: string;
+    ctaLabel: string;
+    ctaLink: string;
   }) {
-    const subject = `Votre abonnement se termine dans ${p.daysLeft}`;
     return this.sendTemplateEmail({
       to: p.sendTo,
-      subject,
-      template: EMAIL_TEMPLATE_ID.SUBSCRIPTION_RENEWAL_REMINDER,
+      subject: p.subject,
+      template: EMAIL_TEMPLATE_ID.SUBSCRIPTION_NOTICE,
       variables: {
-        SUBJECT: subject,
-        USERNAME: p.username,
-        AGENCY_NAME: p.agencyName,
-        PLAN_NAME: p.planName,
-        END_DATE: p.endDate,
-        DAYS_LEFT: p.daysLeft,
-        RENEW_LINK: p.renewLink,
+        SUBJECT: escapeHtml(p.subject),
+        PREHEADER: escapeHtml(p.preheader),
+        HEADLINE: escapeHtml(p.headline),
+        USERNAME: escapeHtml(p.username),
+        HIGHLIGHT: escapeHtml(p.highlight),
+        BODY: escapeHtml(p.body),
+        CTA_LABEL: escapeHtml(p.ctaLabel),
+        CTA_LINK: p.ctaLink,
         APP_NAME: process.env.APP_NAME,
       },
     });

@@ -409,3 +409,15 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Au-delà de 48 h, un paiement **toujours en attente chez NabooPay** passe `CANCELLED` (abandonné). Il est relu avant : un paiement réglé n'est jamais annulé. NabooPay indisponible : rien n'est annulé, retenté au passage suivant.
 - 100 paiements au plus par passage.
 - Dev au 02/10/2026 : les 2 paiements en attente (une inscription, une réactivation) ont été passés `CANCELLED` à la main.
+
+## 51. Avis d'abonnement par e-mail
+
+- **Un modèle Resend générique** `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` (`mail/templates/subscription-notice.html` et `.md`, **à créer**) pour tous les avis d'abonnement ; le texte de chaque cas est rédigé par le backend (`notifications/subscription-lifecycle.listener.ts`). Il remplace le rappel `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID`, qui n'est plus lu (son texte annonçait l'ancienne expiration en lecture seule).
+- Avis envoyés à l'owner, par e-mail et notification in-app :
+  - **rappel d'échéance** (J-7, J-3, J-1) : renouvellement, sinon passage au Gratuit ; variantes pour un downgrade programmé (payant, ou vers le Gratuit : « rien à payer ») ;
+  - **paiement confirmé** : montant, plan, période couverte ;
+  - **passage au plan Gratuit** : fin de période sans renouvellement, ou downgrade programmé vers le Gratuit ;
+  - **downgrade appliqué** vers un plan payant (période renouvelée ; sinon c'est l'avis de passage au Gratuit qui part).
+- Nouveaux événements : `subscription.payment.applied`, `subscription.moved.to.free`, `subscription.downgrade.applied`.
+- Les variables de ce modèle sont **échappées** (Resend insère `{{{…}}}` sans échappement ; le nom d'agence vient de l'utilisateur). Les noms de plan sont affichés en français (Gratuit, Débutant, Standard, Entreprise).
+- `.env` et `.env.uat` : `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` ajoutée (vide) ; `.env.uat` : `SUBSCRIPTION_EXPIRY_ENABLED=false` jusqu'à la procédure de mise en service.

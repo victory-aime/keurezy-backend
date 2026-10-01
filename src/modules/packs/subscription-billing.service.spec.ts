@@ -2,6 +2,7 @@ import { SubscriptionBillingService } from './subscription-billing.service';
 
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const decimal = (value: number) => ({ toString: () => String(value) });
+const events = { emit: jest.fn() };
 
 describe('SubscriptionBillingService.applyPayment', () => {
   const tx = {
@@ -13,7 +14,7 @@ describe('SubscriptionBillingService.applyPayment', () => {
     paymentTransaction: { findUnique: jest.fn(), updateMany: jest.fn() },
     $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
   };
-  const service = new SubscriptionBillingService(prisma as never, {} as never);
+  const service = new SubscriptionBillingService(prisma as never, events as never);
   const deactivate = jest.spyOn(service, 'deactivateExcess').mockResolvedValue();
 
   /** Transaction en attente pour l'agence A, 5 000 XOF, plan premium mensuel. */
@@ -72,6 +73,18 @@ describe('SubscriptionBillingService.applyPayment', () => {
           periodEnd: '2026-11-30T00:00:00.000Z',
         },
       },
+    });
+  });
+
+  it('annonce le paiement appliqué (e-mail de confirmation), avec la période couverte', async () => {
+    pending('UPGRADE');
+    await confirm();
+    expect(events.emit).toHaveBeenCalledWith('subscription.payment.applied', {
+      agencyId: 'A',
+      kind: 'UPGRADE',
+      amount: 5_000,
+      periodStart: new Date('2026-10-20T10:00:00Z'),
+      periodEnd: day('2026-10-31'),
     });
   });
 
@@ -219,7 +232,7 @@ describe('SubscriptionBillingService.applyScheduledChanges', () => {
     subscription: { findMany: jest.fn() },
     $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
   };
-  const service = new SubscriptionBillingService(prisma as never, {} as never);
+  const service = new SubscriptionBillingService(prisma as never, events as never);
   const deactivate = jest.spyOn(service, 'deactivateExcess').mockResolvedValue();
   const now = new Date('2026-10-31T01:00:00Z');
   const keep = [{ feature: 'manage_users', ids: ['s1'] }];
@@ -232,6 +245,8 @@ describe('SubscriptionBillingService.applyScheduledChanges', () => {
         scheduledPlanId: 'basic',
         scheduledBillingCycle: 'MONTHLY',
         scheduledKeep: keep,
+        currentPeriodEnd: new Date('2026-11-30T00:00:00Z'),
+        plan: { name: 'STANDARD_SUB' },
       },
     ]);
     tx.planPricing.findUniqueOrThrow.mockResolvedValue({ price: decimal(5_000), currency: 'XOF' });
@@ -249,6 +264,25 @@ describe('SubscriptionBillingService.applyScheduledChanges', () => {
       data: { planId: 'basic', billingCycle: 'MONTHLY', scheduledPlanId: null, scheduledAt: null },
     });
     expect(deactivate).toHaveBeenCalledWith(tx, 'A', keep);
+  });
+
+  it('période déjà renouvelée : annonce le downgrade appliqué', async () => {
+    await service.applyScheduledChanges(now);
+    expect(events.emit).toHaveBeenCalledWith('subscription.downgrade.applied', { agencyId: 'A' });
+  });
+
+  it('vers le Gratuit : annonce le passage au Gratuit, pas un downgrade', async () => {
+    tx.planPricing.findUniqueOrThrow.mockResolvedValue({ price: decimal(0), currency: 'XOF' });
+    await service.applyScheduledChanges(now);
+    expect(events.emit).toHaveBeenCalledWith('subscription.moved.to.free', {
+      agencyId: 'A',
+      reason: 'SCHEDULED',
+      previousPlan: 'STANDARD_SUB',
+    });
+    expect(events.emit).not.toHaveBeenCalledWith(
+      'subscription.downgrade.applied',
+      expect.anything(),
+    );
   });
 
   it("vers le Gratuit : ni cycle ni échéance (plus de rappel ni d'expiration)", async () => {
@@ -305,14 +339,16 @@ describe('SubscriptionBillingService.expireToFree', () => {
     subscription: { findMany: jest.fn() },
     $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
   };
-  const service = new SubscriptionBillingService(prisma as never, {} as never);
+  const service = new SubscriptionBillingService(prisma as never, events as never);
   const deactivate = jest.spyOn(service, 'deactivateExcess').mockResolvedValue();
   const now = new Date('2026-10-31T01:00:00Z');
   const day = (d: number) => new Date(`2026-0${d}-01T00:00:00Z`);
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.subscription.findMany.mockResolvedValue([{ agencyId: 'A' }]);
+    prisma.subscription.findMany.mockResolvedValue([
+      { agencyId: 'A', plan: { name: 'BASIC_SUB' } },
+    ]);
     tx.subscription.updateMany.mockResolvedValue({ count: 1 });
     tx.subscriptionPlan.findUniqueOrThrow.mockResolvedValue({
       id: 'free',
@@ -361,6 +397,18 @@ describe('SubscriptionBillingService.expireToFree', () => {
         { status: 'ACTIVE', currentPeriodEnd: { lt: now }, cancelAtPeriodEnd: true },
         { status: 'INACTIVE' },
       ],
+    });
+  });
+
+  it('annonce le passage au Gratuit (e-mail), avec le plan quitté', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { agencyId: 'A', plan: { name: 'STANDARD_SUB' } },
+    ]);
+    await service.expireToFree(now);
+    expect(events.emit).toHaveBeenCalledWith('subscription.moved.to.free', {
+      agencyId: 'A',
+      reason: 'PERIOD_ENDED',
+      previousPlan: 'STANDARD_SUB',
     });
   });
 

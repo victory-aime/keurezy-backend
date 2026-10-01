@@ -9,6 +9,35 @@ export interface DomainEvents {
   'annonce.published': AnnoncePublishedEvent;
   'subscription.payment.confirmed': SubscriptionPaymentConfirmedEvent;
   'subscription.renewal.due': SubscriptionRenewalDueEvent;
+  'subscription.payment.applied': SubscriptionPaymentAppliedEvent;
+  'subscription.moved.to.free': SubscriptionMovedToFreeEvent;
+  'subscription.downgrade.applied': SubscriptionDowngradeAppliedEvent;
+}
+
+/** Paiement d'abonnement appliqué : e-mail de confirmation à l'owner. */
+export interface SubscriptionPaymentAppliedEvent {
+  agencyId: string;
+  kind: 'RENEWAL' | 'UPGRADE' | 'REACTIVATION';
+  /** Montant réglé (XOF) */
+  amount: number;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+/**
+ * L'agence est passée au plan Gratuit : fin de période sans renouvellement, ou downgrade
+ * programmé vers le Gratuit. Le surplus a été désactivé.
+ */
+export interface SubscriptionMovedToFreeEvent {
+  agencyId: string;
+  reason: 'PERIOD_ENDED' | 'SCHEDULED';
+  /** Plan quitté */
+  previousPlan: string;
+}
+
+/** Downgrade programmé appliqué vers un plan payant, période renouvelée. */
+export interface SubscriptionDowngradeAppliedEvent {
+  agencyId: string;
 }
 
 /** Échéance d'abonnement proche (J-7, J-3, J-1) : rappel à l'owner, une fois par palier. */

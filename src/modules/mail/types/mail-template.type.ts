@@ -91,17 +91,17 @@ export type TemplateVariables = {
     CANCEL_LINK: string;
     APP_NAME?: string;
   };
-  [EMAIL_TEMPLATE_ID.SUBSCRIPTION_RENEWAL_REMINDER]: {
+  [EMAIL_TEMPLATE_ID.SUBSCRIPTION_NOTICE]: {
     SUBJECT: string;
+    /** Texte d'aperçu de la boîte de réception */
+    PREHEADER: string;
+    HEADLINE: string;
     USERNAME: string;
-    AGENCY_NAME: string;
-    PLAN_NAME: string;
-    /** « 31/10/2026 » */
-    END_DATE: string;
-    /** « 7 jours », « 3 jours », « 1 jour » */
-    DAYS_LEFT: string;
-    /** Page « Mon abonnement », d'où l'owner renouvelle */
-    RENEW_LINK: string;
+    /** Encadré : l'information principale */
+    HIGHLIGHT: string;
+    BODY: string;
+    CTA_LABEL: string;
+    CTA_LINK: string;
     APP_NAME?: string;
   };
 };
