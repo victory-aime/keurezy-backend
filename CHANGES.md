@@ -466,3 +466,9 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
 - `GET secured/agency` (owner et staff) renvoie en plus `legalMissing`.
 - **`PATCH admin/agency/status`** (SUPER_ADMIN) : `isVerified` suit la complétude des informations légales. Une agence incomplète peut être ouverte, mais reste non vérifiée ; la réponse liste ce qui manque.
 - Les informations légales ne sont jamais publiques : les réponses publiques ne renvoient que le badge `isVerified` (testé).
+
+## 57. Reçus de paiement : numérotation (R1)
+
+- **Migration `20_payment_receipts`** (appliquée en dev, additive) : `payment_transaction.receiptNumber` (unique) et `receiptAgency` (JSON : l'agence telle qu'au jour du paiement), séquence `receipt_number_seq`. Les paiements déjà payés reçoivent un numéro dans l'ordre de paiement, avec les informations actuelles de l'agence (dev : `KRZ-2026-000001`).
+- Numéro **continu** `KRZ-{année}-{rang sur 6 chiffres}`, tiré de la séquence (pas de doublon en concurrence), attribué **une seule fois** dans la transaction qui passe le paiement en payé : application d'un paiement d'abonnement et webhook d'inscription (`payments/receipts/issue-receipt.ts`).
+- **Correctif** : le webhook d'inscription ne rattachait pas le paiement à l'agence créée (`agencyId` vide) ; il n'apparaissait donc pas dans l'historique de facturation. Il est maintenant rattaché.

@@ -1,4 +1,7 @@
 import { SubscriptionBillingService } from './subscription-billing.service';
+import { issueReceipt } from '../payments/receipts/issue-receipt';
+
+jest.mock('../payments/receipts/issue-receipt', () => ({ issueReceipt: jest.fn() }));
 
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const decimal = (value: number) => ({ toString: () => String(value) });
@@ -86,6 +89,12 @@ describe('SubscriptionBillingService.applyPayment', () => {
       periodStart: new Date('2026-10-20T10:00:00Z'),
       periodEnd: day('2026-10-31'),
     });
+  });
+
+  it('attribue le reçu dans la transaction du paiement, à la date du paiement', async () => {
+    pending('RENEWAL');
+    await confirm();
+    expect(issueReceipt).toHaveBeenCalledWith(tx, 'o1', 'A', new Date('2026-10-20T10:00:00Z'));
   });
 
   it('webhook et polling simultanés : le second ne réapplique rien', async () => {

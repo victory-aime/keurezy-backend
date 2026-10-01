@@ -1,3 +1,4 @@
+import { issueReceipt } from '../receipts/issue-receipt';
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { NabooService } from './naboo.service';
 import { InitiateAgencyPaymentDto } from '../payment.dto';
@@ -275,6 +276,12 @@ export class PaymentService {
         });
 
         const now = new Date(payload.paid_at);
+        // Paiement rattaché à l'agence créée (historique de facturation), avec son reçu
+        await tx.paymentTransaction.update({
+          where: { naboo_order_id: order_id },
+          data: { agencyId: agency.id },
+        });
+        await issueReceipt(tx, order_id, agency.id, now);
         const endDate = new Date(now);
         if (meta.billingCycle === BillingCycle.MONTHLY) endDate.setMonth(endDate.getMonth() + 1);
         if (meta.billingCycle === BillingCycle.YEARLY)

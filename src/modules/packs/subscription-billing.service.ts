@@ -1,3 +1,4 @@
+import { issueReceipt } from '../payments/receipts/issue-receipt';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -93,6 +94,8 @@ export class SubscriptionBillingService implements OnModuleInit {
       });
       if (claim.count !== 1) return null;
       const period = await this.applyToSubscription(tx, agencyId, payment.kind, meta, paidOn);
+      // Reçu : numéro continu et agence telle qu'au jour du paiement
+      await issueReceipt(tx, orderId, agencyId, paidOn);
       // Période couverte, pour l'historique de facturation
       await tx.paymentTransaction.update({
         where: { naboo_order_id: orderId },

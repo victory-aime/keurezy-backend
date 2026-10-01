@@ -870,6 +870,9 @@ model PaymentTransaction {
   agency         Agency?          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   raw_webhook    Json? // payload brut archivé pour audit
   confirmed_at   DateTime? // horodatage de la confirmation
+  // Reçu de paiement : numéro continu (KRZ-2026-000001) et agence telle qu'au jour du paiement
+  receiptNumber  String?          @unique
+  receiptAgency  Json?
   metadata       Json /**snapshot complet du DTO d'onboarding agence, plan, billingCycle, etc.) lu par le webhook pour finaliser la création*/
   plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   user           User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
