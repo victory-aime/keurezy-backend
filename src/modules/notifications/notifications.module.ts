@@ -10,6 +10,7 @@ import { BookingEmailListener } from './booking-email.listener';
 import { ListingNotificationListener } from './listing-notification.listener';
 import { ChatNotificationListener } from './chat-notification.listener';
 import { ExpoPushService } from './expo-push.service';
+import { SubscriptionReminderListener } from './subscription-reminder.listener';
 
 @Module({
   imports: [FirebaseModule, PreferencesModule, EmailModule],
@@ -21,6 +22,7 @@ import { ExpoPushService } from './expo-push.service';
     ChatNotificationListener,
     BookingEmailListener,
     ListingNotificationListener,
+    SubscriptionReminderListener,
   ],
   exports: [NotificationsService, PushNotificationService],
 })

@@ -6,7 +6,7 @@ Les e-mails transactionnels passent par des **modèles hébergés chez Resend**.
 - Après la création d'un modèle, renseigne son identifiant dans la variable d'environnement indiquée, sur **tous** les environnements (local, UAT, production).
 - Un modèle non configuré n'interrompt pas l'action : l'e-mail est ignoré, avec un avertissement dans les logs.
 
-## Inventaire (au 30/09/2026)
+## Inventaire (au 01/10/2026)
 
 Chaque modèle a un fichier **`.html` prêt à coller** dans Resend (éditeur HTML) : même gabarit pour tous, avec des styles en ligne pour la compatibilité avec les clients mail. Quand il existe, le `.md` associé détaille l'objet et les variables.
 
@@ -22,6 +22,7 @@ Chaque modèle a un fichier **`.html` prêt à coller** dans Resend (éditeur HT
 | Récupération effectuée | `RESEND_TEMPLATE_ACCOUNT_RECOVERY_COMPLETED_ID` | **À créer** | [account-recovery-completed.html](account-recovery-completed.html) | [account-recovery-completed.md](account-recovery-completed.md) |
 | 2FA réinitialisée par l'owner | `RESEND_TEMPLATE_TWO_FACTOR_RESET_ID` | **À créer** | [two-factor-reset.html](two-factor-reset.html) | [two-factor-reset.md](two-factor-reset.md) |
 | Fermeture d'agence programmée | `RESEND_TEMPLATE_AGENCY_CLOSE_SCHEDULED_ID` | **À créer** | [agency-close-scheduled.html](agency-close-scheduled.html) | [agency-close-scheduled.md](agency-close-scheduled.md) |
+| Rappel de renouvellement d'abonnement | `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID` | **À créer** (la notification in-app part quand même) | [subscription-renewal-reminder.html](subscription-renewal-reminder.html) | [subscription-renewal-reminder.md](subscription-renewal-reminder.md) |
 | `OTP`, `WELCOME` | `RESEND_TEMPLATE_OTP_ID`, `RESEND_TEMPLATE_WELCOME_ID` | Déclarés mais **jamais envoyés** : rien à créer | — | — |
 
 Plus aucun gabarit n'est compilé côté serveur : `otp.hbs`, son compilateur et la dépendance `handlebars` ont été supprimés. Tous les e-mails passent par Resend.

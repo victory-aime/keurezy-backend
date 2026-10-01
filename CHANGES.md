@@ -349,3 +349,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **`DELETE agency/subscription/scheduled-change?agencyId`** (propriétaire, idempotent) : annule le downgrade programmé.
 - **Job horaire** : applique d'abord les downgrades échus (`applyScheduledChanges` : plan, cycle et prix programmés, puis désactivation de ce qui n'a pas été gardé, en une transaction par agence, idempotent ; une agence en échec est retentée sans bloquer les autres), puis l'expiration.
 - `GET agency/subscription` renvoie aussi `subscription.scheduledChange` (`{ plan, billingCycle, effectiveAt, keep }` ou `null`), pour le bandeau « Passage au plan … le … ».
+
+## 42. Rappels de renouvellement
+
+- **Job quotidien (9 h)** `sendRenewalReminders` : abonnements `ACTIVE`, non résiliés, dont l'échéance tombe sous 7 jours. Palier J-7, J-3 ou J-1, **un seul envoi par palier** : `lastRenewalReminder` est réclamé avant l'émission (job relancé ou plusieurs instances : pas de doublon). Un paiement remet le compteur à zéro.
+- Événement `subscription.renewal.due { agencyId, daysLeft, periodEnd }` → `SubscriptionReminderListener` (`notifications/`) : notification in-app `PAYMENT` à l'owner et e-mail Resend avec un lien vers `/dashboard/subscription`. Message de facturation : envoyé quelles que soient les préférences de notification.
+- **Nouveau modèle Resend à créer** : `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID` (`mail/templates/subscription-renewal-reminder.html` et `.md`). Tant qu'il n'est pas configuré, l'e-mail est ignoré (la notification in-app part quand même).

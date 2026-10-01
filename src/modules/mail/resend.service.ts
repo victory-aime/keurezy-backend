@@ -292,6 +292,34 @@ export class ResendService {
     });
   }
 
+  /** Échéance d'abonnement proche : rappel de renouvellement à l'owner (J-7, J-3, J-1). */
+  async sendSubscriptionRenewalReminder(p: {
+    sendTo: string;
+    username: string;
+    agencyName: string;
+    planName: string;
+    endDate: string;
+    daysLeft: string;
+    renewLink: string;
+  }) {
+    const subject = `Votre abonnement se termine dans ${p.daysLeft}`;
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      subject,
+      template: EMAIL_TEMPLATE_ID.SUBSCRIPTION_RENEWAL_REMINDER,
+      variables: {
+        SUBJECT: subject,
+        USERNAME: p.username,
+        AGENCY_NAME: p.agencyName,
+        PLAN_NAME: p.planName,
+        END_DATE: p.endDate,
+        DAYS_LEFT: p.daysLeft,
+        RENEW_LINK: p.renewLink,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
   /** Réservation confirmée, refusée ou annulée. Sans modèle configuré, l'envoi est ignoré. */
   async sendBookingStatus(payload: BookingStatusEmailPayload): Promise<EmailResult | null> {
     if (!EMAIL_TEMPLATE_RUNTIME_ID[EMAIL_TEMPLATE_ID.BOOKING_STATUS]) {

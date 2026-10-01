@@ -8,6 +8,14 @@ export interface DomainEvents {
   'booking.status.changed': BookingStatusChangedEvent;
   'annonce.published': AnnoncePublishedEvent;
   'subscription.payment.confirmed': SubscriptionPaymentConfirmedEvent;
+  'subscription.renewal.due': SubscriptionRenewalDueEvent;
+}
+
+/** Échéance d'abonnement proche (J-7, J-3, J-1) : rappel à l'owner, une fois par palier. */
+export interface SubscriptionRenewalDueEvent {
+  agencyId: string;
+  daysLeft: 7 | 3 | 1;
+  periodEnd: Date;
 }
 
 /**

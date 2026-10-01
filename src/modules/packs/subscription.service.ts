@@ -21,6 +21,7 @@ import { todayCalendarDate } from '../rentals/calendar-date';
 import { FeatureCommercial } from '../../config/enum';
 import { AssetType } from './asset-activation';
 import { SubscriptionBillingService } from './subscription-billing.service';
+import { DomainEventBus } from '../events/domain-events';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -91,6 +92,7 @@ export class SubscriptionService {
     private readonly agencyService: AgencyService,
     private readonly policy: PlanFeaturePolicyService,
     private readonly billing: SubscriptionBillingService,
+    private readonly events: DomainEventBus,
   ) {}
 
   /**
@@ -227,6 +229,50 @@ export class SubscriptionService {
     // nouveau plan, et ses éléments hors choix sont déjà désactivés
     await this.billing.applyScheduledChanges(now);
     await this.expireEndedPeriods(now, process.env.SUBSCRIPTION_EXPIRY_ENABLED === 'true');
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async runRenewalReminderJob(): Promise<void> {
+    await this.sendRenewalReminders(new Date());
+  }
+
+  /**
+   * Rappels de renouvellement à J-7, J-3 et J-1 (paiement manuel, pas de prélèvement). Un seul
+   * envoi par palier : `lastRenewalReminder` est réclamé avant l'émission (pas de doublon si le
+   * job est relancé ou si deux instances tournent). Rien si une résiliation est programmée ; un
+   * paiement remet le compteur à zéro et repousse l'échéance hors de la fenêtre.
+   */
+  async sendRenewalReminders(now = new Date()): Promise<number> {
+    const DAY = 86_400_000;
+    const due = await this.prisma.subscription.findMany({
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: { gt: now, lte: new Date(now.getTime() + 7 * DAY) },
+      },
+      select: { agencyId: true, currentPeriodEnd: true },
+    });
+    let sent = 0;
+    for (const { agencyId, currentPeriodEnd } of due) {
+      const daysLeft = Math.ceil((currentPeriodEnd!.getTime() - now.getTime()) / DAY);
+      const tier = daysLeft <= 1 ? 1 : daysLeft <= 3 ? 3 : 7;
+      const claim = await this.prisma.subscription.updateMany({
+        where: {
+          agencyId,
+          OR: [{ lastRenewalReminder: null }, { lastRenewalReminder: { gt: tier } }],
+        },
+        data: { lastRenewalReminder: tier },
+      });
+      if (claim.count !== 1) continue;
+      this.events.emit('subscription.renewal.due', {
+        agencyId,
+        daysLeft: tier,
+        periodEnd: currentPeriodEnd!,
+      });
+      sent++;
+    }
+    if (sent > 0) this.logger.log(`${sent} rappel(s) de renouvellement`);
+    return sent;
   }
 
   /**

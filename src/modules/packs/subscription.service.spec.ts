@@ -29,6 +29,7 @@ describe('SubscriptionService.getOverview', () => {
     agencyService as never,
     new PlanFeaturePolicyService(prisma as never),
     {} as never,
+    {} as never,
   );
 
   const standardSubscription = {
@@ -171,6 +172,7 @@ describe('SubscriptionService.expireEndedPeriods', () => {
     {} as never,
     {} as never,
     billing as never,
+    {} as never,
   );
 
   it('passe INACTIVE uniquement les abonnements actifs dont la période est échue', async () => {
@@ -234,6 +236,7 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
   const service = new SubscriptionService(
     prisma as never,
     agencyService as never,
+    {} as never,
     {} as never,
     {} as never,
   );
@@ -342,6 +345,7 @@ describe('SubscriptionService.activateAsset', () => {
     agencyService as never,
     policy as never,
     {} as never,
+    {} as never,
   );
 
   beforeEach(() => {
@@ -388,5 +392,63 @@ describe('SubscriptionService.activateAsset', () => {
     await expect(
       errorCodeOf(service.activateAsset('A', 'u', { type: 'LAND', id: 'l1' })),
     ).resolves.toBe('OWNER_ONLY');
+  });
+});
+
+describe('SubscriptionService.sendRenewalReminders', () => {
+  const prisma = { subscription: { findMany: jest.fn(), updateMany: jest.fn() } };
+  const events = { emit: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    events as never,
+  );
+  const now = new Date('2026-10-24T09:00:00Z');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.subscription.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("cherche les abonnements actifs, non résiliés, dont l'échéance tombe sous 7 jours", async () => {
+    prisma.subscription.findMany.mockResolvedValue([]);
+    await service.sendRenewalReminders(now);
+    expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: { gt: now, lte: new Date('2026-10-31T09:00:00Z') },
+    });
+  });
+
+  it('classe au palier J-7, J-3 ou J-1 et réclame le palier avant d’émettre', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { agencyId: 'A', currentPeriodEnd: new Date('2026-10-31T00:00:00Z') }, // 6,6 j → J-7
+      { agencyId: 'B', currentPeriodEnd: new Date('2026-10-26T12:00:00Z') }, // 2,1 j → J-3
+      { agencyId: 'C', currentPeriodEnd: new Date('2026-10-24T20:00:00Z') }, // 0,5 j → J-1
+    ]);
+    await expect(service.sendRenewalReminders(now)).resolves.toBe(3);
+    expect(events.emit.mock.calls.map(([, e]) => [e.agencyId, e.daysLeft])).toEqual([
+      ['A', 7],
+      ['B', 3],
+      ['C', 1],
+    ]);
+    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+      where: {
+        agencyId: 'B',
+        OR: [{ lastRenewalReminder: null }, { lastRenewalReminder: { gt: 3 } }],
+      },
+      data: { lastRenewalReminder: 3 },
+    });
+  });
+
+  it('palier déjà envoyé (job relancé) : rien de plus', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { agencyId: 'A', currentPeriodEnd: new Date('2026-10-31T00:00:00Z') },
+    ]);
+    prisma.subscription.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.sendRenewalReminders(now)).resolves.toBe(0);
+    expect(events.emit).not.toHaveBeenCalled();
   });
 });
