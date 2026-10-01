@@ -289,3 +289,85 @@ describe('SubscriptionBillingService.applyScheduledChanges', () => {
     await expect(service.applyScheduledChanges(now)).resolves.toBe(1);
   });
 });
+
+describe('SubscriptionBillingService.expireToFree', () => {
+  const tx = {
+    subscription: { updateMany: jest.fn(), update: jest.fn() },
+    subscriptionPlan: { findUniqueOrThrow: jest.fn() },
+    property: { findMany: jest.fn() },
+    land: { findMany: jest.fn() },
+    batiment: { findMany: jest.fn() },
+    annonce: { findMany: jest.fn() },
+    staff: { findMany: jest.fn() },
+    invitation: { findMany: jest.fn() },
+  };
+  const prisma = {
+    subscription: { findMany: jest.fn() },
+    $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
+  };
+  const service = new SubscriptionBillingService(prisma as never, {} as never);
+  const deactivate = jest.spyOn(service, 'deactivateExcess').mockResolvedValue();
+  const now = new Date('2026-10-31T01:00:00Z');
+  const day = (d: number) => new Date(`2026-0${d}-01T00:00:00Z`);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.subscription.findMany.mockResolvedValue([{ agencyId: 'A' }]);
+    tx.subscription.updateMany.mockResolvedValue({ count: 1 });
+    tx.subscriptionPlan.findUniqueOrThrow.mockResolvedValue({
+      id: 'free',
+      planFeatures: [
+        { limit: 2, feature: { name: 'manage_properties' } },
+        { limit: 1, feature: { name: 'publish_properties' } },
+        { limit: 0, feature: { name: 'manage_users' } },
+      ],
+    });
+    tx.property.findMany.mockResolvedValue([
+      { id: 'p3', createdAt: day(3) },
+      { id: 'p1', createdAt: day(1) },
+    ]);
+    tx.land.findMany.mockResolvedValue([{ id: 'l2', createdAt: day(2) }]);
+    tx.batiment.findMany.mockResolvedValue([]);
+    tx.annonce.findMany.mockResolvedValue([
+      { id: 'a2', createdAt: day(2) },
+      { id: 'a1', createdAt: day(1) },
+    ]);
+    tx.staff.findMany.mockResolvedValue([{ id: 's1', createdAt: day(1) }]);
+    tx.invitation.findMany.mockResolvedValue([]);
+  });
+
+  it('passe au Gratuit sans échéance et garde les plus anciens dans ses limites', async () => {
+    await expect(service.expireToFree(now)).resolves.toBe(1);
+    expect(tx.subscription.update.mock.calls[0][0].data).toMatchObject({
+      planId: 'free',
+      status: 'ACTIVE',
+      price: 0,
+      billingCycle: null,
+      currentPeriodEnd: null,
+    });
+    // annonces gardées parmi celles des biens gardés
+    expect(tx.annonce.findMany.mock.calls[0][0].where.propertyId).toEqual({ in: ['p1'] });
+    expect(deactivate).toHaveBeenCalledWith(tx, 'A', [
+      { feature: 'manage_properties', ids: ['p1', 'l2'] },
+      { feature: 'publish_properties', ids: ['a1'] },
+      { feature: 'manage_users', ids: [] },
+    ]);
+  });
+
+  it('concerne les périodes échues (résiliées seulement sans le flag) et les abonnements inactifs', async () => {
+    await service.expireToFree(now, false);
+    expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
+      OR: [
+        { status: 'ACTIVE', currentPeriodEnd: { lt: now }, cancelAtPeriodEnd: true },
+        { status: 'INACTIVE' },
+      ],
+    });
+  });
+
+  it('déjà basculée (relance du job ou autre instance) : rien ne se refait', async () => {
+    tx.subscription.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.expireToFree(now)).resolves.toBe(0);
+    expect(tx.subscription.update).not.toHaveBeenCalled();
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+});

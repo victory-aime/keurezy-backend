@@ -7,6 +7,7 @@ import {
   InvitationStatus,
   PaymentKind,
   PaymentStatus,
+  Plan,
   SubscriptionStatus,
 } from '../../../prisma/generated/enums';
 import { DomainEventBus, SubscriptionPaymentConfirmedEvent } from '../events/domain-events';
@@ -255,6 +256,140 @@ export class SubscriptionBillingService implements OnModuleInit {
     }
     if (applied > 0) this.logger.log(`${applied} downgrade(s) appliqué(s)`);
     return applied;
+  }
+
+  /**
+   * Fin de période sans renouvellement (résiliation, ou non-paiement si `includeUnrenewed`) :
+   * l'agence passe au plan Gratuit au lieu de devenir inactive. Les abonnements déjà INACTIVE
+   * (avant le plan Gratuit) y passent aussi. Une transaction par agence, réclamée (relance du job
+   * ou deux instances : un seul passage) ; une agence en échec n'empêche pas les autres.
+   */
+  async expireToFree(now = new Date(), includeUnrenewed = true): Promise<number> {
+    const where: Prisma.SubscriptionWhereInput = {
+      OR: [
+        {
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodEnd: { lt: now },
+          ...(includeUnrenewed ? {} : { cancelAtPeriodEnd: true }),
+        },
+        { status: SubscriptionStatus.INACTIVE },
+      ],
+    };
+    const due = await this.prisma.subscription.findMany({ where, select: { agencyId: true } });
+    let moved = 0;
+    for (const { agencyId } of due) {
+      try {
+        const done = await this.prisma.$transaction(async (tx) => {
+          const claim = await tx.subscription.updateMany({
+            where: { agencyId, ...where },
+            data: { currentPeriodEnd: null },
+          });
+          if (claim.count !== 1) return false;
+          await this.moveToFree(tx, agencyId, now);
+          return true;
+        });
+        if (done) moved++;
+      } catch (error) {
+        this.logger.error(`Passage au Gratuit de l'agence ${agencyId} échoué : ${String(error)}`);
+      }
+    }
+    if (moved > 0) this.logger.log(`${moved} abonnement(s) passé(s) au plan Gratuit`);
+    return moved;
+  }
+
+  /**
+   * Bascule au plan Gratuit sans choix de l'owner (fin de période, fin de la commission) : ce qui
+   * dépasse ses limites est désactivé, jamais supprimé ; les éléments les plus anciens restent
+   * actifs.
+   */
+  async moveToFree(tx: Tx, agencyId: string, now: Date) {
+    const free = await tx.subscriptionPlan.findUniqueOrThrow({
+      where: { name: Plan.FREE_SUB },
+      select: {
+        id: true,
+        planFeatures: {
+          where: { enabled: true },
+          select: { limit: true, feature: { select: { name: true } } },
+        },
+      },
+    });
+    const limits = new Map(free.planFeatures.map((pf) => [pf.feature.name, pf.limit]));
+    const keep = await this.oldestWithinLimits(tx, agencyId, limits);
+    await tx.subscription.update({
+      where: { agencyId },
+      data: {
+        planId: free.id,
+        status: SubscriptionStatus.ACTIVE,
+        price: 0,
+        currency: 'XOF',
+        ...NO_SCHEDULED_CHANGE,
+        ...freePeriod(now),
+      },
+    });
+    await this.deactivateExcess(tx, agencyId, keep);
+  }
+
+  /**
+   * Choix par défaut : pour chaque fonctionnalité limitée, les éléments actifs les plus anciens
+   * dans la limite (absente du plan = 0, null = illimitée, rien à couper). Les annonces gardées
+   * sont prises parmi celles des biens gardés.
+   */
+  async oldestWithinLimits(
+    tx: Tx,
+    agencyId: string,
+    limits: Map<string, number | null>,
+  ): Promise<KeepSelection> {
+    const limitOf = (feature: string) => (limits.has(feature) ? limits.get(feature)! : 0);
+    const oldest = <T extends { id: string; createdAt: Date }>(items: T[], limit: number) =>
+      [...items]
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .slice(0, limit)
+        .map((item) => item.id);
+    const select = { id: true, createdAt: true };
+    const active = { agencyId, isActive: true };
+    const keep: KeepSelection = [];
+
+    let keptPropertyIds: string[] | null = null;
+    const assetLimit = limitOf(FeatureCommercial.PROPERTIES);
+    if (assetLimit !== null) {
+      const [properties, lands, buildings] = await Promise.all([
+        tx.property.findMany({ where: active, select }),
+        tx.land.findMany({ where: active, select }),
+        tx.batiment.findMany({ where: active, select }),
+      ]);
+      const ids = oldest([...properties, ...lands, ...buildings], assetLimit);
+      keep.push({ feature: FeatureCommercial.PROPERTIES, ids });
+      keptPropertyIds = properties.filter((p) => ids.includes(p.id)).map((p) => p.id);
+    }
+
+    const annonceLimit = limitOf(FeatureCommercial.ANNOUNCES);
+    if (annonceLimit !== null) {
+      const annonces = await tx.annonce.findMany({
+        where: {
+          status: AnnonceStatus.ACTIVE,
+          property: { agencyId },
+          ...(keptPropertyIds ? { propertyId: { in: keptPropertyIds } } : {}),
+        },
+        select,
+      });
+      keep.push({ feature: FeatureCommercial.ANNOUNCES, ids: oldest(annonces, annonceLimit) });
+    }
+
+    const seatLimit = limitOf(FeatureCommercial.USERS);
+    if (seatLimit !== null) {
+      const [staff, invitations] = await Promise.all([
+        tx.staff.findMany({ where: active, select }),
+        tx.invitation.findMany({
+          where: { agencyId, status: InvitationStatus.PENDING, expiresAt: { gt: new Date() } },
+          select,
+        }),
+      ]);
+      keep.push({
+        feature: FeatureCommercial.USERS,
+        ids: oldest([...staff, ...invitations], seatLimit),
+      });
+    }
+    return keep;
   }
 
   /**

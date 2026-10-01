@@ -66,12 +66,17 @@ export interface CancellationState {
 /** Ce que la résiliation change à l'échéance. */
 export interface CancelImpact {
   activeUntil: Date | null;
-  /** Annonces en ligne, masquées à l'échéance */
+  /** Annonces en ligne */
   annonces: { online: number };
-  /** Membres actifs, qui passeront en lecture seule */
+  /** Membres actifs */
   members: { active: number };
   /** Réservations confirmées à venir, qui restent à honorer */
   bookings: { upcoming: number };
+  /**
+   * À l'échéance, l'agence passe au plan Gratuit : fonctionnalités dont l'usage dépasse ses limites
+   * (le surplus est désactivé, les plus anciens restent actifs).
+   */
+  freePlanExcess: { feature: string; used: number; limit: number }[];
 }
 
 /** Paiement de l'agence dans l'historique de facturation. Aucun champ de `metadata` brut. */
@@ -346,26 +351,17 @@ export class SubscriptionService {
   }
 
   /**
-   * Un abonnement actif dont la période est terminée passe INACTIVE : résilié, ou aussi non
-   * renouvelé si `includeUnrenewed`. Idempotent. Effets : tableau de bord en lecture seule
-   * (`ActiveSubscriptionGuard`) et annonces masquées (`publicAnnonceWhere`).
+   * Fin de période sans renouvellement : l'agence passe au plan Gratuit (résiliée, ou aussi non
+   * renouvelée si `includeUnrenewed`). Ce qui dépasse ses limites est désactivé, les éléments les
+   * plus anciens restent actifs ; les boutons « Ajouter » affichent ensuite le blocage habituel.
    */
-  async expireEndedPeriods(now = new Date(), includeUnrenewed = true): Promise<number> {
-    const { count } = await this.prisma.subscription.updateMany({
-      where: {
-        status: SubscriptionStatus.ACTIVE,
-        currentPeriodEnd: { lt: now },
-        ...(includeUnrenewed ? {} : { cancelAtPeriodEnd: true }),
-      },
-      data: { status: SubscriptionStatus.INACTIVE },
-    });
-    if (count > 0) this.logger.log(`${count} abonnement(s) expiré(s)`);
-    return count;
+  expireEndedPeriods(now = new Date(), includeUnrenewed = true): Promise<number> {
+    return this.billing.expireToFree(now, includeUnrenewed);
   }
 
   /**
    * Résiliation en fin de période (owner) : rien ne change avant `currentPeriodEnd`, puis le job
-   * d'expiration passe l'abonnement INACTIVE. Idempotent.
+   * d'expiration passe l'agence au plan Gratuit. Idempotent.
    */
   async cancel(agencyId: string, userId: string): Promise<CancellationState> {
     const subscription = await this.findRunningSubscription(agencyId, userId);
@@ -405,11 +401,29 @@ export class SubscriptionService {
         where: { agencyId, status: BookingStatus.CONFIRMED, endDate: { gte: todayCalendarDate() } },
       }),
     ]);
+    const free = await this.prisma.subscriptionPlan.findUnique({
+      where: { name: Plan.FREE_SUB },
+      select: {
+        planFeatures: {
+          where: { enabled: true },
+          select: { limit: true, feature: { select: { name: true } } },
+        },
+      },
+    });
+    const limits = new Map((free?.planFeatures ?? []).map((pf) => [pf.feature.name, pf.limit]));
+    const freePlanExcess: CancelImpact['freePlanExcess'] = [];
+    for (const [feature, count] of Object.entries(this.policy.counters)) {
+      const limit = limits.has(feature) ? limits.get(feature)! : 0;
+      if (limit === null) continue;
+      const used = await count(agencyId);
+      if (used > limit) freePlanExcess.push({ feature, used, limit });
+    }
     return {
       activeUntil: subscription.currentPeriodEnd,
       annonces: { online },
       members: { active },
       bookings: { upcoming },
+      freePlanExcess,
     };
   }
 

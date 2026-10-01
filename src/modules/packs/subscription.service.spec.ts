@@ -165,63 +165,36 @@ describe('SubscriptionService.getOverview', () => {
 });
 
 describe('SubscriptionService.expireEndedPeriods', () => {
-  const prisma = { subscription: { updateMany: jest.fn() } };
-  const billing = { applyScheduledChanges: jest.fn() };
+  const billing = { applyScheduledChanges: jest.fn(), expireToFree: jest.fn() };
   const service = new SubscriptionService(
-    prisma as never,
+    {} as never,
     {} as never,
     {} as never,
     billing as never,
     {} as never,
   );
 
-  it('passe INACTIVE uniquement les abonnements actifs dont la période est échue', async () => {
-    const now = new Date('2026-10-30T10:00:00Z');
-    prisma.subscription.updateMany.mockResolvedValue({ count: 2 });
+  beforeEach(() => jest.clearAllMocks());
 
-    await expect(service.expireEndedPeriods(now)).resolves.toBe(2);
-    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE', currentPeriodEnd: { lt: now } },
-      data: { status: 'INACTIVE' },
-    });
+  it('sans SUBSCRIPTION_EXPIRY_ENABLED, ne bascule au Gratuit que les abonnements résiliés', async () => {
+    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
+    await service.runExpiryJob();
+    expect(billing.expireToFree).toHaveBeenCalledWith(expect.any(Date), false);
   });
 
-  it("sans SUBSCRIPTION_EXPIRY_ENABLED, n'expire que les abonnements résiliés", async () => {
-    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
-    prisma.subscription.updateMany.mockClear();
-    prisma.subscription.updateMany.mockResolvedValue({ count: 0 });
+  it('avec SUBSCRIPTION_EXPIRY_ENABLED, bascule aussi les périodes non renouvelées', async () => {
+    process.env.SUBSCRIPTION_EXPIRY_ENABLED = 'true';
     await service.runExpiryJob();
-    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
-      where: {
-        status: 'ACTIVE',
-        currentPeriodEnd: { lt: expect.any(Date) },
-        cancelAtPeriodEnd: true,
-      },
-      data: { status: 'INACTIVE' },
-    });
+    expect(billing.expireToFree).toHaveBeenCalledWith(expect.any(Date), true);
+    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
   });
 
   it("applique les downgrades programmés avant l'expiration", async () => {
     const order: string[] = [];
     billing.applyScheduledChanges.mockImplementation(async () => order.push('downgrade'));
-    prisma.subscription.updateMany.mockImplementation(async () => {
-      order.push('expire');
-      return { count: 0 };
-    });
+    billing.expireToFree.mockImplementation(async () => order.push('expire'));
     await service.runExpiryJob();
     expect(order).toEqual(['downgrade', 'expire']);
-  });
-
-  it('avec SUBSCRIPTION_EXPIRY_ENABLED, expire aussi les périodes non renouvelées', async () => {
-    process.env.SUBSCRIPTION_EXPIRY_ENABLED = 'true';
-    prisma.subscription.updateMany.mockClear();
-    prisma.subscription.updateMany.mockResolvedValue({ count: 0 });
-    await service.runExpiryJob();
-    expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE', currentPeriodEnd: { lt: expect.any(Date) } },
-      data: { status: 'INACTIVE' },
-    });
-    delete process.env.SUBSCRIPTION_EXPIRY_ENABLED;
   });
 });
 
@@ -231,12 +204,20 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     annonce: { count: jest.fn() },
     staff: { count: jest.fn() },
     booking: { count: jest.fn() },
+    subscriptionPlan: { findUnique: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
+  const policy = {
+    counters: {
+      manage_properties: jest.fn(),
+      publish_properties: jest.fn(),
+      manage_users: jest.fn(),
+    },
+  };
   const service = new SubscriptionService(
     prisma as never,
     agencyService as never,
-    {} as never,
+    policy as never,
     {} as never,
     {} as never,
   );
@@ -333,11 +314,25 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     prisma.annonce.count.mockResolvedValue(4);
     prisma.staff.count.mockResolvedValue(3);
     prisma.booking.count.mockResolvedValue(2);
+    prisma.subscriptionPlan.findUnique.mockResolvedValue({
+      planFeatures: [
+        { limit: 2, feature: { name: 'manage_properties' } },
+        { limit: 2, feature: { name: 'publish_properties' } },
+        { limit: 0, feature: { name: 'manage_users' } },
+      ],
+    });
+    policy.counters.manage_properties.mockResolvedValue(2);
+    policy.counters.publish_properties.mockResolvedValue(4);
+    policy.counters.manage_users.mockResolvedValue(3);
     await expect(service.getCancelImpact('A', 'owner-1')).resolves.toEqual({
       activeUntil: end,
       annonces: { online: 4 },
       members: { active: 3 },
       bookings: { upcoming: 2 },
+      freePlanExcess: [
+        { feature: 'publish_properties', used: 4, limit: 2 },
+        { feature: 'manage_users', used: 3, limit: 0 },
+      ],
     });
   });
 });

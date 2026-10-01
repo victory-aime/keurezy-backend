@@ -395,3 +395,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `CreatePlanDto` n'accepte plus `commissionRate` ; `GET packs` renvoie tous les plans actifs.
 - Le script de délai de grâce (section 43) ignore le plan Gratuit.
 - **Ordre en UAT** : déployer le code, migrations 15 et 16, seed des plans, script `commission-to-free` avec `--apply` (aussitôt après le déploiement : le nouveau code ne lit plus les valeurs commission), puis migration 17.
+
+## 49. Fin de période : bascule au plan Gratuit
+
+- Une agence dont la période se termine sans renouvellement (résiliée ; aussi non payée si `SUBSCRIPTION_EXPIRY_ENABLED=true`) **passe au plan Gratuit** au lieu de devenir inactive. Ce qui dépasse ses limites est désactivé, jamais supprimé ; les éléments **les plus anciens** restent actifs (les annonces gardées sont prises parmi les biens gardés). Les boutons « Ajouter » affichent ensuite le blocage habituel.
+- Les abonnements déjà `INACTIVE` passent aussi au Gratuit au prochain passage du job horaire.
+- Même bascule pour le script `commission-to-free` (logique partagée : `SubscriptionBillingService.moveToFree`).
+- `GET agency/subscription/cancel-impact` renvoie en plus `freePlanExcess` : `{ feature, used, limit }[]`, ce qui sera désactivé à l'échéance.
