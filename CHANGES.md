@@ -449,3 +449,12 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 8. **Flag** : `SUBSCRIPTION_EXPIRY_ENABLED=true`, puis redémarrer. Les rappels J-7, J-3, J-1 partent ; une agence non renouvelée passe au Gratuit à son échéance.
 
 Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier passage du job horaire (elles passent au Gratuit) ; un e-mail d'avis reçu en test.
+
+## 55. Correctifs de l'audit de clôture
+
+- **E-mails** : toutes les variables texte des modèles Resend sont désormais échappées à l'envoi (`escapeTemplateVariables`, dans `sendTemplateEmail`), sauf les liens `*_LINK` construits par le backend. Resend insère `{{{…}}}` sans échappement : un nom d'agence ou un titre de bien contenant du HTML ne peut plus injecter de lien ou de mise en forme dans un e-mail.
+- **Inscriptions au Gratuit** :
+  - `POST agency/create` limitée à **3 créations par heure et par IP** (`SIGNUP_THROTTLE`) ;
+  - les annonces et biens d'une agence ne sont **visibles du public** que si l'e-mail du propriétaire est vérifié (`publicAgencyWhere`, partagé par les annonces et la liste publique des biens). Le tableau de bord reste utilisable ; le bandeau « e-mail non vérifié » l'explique. Les deux parcours d'inscription envoient déjà l'e-mail de vérification, et il peut être renvoyé.
+  - Dev au 02/10/2026 : 2 agences ont un propriétaire non vérifié (naboo, final) ; leurs annonces sont masquées jusqu'à vérification.
+- Dev : Mobelite a un prix payé simulé de 8 000 F CFA (catalogue Standard mensuel à 10 000) pour montrer la note « Nouveau tarif ». Remettre `subscription.price` à 10 000 pour annuler.

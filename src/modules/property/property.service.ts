@@ -1,3 +1,4 @@
+import { publicAgencyWhere } from '../annonce/public-annonce';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MonthlyRevenueQueryDto, PropertyDto, PropertyFilterDto } from './property.dto';
@@ -5,12 +6,7 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import {
-  AgencyStatus,
-  AnnonceStatus,
-  BookingStatus,
-  SubscriptionStatus,
-} from '../../../prisma/generated/enums';
+import { AgencyStatus, AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
 import { computeImpact, PropertyImpact } from './property-impact';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
@@ -77,14 +73,11 @@ export class PropertyService {
   async getAllPublicProperties() {
     return this.prisma.property.findMany({
       // Une agence fermée ne publie plus rien (les agences PENDING restent visibles, comme avant)
-      // Ni bien désactivé (downgrade), ni agence à l'abonnement expiré
+      // Ni bien désactivé (downgrade), ni agence invisible (abonnement, e-mail non vérifié)
       where: {
         status: 'AVAILABLE',
         isActive: true,
-        agency: {
-          status: { not: AgencyStatus.CLOSE },
-          subscriptions: { some: { status: SubscriptionStatus.ACTIVE } },
-        },
+        agency: { status: { not: AgencyStatus.CLOSE }, ...publicAgencyWhere },
       },
       include: {
         agency: {

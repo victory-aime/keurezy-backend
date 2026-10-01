@@ -207,7 +207,7 @@ describe('PropertyService.getAllPublicProperties', () => {
   const prisma = { property: { findMany: jest.fn() } };
   const service = new PropertyService(prisma as never, {} as never, {} as never, {} as never);
 
-  it("n'affiche ni bien désactivé, ni agence fermée, ni agence à l'abonnement expiré", async () => {
+  it("n'affiche ni bien désactivé, ni agence fermée, expirée ou au propriétaire non vérifié", async () => {
     prisma.property.findMany.mockResolvedValue([]);
 
     await service.getAllPublicProperties();
@@ -218,6 +218,7 @@ describe('PropertyService.getAllPublicProperties', () => {
       agency: {
         status: { not: 'CLOSE' },
         subscriptions: { some: { status: 'ACTIVE' } },
+        owner: { user: { emailVerified: true } },
       },
     });
   });

@@ -26,6 +26,21 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+/**
+ * Variables d'un modèle, prêtes à insérer : Resend insère `{{{…}}}` sans échappement, et
+ * plusieurs valeurs viennent des utilisateurs (nom d'agence, titre de bien, message). Toute
+ * valeur texte est échappée, sauf les liens (`*_LINK`), construits par le backend et insérés
+ * aussi dans un `href`.
+ */
+export function escapeTemplateVariables<T extends Record<string, unknown>>(variables: T): T {
+  return Object.fromEntries(
+    Object.entries(variables).map(([key, value]) => [
+      key,
+      typeof value === 'string' && !key.endsWith('_LINK') ? escapeHtml(value) : value,
+    ]),
+  ) as T;
+}
+
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
@@ -101,7 +116,7 @@ export class ResendService {
         subject,
         template: {
           id: templateId,
-          variables,
+          variables: escapeTemplateVariables(variables),
         },
         tags,
       });
@@ -303,8 +318,7 @@ export class ResendService {
 
   /**
    * Avis d'abonnement à l'owner (rappel, paiement confirmé, passage au Gratuit, downgrade) : un
-   * modèle générique, le texte est rédigé par l'appelant. Les variables sont échappées : le modèle
-   * Resend les insère sans échappement (`{{{…}}}`) et le nom d'agence vient de l'utilisateur.
+   * modèle générique, le texte est rédigé par l'appelant (variables échappées à l'envoi).
    */
   async sendSubscriptionNotice(p: {
     sendTo: string;
@@ -322,13 +336,13 @@ export class ResendService {
       subject: p.subject,
       template: EMAIL_TEMPLATE_ID.SUBSCRIPTION_NOTICE,
       variables: {
-        SUBJECT: escapeHtml(p.subject),
-        PREHEADER: escapeHtml(p.preheader),
-        HEADLINE: escapeHtml(p.headline),
-        USERNAME: escapeHtml(p.username),
-        HIGHLIGHT: escapeHtml(p.highlight),
-        BODY: escapeHtml(p.body),
-        CTA_LABEL: escapeHtml(p.ctaLabel),
+        SUBJECT: p.subject,
+        PREHEADER: p.preheader,
+        HEADLINE: p.headline,
+        USERNAME: p.username,
+        HIGHLIGHT: p.highlight,
+        BODY: p.body,
+        CTA_LABEL: p.ctaLabel,
         CTA_LINK: p.ctaLink,
         APP_NAME: process.env.APP_NAME,
       },

@@ -9,10 +9,15 @@ export const THROTTLE = {
   burst: { ttl: 1_000, limit: 20 },
   sustained: { ttl: 60_000, limit: 300 },
   sensitive: { ttl: 60_000, limit: 5 },
+  // Création d'agence : le plan Gratuit ne demande aucun paiement
+  signup: { ttl: 3_600_000, limit: 3 },
 } as const;
 
 /** À poser sur une route publique sensible : `@Throttle(SENSITIVE_THROTTLE)`. */
 export const SENSITIVE_THROTTLE = { sustained: THROTTLE.sensitive };
+
+/** Création d'agence : 3 par heure et par IP. */
+export const SIGNUP_THROTTLE = { sustained: THROTTLE.signup };
 
 /**
  * En-têtes de l'IP cliente. Le proxy Next transmet `CLIENT_IP` accompagné du secret partagé ;

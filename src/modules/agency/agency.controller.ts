@@ -1,3 +1,5 @@
+import { SIGNUP_THROTTLE } from '../../config/throttle';
+import { Throttle } from '@nestjs/throttler';
 import { ExitFeedbackDto } from './dto/exit-feedback.dto';
 import { Body, Controller, Get, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { API_URL } from '../../config/api';
@@ -83,6 +85,7 @@ export class AgencyController {
   @ApiOkResponse({ description: 'Agence créée avec succès, en attente de validation' })
   @ApiBadRequestResponse({ description: 'Données ou fichiers invalides' })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'documents', maxCount: 5 }]))
+  @Throttle(SIGNUP_THROTTLE)
   async createAgency(
     @MultipartJson('data', CreateAgencyOwnerDto) data: CreateAgencyOwnerDto,
     @UploadedFiles()
