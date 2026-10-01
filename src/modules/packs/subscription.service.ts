@@ -320,7 +320,7 @@ export class SubscriptionService {
   }
 
   /** L'abonnement (montants compris) n'est visible et modifiable que par le propriétaire. */
-  private async assertOwner(agencyId: string, userId: string) {
+  async assertOwner(agencyId: string, userId: string) {
     const actor = await this.agencyService.agencyAccessControl(agencyId, userId);
     if (actor.type !== 'OWNER') {
       throw new HttpError(

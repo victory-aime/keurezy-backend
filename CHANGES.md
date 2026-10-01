@@ -311,3 +311,12 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Un bien, terrain ou bâtiment `isActive = false` (désactivé par un downgrade) est **en lecture seule** : modification refusée (`409 ASSET_INACTIVE`), comme la création ou la modification d'une annonce sur ce bien.
 - Il est **masqué au public** : `publicAnnonceWhere` exige `property.isActive`, et la liste publique des biens (`GET unsecured/property`) exclut aussi les biens désactivés et les agences à l'abonnement expiré (oubli de la section 35).
 - **`POST agency/subscription/assets/activate?agencyId`** `{ type: 'PROPERTY' | 'LAND' | 'BUILDING', id }` (propriétaire) : réactive le bien dans la limite `manage_properties` (`403 PROPERTY_CAPACITY_REACHED` au-delà), idempotent, `404 ASSET_NOT_FOUND` pour un bien d'une autre agence. Bloqué pendant l'expiration (lecture seule).
+
+## 38. Devis de changement d'abonnement
+
+- **`GET agency/subscription/quote?agencyId&planId&billingCycle`** (propriétaire) : `{ kind, amount, currency, effectiveAt, newPeriodEnd, excess }`.
+  - `kind` : `REACTIVATION` (pas de période en cours : plein tarif, période à partir du paiement), `RENEWAL` (même plan et cycle : à la suite de l'échéance, au prix du downgrade programmé s'il y en a un), `UPGRADE` (plan plus cher ou cycle plus long, jamais plus court : prorata sur le même cycle avec échéance inchangée, ou nouvelle période moins le crédit restant), `DOWNGRADE` (gratuit, à l'échéance).
+  - Montants arrondis à l'unité XOF supérieure. Un mois ajouté à un 31 reste en fin de mois (`addBillingCycle`).
+  - `excess` (downgrade et réactivation) : par fonctionnalité limitée dépassée, la limite visée, l'usage actif et les éléments actifs (biens, annonces en ligne, membres et invitations en attente) parmi lesquels l'owner choisit ce qui reste actif. Une fonctionnalité absente du plan visé a une limite de 0.
+  - Plan inactif ou à la commission : `404 PLAN_NOT_FOUND` ; cycle non proposé : `400 BILLING_CYCLE_UNAVAILABLE`.
+- Calcul dans la fonction pure `quoteChange` (`packs/subscription-quote.ts`), réutilisée par le checkout.

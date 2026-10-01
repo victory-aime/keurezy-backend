@@ -15,13 +15,18 @@ import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { SubscriptionService } from './subscription.service';
 import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 import { ActivateAssetDto } from './asset-activation.dto';
+import { SubscriptionChangeService } from './subscription-change.service';
+import { SubscriptionTargetDto } from './subscription-change.dto';
 
 /** Abonnement de l'agence, côté propriétaire (page « Mon abonnement »). */
 @ApiTags('Subscription')
 @Controller()
 @ApiBearerAuth()
 export class SubscriptionController {
-  constructor(private readonly subscriptionService: SubscriptionService) {}
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+    private readonly changeService: SubscriptionChangeService,
+  ) {}
 
   @Get(API_URL.AGENCY.SUBSCRIPTION)
   @ApiOperation({
@@ -87,5 +92,17 @@ export class SubscriptionController {
     @AgencyProfileId() userId: string,
   ) {
     return this.subscriptionService.activateAsset(agencyId, userId, body);
+  }
+
+  @Get(API_URL.AGENCY.SUBSCRIPTION_QUOTE)
+  @ApiOperation({ summary: "Devis d'un changement de plan ou d'un renouvellement (propriétaire)" })
+  @ApiOkResponse({
+    description:
+      '{ kind, amount, currency, effectiveAt, newPeriodEnd, excess } ; excess liste les éléments en surplus',
+  })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  @ApiNotFoundResponse({ description: 'SUBSCRIPTION_NOT_FOUND ou PLAN_NOT_FOUND' })
+  getQuote(@Query() query: SubscriptionTargetDto, @AgencyProfileId() userId: string) {
+    return this.changeService.getQuote(query.agencyId, userId, query.planId, query.billingCycle);
   }
 }
