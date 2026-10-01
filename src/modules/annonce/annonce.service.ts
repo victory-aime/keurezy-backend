@@ -6,6 +6,7 @@ import { Annonce, Prisma } from '../../../prisma/generated/client';
 import { AgencyService } from '../agency/agency.service';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { publicAnnonceWhere } from './public-annonce';
+import { assertAssetActive } from '../packs/asset-activation';
 import { HttpError } from '../../config/http.error';
 import {
   AnnonceAvailabilityDto,
@@ -155,6 +156,7 @@ export class AnnounceService {
     if (!property || property.agencyId !== dto.agencyId) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
+    assertAssetActive(property);
 
     // règle métier
     if (status === AnnonceStatus.ACTIVE) {
@@ -336,7 +338,7 @@ export class AnnounceService {
   async updateAnnonce(dto: UpdateAnnonceDto, userId: string): Promise<{ message: string }> {
     const annonce = await this.prisma.annonce.findUnique({
       where: { id: dto.id },
-      include: { property: { select: { agencyId: true } } },
+      include: { property: { select: { agencyId: true, isActive: true } } },
     });
 
     if (!annonce) {
@@ -344,6 +346,7 @@ export class AnnounceService {
     }
 
     await this.agencyService.agencyAccessControl(annonce.property.agencyId, userId);
+    assertAssetActive(annonce.property);
 
     const nextStatus = dto.status ?? annonce.status;
 

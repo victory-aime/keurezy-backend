@@ -1,12 +1,15 @@
 import { publicAnnonceWhere } from './public-annonce';
 
 describe('publicAnnonceWhere', () => {
-  it("n'expose que les annonces actives d'une agence à l'abonnement actif", () => {
+  it("n'expose que les annonces actives d'un bien actif, d'une agence à l'abonnement actif", () => {
     expect(publicAnnonceWhere()).toEqual({
       AND: [
         {
           status: 'ACTIVE',
-          property: { agency: { subscriptions: { some: { status: 'ACTIVE' } } } },
+          property: {
+            isActive: true,
+            agency: { subscriptions: { some: { status: 'ACTIVE' } } },
+          },
         },
         {},
       ],

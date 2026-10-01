@@ -305,3 +305,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `publish_properties` compte les **annonces en ligne** (`ACTIVE`), `manage_users` les **membres actifs** et les invitations en attente, `manage_properties` les **biens actifs** (`isActive`). Désactiver un élément libère sa place.
 - Le quota est contrôlé au **passage à l'état actif** : création d'une annonce en ligne (un brouillon ne consomme plus rien), passage d'une annonce en `ACTIVE` (`updateAnnonce`), réactivation d'un membre (`team/change-status`, `403 USERS_CAPACITY_REACHED`). La désactivation n'est jamais bloquée.
 - `PlanFeaturePolicyService.counters` et `hasRoomFor(agencyId, feature)` : une seule source pour les jauges de la page abonnement et les contrôles.
+
+## 37. Biens désactivés
+
+- Un bien, terrain ou bâtiment `isActive = false` (désactivé par un downgrade) est **en lecture seule** : modification refusée (`409 ASSET_INACTIVE`), comme la création ou la modification d'une annonce sur ce bien.
+- Il est **masqué au public** : `publicAnnonceWhere` exige `property.isActive`, et la liste publique des biens (`GET unsecured/property`) exclut aussi les biens désactivés et les agences à l'abonnement expiré (oubli de la section 35).
+- **`POST agency/subscription/assets/activate?agencyId`** `{ type: 'PROPERTY' | 'LAND' | 'BUILDING', id }` (propriétaire) : réactive le bien dans la limite `manage_properties` (`403 PROPERTY_CAPACITY_REACHED` au-delà), idempotent, `404 ASSET_NOT_FOUND` pour un bien d'une autre agence. Bloqué pendant l'expiration (lecture seule).

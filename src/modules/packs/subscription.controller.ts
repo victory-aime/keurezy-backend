@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -14,6 +14,7 @@ import { API_URL } from '../../config/api';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { SubscriptionService } from './subscription.service';
 import { AllowWhenInactive } from '../../guard/active-subscription.guard';
+import { ActivateAssetDto } from './asset-activation.dto';
 
 /** Abonnement de l'agence, côté propriétaire (page « Mon abonnement »). */
 @ApiTags('Subscription')
@@ -71,5 +72,20 @@ export class SubscriptionController {
   })
   resume(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.subscriptionService.resume(agencyId, userId);
+  }
+
+  @Post(API_URL.AGENCY.SUBSCRIPTION_ACTIVATE_ASSET)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Réactiver un bien désactivé, dans la limite du plan (propriétaire)' })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: '{ isActive: true }' })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY ou PROPERTY_CAPACITY_REACHED' })
+  @ApiNotFoundResponse({ description: "ASSET_NOT_FOUND : bien absent ou d'une autre agence" })
+  activateAsset(
+    @Query('agencyId') agencyId: string,
+    @Body() body: ActivateAssetDto,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.subscriptionService.activateAsset(agencyId, userId, body);
   }
 }

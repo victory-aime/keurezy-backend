@@ -8,6 +8,7 @@ import { convertToInteger } from '../../config/convert';
 import { FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
 import { LandImpact } from '../property/property-impact';
+import { assertAssetActive } from '../packs/asset-activation';
 
 @Injectable()
 export class LandService {
@@ -116,6 +117,7 @@ export class LandService {
     if (!land || land.agencyId !== data.agencyId) {
       throw new HttpError('Terrain introuvable', HttpStatus.NOT_FOUND, 'LAND_NOT_FOUND');
     }
+    assertAssetActive(land);
 
     if (data.title && data.title !== land.title) {
       const existing = await this.prisma.land.findUnique({

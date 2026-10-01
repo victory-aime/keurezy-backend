@@ -3,7 +3,7 @@ import { AnnonceStatus, SubscriptionStatus } from '../../../prisma/generated/enu
 
 /**
  * Filtre de toute lecture publique d'annonce (liste, détail, devis, réservation, discussion) :
- * annonce ACTIVE et agence à l'abonnement ACTIVE. Quand l'abonnement expire, les annonces
+ * annonce ACTIVE, bien actif (pas désactivé par un downgrade) et agence à l'abonnement ACTIVE. Quand l'abonnement expire, les annonces
  * disparaissent du public sans que leur statut change, et réapparaissent à la réactivation.
  */
 export function publicAnnonceWhere(where: Prisma.AnnonceWhereInput = {}): Prisma.AnnonceWhereInput {
@@ -11,7 +11,10 @@ export function publicAnnonceWhere(where: Prisma.AnnonceWhereInput = {}): Prisma
     AND: [
       {
         status: AnnonceStatus.ACTIVE,
-        property: { agency: { subscriptions: { some: { status: SubscriptionStatus.ACTIVE } } } },
+        property: {
+          isActive: true,
+          agency: { subscriptions: { some: { status: SubscriptionStatus.ACTIVE } } },
+        },
       },
       where,
     ],

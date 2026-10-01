@@ -304,3 +304,60 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     });
   });
 });
+
+describe('SubscriptionService.activateAsset', () => {
+  const prisma = {
+    property: { findFirst: jest.fn(), update: jest.fn() },
+    land: { findFirst: jest.fn(), update: jest.fn() },
+    batiment: { findFirst: jest.fn(), update: jest.fn() },
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const policy = { hasRoomFor: jest.fn() };
+  const service = new SubscriptionService(prisma as never, agencyService as never, policy as never);
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+  });
+
+  it("réactive un bien désactivé de l'agence quand il reste une place", async () => {
+    prisma.land.findFirst.mockResolvedValue({ isActive: false });
+    policy.hasRoomFor.mockResolvedValue(true);
+    await service.activateAsset('A', 'u', { type: 'LAND', id: 'l1' });
+    expect(prisma.land.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'l1', agencyId: 'A' } }),
+    );
+    expect(prisma.land.update).toHaveBeenCalledWith({
+      where: { id: 'l1' },
+      data: { isActive: true },
+    });
+  });
+
+  it('refuse au-delà de la limite de biens', async () => {
+    prisma.property.findFirst.mockResolvedValue({ isActive: false });
+    policy.hasRoomFor.mockResolvedValue(false);
+    await expect(
+      errorCodeOf(service.activateAsset('A', 'u', { type: 'PROPERTY', id: 'p1' })),
+    ).resolves.toBe('PROPERTY_CAPACITY_REACHED');
+    expect(prisma.property.update).not.toHaveBeenCalled();
+  });
+
+  it("ignore un bien d'une autre agence et ne recompte pas un bien déjà actif", async () => {
+    prisma.batiment.findFirst.mockResolvedValue(null);
+    await expect(
+      errorCodeOf(service.activateAsset('A', 'u', { type: 'BUILDING', id: 'b1' })),
+    ).resolves.toBe('ASSET_NOT_FOUND');
+
+    prisma.batiment.findFirst.mockResolvedValue({ isActive: true });
+    await service.activateAsset('A', 'u', { type: 'BUILDING', id: 'b1' });
+    expect(policy.hasRoomFor).not.toHaveBeenCalled();
+    expect(prisma.batiment.update).not.toHaveBeenCalled();
+  });
+
+  it('refuse le staff', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(
+      errorCodeOf(service.activateAsset('A', 'u', { type: 'LAND', id: 'l1' })),
+    ).resolves.toBe('OWNER_ONLY');
+  });
+});

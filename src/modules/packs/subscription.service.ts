@@ -18,6 +18,8 @@ import {
   toUsage,
 } from './plan-feature-policy.service';
 import { todayCalendarDate } from '../rentals/calendar-date';
+import { FeatureCommercial } from '../../config/enum';
+import { AssetType } from './asset-activation';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -253,6 +255,44 @@ export class SubscriptionService {
       members: { active },
       bookings: { upcoming },
     };
+  }
+
+  /**
+   * Réactive un bien désactivé (par un downgrade), dans la limite `manage_properties` du plan
+   * (owner). Idempotent : un bien déjà actif est renvoyé tel quel.
+   */
+  async activateAsset(
+    agencyId: string,
+    userId: string,
+    asset: { type: AssetType; id: string },
+  ): Promise<{ isActive: true }> {
+    await this.assertOwner(agencyId, userId);
+    const where = { id: asset.id, agencyId };
+    const found =
+      asset.type === 'PROPERTY'
+        ? await this.prisma.property.findFirst({ where, select: { isActive: true } })
+        : asset.type === 'LAND'
+          ? await this.prisma.land.findFirst({ where, select: { isActive: true } })
+          : await this.prisma.batiment.findFirst({ where, select: { isActive: true } });
+    if (!found) {
+      throw new HttpError('Bien introuvable', HttpStatus.NOT_FOUND, 'ASSET_NOT_FOUND');
+    }
+    if (found.isActive) return { isActive: true };
+
+    if (!(await this.policy.hasRoomFor(agencyId, FeatureCommercial.PROPERTIES))) {
+      throw new HttpError(
+        'Votre capacité maximale de biens est atteinte.',
+        HttpStatus.FORBIDDEN,
+        'PROPERTY_CAPACITY_REACHED',
+      );
+    }
+    const data = { isActive: true };
+    if (asset.type === 'PROPERTY')
+      await this.prisma.property.update({ where: { id: asset.id }, data });
+    else if (asset.type === 'LAND')
+      await this.prisma.land.update({ where: { id: asset.id }, data });
+    else await this.prisma.batiment.update({ where: { id: asset.id }, data });
+    return { isActive: true };
   }
 
   /** Souscription encore en cours de l'agence (owner) : 404 sans souscription, 409 si expirée. */

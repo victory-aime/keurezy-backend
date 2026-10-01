@@ -8,6 +8,7 @@ import { Prisma } from '../../../prisma/generated/client';
 import { FeatureCommercial } from '../../config/enum';
 import { HttpError } from '../../config/http.error';
 import { BuildingImpact, computeImpact } from '../property/property-impact';
+import { assertAssetActive } from '../packs/asset-activation';
 
 @Injectable()
 export class BuildingService {
@@ -125,6 +126,7 @@ export class BuildingService {
     if (!building || building.agencyId !== data.agencyId) {
       throw new HttpError('Aucun bâtiment trouvé', HttpStatus.NOT_FOUND, 'BUILDING_NOT_EXIST');
     }
+    assertAssetActive(building);
 
     if (data.name && data.name !== building.name) {
       const existing = await this.prisma.batiment.findUnique({

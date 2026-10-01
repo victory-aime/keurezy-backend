@@ -5,11 +5,17 @@ import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { convertToInteger } from '../../config/convert';
 import { Prisma } from '../../../prisma/generated/client';
-import { AgencyStatus, AnnonceStatus, BookingStatus } from '../../../prisma/generated/enums';
+import {
+  AgencyStatus,
+  AnnonceStatus,
+  BookingStatus,
+  SubscriptionStatus,
+} from '../../../prisma/generated/enums';
 import { computeImpact, PropertyImpact } from './property-impact';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { RENTAL_INCLUDE, RentalConfigService } from '../rentals/rental-config.service';
+import { assertAssetActive } from '../packs/asset-activation';
 
 @Injectable()
 export class PropertyService {
@@ -71,7 +77,15 @@ export class PropertyService {
   async getAllPublicProperties() {
     return this.prisma.property.findMany({
       // Une agence fermée ne publie plus rien (les agences PENDING restent visibles, comme avant)
-      where: { status: 'AVAILABLE', agency: { status: { not: AgencyStatus.CLOSE } } },
+      // Ni bien désactivé (downgrade), ni agence à l'abonnement expiré
+      where: {
+        status: 'AVAILABLE',
+        isActive: true,
+        agency: {
+          status: { not: AgencyStatus.CLOSE },
+          subscriptions: { some: { status: SubscriptionStatus.ACTIVE } },
+        },
+      },
       include: {
         agency: {
           select: {
@@ -183,6 +197,7 @@ export class PropertyService {
     if (!property || property.agencyId !== data.agencyId) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
+    assertAssetActive(property);
 
     // ✅ Vérification que l'agence existe
     const agency = await this.prisma.agency.findUnique({ where: { id: property.agencyId } });
