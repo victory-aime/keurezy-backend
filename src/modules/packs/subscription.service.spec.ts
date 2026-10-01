@@ -452,3 +452,93 @@ describe('SubscriptionService.sendRenewalReminders', () => {
     expect(events.emit).not.toHaveBeenCalled();
   });
 });
+
+describe('SubscriptionService.listPayments', () => {
+  const prisma = { paymentTransaction: { findMany: jest.fn(), count: jest.fn() } };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const row = (extra: Record<string, unknown>) => ({
+    id: 't1',
+    kind: 'RENEWAL',
+    amount_to_pay: { toString: () => '10000' },
+    status: 'PAID',
+    confirmed_at: new Date('2026-10-01T10:00:00Z'),
+    createdAt: new Date('2026-10-01T09:59:00Z'),
+    metadata: {},
+    plan: { name: 'STANDARD_SUB' },
+    ...extra,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER', userOwnerId: 'u' });
+    prisma.paymentTransaction.count.mockResolvedValue(1);
+  });
+
+  it("ne liste que l'agence, et un onboarding seulement s'il est payé", async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([]);
+    await service.listPayments('A', 'owner', 2, 10);
+    expect(prisma.paymentTransaction.findMany.mock.calls[0][0]).toMatchObject({
+      where: {
+        agencyId: 'A',
+        OR: [{ kind: { not: 'ONBOARDING' } }, { kind: 'ONBOARDING', status: 'PAID' }],
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: 10,
+      take: 10,
+    });
+  });
+
+  it("n'expose aucun champ de metadata, seulement la période", async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([
+      row({
+        metadata: {
+          periodStart: '2026-10-31T00:00:00.000Z',
+          periodEnd: '2026-11-30T00:00:00.000Z',
+          keep: [{ feature: 'manage_users', ids: ['s1'] }],
+        },
+      }),
+    ]);
+    const { content } = await service.listPayments('A', 'owner');
+    expect(content[0]).toEqual({
+      id: 't1',
+      kind: 'RENEWAL',
+      plan: 'STANDARD_SUB',
+      amount: 10000,
+      currency: 'XOF',
+      status: 'PAID',
+      periodStart: new Date('2026-10-31T00:00:00.000Z'),
+      periodEnd: new Date('2026-11-30T00:00:00.000Z'),
+      paidAt: new Date('2026-10-01T10:00:00Z'),
+      createdAt: new Date('2026-10-01T09:59:00Z'),
+    });
+  });
+
+  it("onboarding ancien : période déduite du paiement et du cycle, sans fuite de l'onboarding", async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([
+      row({
+        kind: 'ONBOARDING',
+        metadata: { billingCycle: 'MONTHLY', password: 'chiffré', userEmail: 'x@y.sn' },
+      }),
+    ]);
+    const { content } = await service.listPayments('A', 'owner');
+    expect(content[0].periodStart).toEqual(new Date('2026-10-01T10:00:00Z'));
+    expect(content[0].periodEnd).toEqual(new Date('2026-11-01T10:00:00Z'));
+    expect(JSON.stringify(content)).not.toContain('chiffré');
+  });
+
+  it('borne la taille de page et refuse le staff', async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([]);
+    const page = await service.listPayments('A', 'owner', 1, 1000);
+    expect(page.totalDataPerPage).toBe(50);
+
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    await expect(errorCodeOf(service.listPayments('A', 'staff'))).resolves.toBe('OWNER_ONLY');
+  });
+});

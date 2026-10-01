@@ -7,6 +7,8 @@ import {
   AnnonceStatus,
   BillingCycle,
   BookingStatus,
+  PaymentKind,
+  PaymentStatus,
   Plan,
   PlanCategory,
   SubscriptionStatus,
@@ -22,6 +24,7 @@ import { FeatureCommercial } from '../../config/enum';
 import { AssetType } from './asset-activation';
 import { SubscriptionBillingService } from './subscription-billing.service';
 import { DomainEventBus } from '../events/domain-events';
+import { addBillingCycle } from './subscription-quote';
 
 /** Souscription de l'agence telle qu'affichée sur la page « Mon abonnement ». */
 export interface SubscriptionSummary {
@@ -71,6 +74,29 @@ export interface CancelImpact {
   /** Réservations confirmées à venir, qui restent à honorer */
   bookings: { upcoming: number };
 }
+
+/** Paiement de l'agence dans l'historique de facturation. Aucun champ de `metadata` brut. */
+export interface AgencyPayment {
+  id: string;
+  kind: PaymentKind;
+  plan: Plan;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  paidAt: Date | null;
+  createdAt: Date;
+}
+
+/** Seules ces clés de `metadata` sont lues (celle d'un onboarding contient des données sensibles). */
+type PaymentPeriodMetadata = {
+  periodStart?: string;
+  periodEnd?: string;
+  billingCycle?: BillingCycle | null;
+};
+
+const MAX_PAGE_SIZE = 50;
 
 export interface AgencySubscriptionOverview {
   /** null = l'agence n'a aucune souscription */
@@ -340,6 +366,74 @@ export class SubscriptionService {
       annonces: { online },
       members: { active },
       bookings: { upcoming },
+    };
+  }
+
+  /**
+   * Historique de facturation de l'agence (owner), du plus récent au plus ancien, paginé comme les
+   * autres listes. Un onboarding n'apparaît que payé : un onboarding lancé par un tiers avec
+   * l'e-mail de l'agence, jamais payé, ne doit pas s'afficher chez elle.
+   */
+  async listPayments(agencyId: string, userId: string, page = 1, pageSize = 10) {
+    await this.assertOwner(agencyId, userId);
+    const currentPage = Math.max(1, Math.floor(page) || 1);
+    const take = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(pageSize) || 10));
+    const where = {
+      agencyId,
+      OR: [
+        { kind: { not: PaymentKind.ONBOARDING } },
+        { kind: PaymentKind.ONBOARDING, status: PaymentStatus.PAID },
+      ],
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.paymentTransaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (currentPage - 1) * take,
+        take,
+        select: {
+          id: true,
+          kind: true,
+          amount_to_pay: true,
+          status: true,
+          confirmed_at: true,
+          createdAt: true,
+          metadata: true,
+          plan: { select: { name: true } },
+        },
+      }),
+      this.prisma.paymentTransaction.count({ where }),
+    ]);
+
+    const content: AgencyPayment[] = rows.map((row) => {
+      const meta = (row.metadata ?? {}) as PaymentPeriodMetadata;
+      const paidAt = row.status === PaymentStatus.PAID ? row.confirmed_at : null;
+      // Onboardings antérieurs à l'historique : période déduite du paiement et du cycle choisi
+      const derivedEnd =
+        !meta.periodEnd && paidAt && meta.billingCycle
+          ? addBillingCycle(paidAt, meta.billingCycle)
+          : null;
+      return {
+        id: row.id,
+        kind: row.kind,
+        plan: row.plan.name,
+        amount: Number(row.amount_to_pay.toString()),
+        currency: 'XOF',
+        status: row.status,
+        periodStart: meta.periodStart ? new Date(meta.periodStart) : derivedEnd ? paidAt : null,
+        periodEnd: meta.periodEnd ? new Date(meta.periodEnd) : derivedEnd,
+        paidAt,
+        createdAt: row.createdAt,
+      };
+    });
+
+    return {
+      content,
+      totalDataPerPage: take,
+      totalItems: total,
+      currentPage,
+      totalPages: Math.ceil(total / take),
     };
   }
 

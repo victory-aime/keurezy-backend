@@ -56,6 +56,16 @@ export class PaymentService {
       throw new BadRequestException('Impossible de créer un compte avec cet email');
     }
 
+    // Une agence existe déjà avec cet e-mail : refusé, sinon la transaction d'onboarding de ce
+    // tiers serait rattachée à l'historique de cette agence
+    const existingAgency = await this.prisma.agency.findUnique({
+      where: { email: dto.email },
+      select: { id: true },
+    });
+    if (existingAgency) {
+      throw new BadRequestException("Impossible de créer une agence avec cet e-mail d'agence");
+    }
+
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: dto.plan.planId },
       include: { pricings: true },

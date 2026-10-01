@@ -71,7 +71,18 @@ export class SubscriptionBillingService implements OnModuleInit {
         data: { status: PaymentStatus.PAID, confirmed_at: paidOn },
       });
       if (claim.count !== 1) return false;
-      await this.applyToSubscription(tx, agencyId, payment.kind, meta, paidOn);
+      const period = await this.applyToSubscription(tx, agencyId, payment.kind, meta, paidOn);
+      // Période couverte, pour l'historique de facturation
+      await tx.paymentTransaction.update({
+        where: { naboo_order_id: orderId },
+        data: {
+          metadata: {
+            ...meta,
+            periodStart: period.start.toISOString(),
+            periodEnd: period.end.toISOString(),
+          },
+        },
+      });
       return true;
     });
     if (applied) this.logger.log(`Paiement ${payment.kind} appliqué — agence ${agencyId}`);
@@ -93,7 +104,7 @@ export class SubscriptionBillingService implements OnModuleInit {
     kind: PaymentKind,
     meta: SubscriptionCheckoutMetadata,
     paidOn: Date,
-  ) {
+  ): Promise<{ start: Date; end: Date }> {
     const subscription = await tx.subscription.findUniqueOrThrow({
       where: { agencyId },
       select: {
@@ -131,22 +142,19 @@ export class SubscriptionBillingService implements OnModuleInit {
     };
 
     if (!running) {
+      const end = addBillingCycle(paidOn, meta.billingCycle);
       await tx.subscription.update({
         where: { agencyId },
-        data: {
-          ...common,
-          ...newPlan,
-          currentPeriodStart: paidOn,
-          currentPeriodEnd: addBillingCycle(paidOn, meta.billingCycle),
-        },
+        data: { ...common, ...newPlan, currentPeriodStart: paidOn, currentPeriodEnd: end },
       });
       if (kind === PaymentKind.REACTIVATION) await this.deactivateExcess(tx, agencyId, meta.keep);
-      return;
+      return { start: paidOn, end };
     }
 
     const periodEnd = subscription.currentPeriodEnd!;
     if (kind === PaymentKind.RENEWAL) {
       const nextCycle = subscription.scheduledBillingCycle ?? meta.billingCycle;
+      const end = addBillingCycle(periodEnd, nextCycle);
       await tx.subscription.update({
         where: { agencyId },
         // La période payée commence à l'échéance : le prorata d'un upgrade ultérieur reste juste
@@ -158,26 +166,24 @@ export class SubscriptionBillingService implements OnModuleInit {
             ? {}
             : { price: pricing.price, currency: pricing.currency }),
           currentPeriodStart: periodEnd,
-          currentPeriodEnd: addBillingCycle(periodEnd, nextCycle),
+          currentPeriodEnd: end,
         },
       });
-      return;
+      return { start: periodEnd, end };
     }
 
     const sameCycle = meta.billingCycle === subscription.billingCycle;
+    const end = sameCycle ? periodEnd : addBillingCycle(paidOn, meta.billingCycle);
     await tx.subscription.update({
       where: { agencyId },
       data: {
         ...common,
         ...newPlan,
-        ...(sameCycle
-          ? {}
-          : {
-              currentPeriodStart: paidOn,
-              currentPeriodEnd: addBillingCycle(paidOn, meta.billingCycle),
-            }),
+        ...(sameCycle ? {} : { currentPeriodStart: paidOn, currentPeriodEnd: end }),
       },
     });
+    // Upgrade : la somme payée couvre le reste de la période (même cycle) ou la nouvelle période
+    return { start: paidOn, end };
   }
 
   /**

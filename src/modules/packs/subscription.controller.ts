@@ -185,4 +185,32 @@ export class SubscriptionController {
   cancelScheduledChange(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.changeService.cancelScheduledChange(agencyId, userId);
   }
+
+  @Get(API_URL.AGENCY.SUBSCRIPTION_PAYMENTS)
+  @ApiOperation({ summary: "Historique de facturation de l'agence (propriétaire)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'initialPage', required: false, description: 'Page (défaut 1)' })
+  @ApiQuery({
+    name: 'limitPerPage',
+    required: false,
+    description: 'Taille de page (défaut 10, max 50)',
+  })
+  @ApiOkResponse({
+    description:
+      '{ content: { id, kind, plan, amount, currency, status, periodStart, periodEnd, paidAt, createdAt }[], totalItems, totalPages, currentPage, totalDataPerPage }',
+  })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  listPayments(
+    @Query('agencyId') agencyId: string,
+    @Query('initialPage') initialPage: string | undefined,
+    @Query('limitPerPage') limitPerPage: string | undefined,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.subscriptionService.listPayments(
+      agencyId,
+      userId,
+      Number(initialPage ?? 1),
+      Number(limitPerPage ?? 10),
+    );
+  }
 }

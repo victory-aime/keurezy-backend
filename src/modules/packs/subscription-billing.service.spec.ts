@@ -5,7 +5,7 @@ const decimal = (value: number) => ({ toString: () => String(value) });
 
 describe('SubscriptionBillingService.applyPayment', () => {
   const tx = {
-    paymentTransaction: { updateMany: jest.fn() },
+    paymentTransaction: { updateMany: jest.fn(), update: jest.fn() },
     subscription: { findUniqueOrThrow: jest.fn(), update: jest.fn() },
     planPricing: { findUniqueOrThrow: jest.fn() },
   };
@@ -55,6 +55,23 @@ describe('SubscriptionBillingService.applyPayment', () => {
     expect(tx.paymentTransaction.updateMany).toHaveBeenCalledWith({
       where: { naboo_order_id: 'o1', status: 'PENDING' },
       data: { status: 'PAID', confirmed_at: new Date('2026-10-20T10:00:00Z') },
+    });
+  });
+
+  it('enregistre la période couverte sur la transaction (historique de facturation)', async () => {
+    pending('RENEWAL', { metadata: { planId: 'standard', billingCycle: 'MONTHLY', keep: [] } });
+    await confirm();
+    expect(tx.paymentTransaction.update).toHaveBeenCalledWith({
+      where: { naboo_order_id: 'o1' },
+      data: {
+        metadata: {
+          planId: 'standard',
+          billingCycle: 'MONTHLY',
+          keep: [],
+          periodStart: '2026-10-31T00:00:00.000Z',
+          periodEnd: '2026-11-30T00:00:00.000Z',
+        },
+      },
     });
   });
 

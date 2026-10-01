@@ -362,3 +362,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Script `pnpm subscription:grace:dev` (ou `:uat`), **aperçu par défaut**, `-- --apply` pour écrire : les abonnements `ACTIVE`, non résiliés, dont l'échéance est passée **ou absente** reçoivent une échéance à J+7 (et leurs rappels sont réarmés). Idempotent.
 - **Procédure** pour un environnement : 1) lancer le script avec `--apply` ; 2) activer `SUBSCRIPTION_EXPIRY_ENABLED=true` ; 3) redémarrer. Les agences reçoivent les rappels J-7, J-3, J-1 et peuvent renouveler en ligne avant d'expirer.
 - Dev au 01/10/2026 : 13 abonnements concernés (8 échus, 5 sans échéance). Non appliqué.
+
+## 44. Historique de facturation
+
+- **`GET agency/subscription/payments?agencyId&initialPage&limitPerPage`** (propriétaire, page de 10 par défaut, 50 au plus) : `{ content, totalItems, totalPages, currentPage, totalDataPerPage }`, du plus récent au plus ancien. Chaque paiement : `id`, `kind`, `plan`, `amount`, `currency`, `status`, `periodStart`, `periodEnd`, `paidAt`, `createdAt`. **Aucun champ de `metadata` brut**.
+- Un onboarding n'apparaît que **payé** ; `initiateAgencyPayment` refuse désormais l'e-mail d'une agence existante (`400`), avant tout appel NabooPay. Les deux ferment le cas d'un onboarding lancé par un tiers avec l'e-mail d'une agence.
+- La période couverte est enregistrée sur la transaction à l'application du paiement ; pour les onboardings antérieurs, elle est déduite de la date de paiement et du cycle choisi.
