@@ -433,3 +433,18 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `POST agency/subscription/cancel` et `POST agency/close` acceptent un corps facultatif `{ reason?, comment? }` (validé, liste blanche). Un corps vide reste accepté : les clients actuels ne changent pas.
 - Enregistré une seule fois, au passage en résiliation ou à la programmation de la fermeture, et seulement s'il est rempli. Un échec d'enregistrement ne bloque jamais l'action (journalisé).
 - Lecture : aucune route (pas de back-office) ; requête SQL sur `exit_feedback` en attendant.
+
+## 54. Procédure de mise en service en UAT (clôture du module abonnement)
+
+À suivre dans l'ordre, sections 45 à 53. Chaque script est en aperçu par défaut : lire l'aperçu, puis relancer avec `-- --apply`.
+
+1. **Avant** : dans Resend, créer le modèle `subscription-notice.html` (section 51) et renseigner `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` dans l'environnement UAT. Vérifier `SUBSCRIPTION_EXPIRY_ENABLED=false`.
+2. **Déployer le code** (backend puis web).
+3. **Migrations 15 et 16** : `pnpm migrate:deploy:uat` s'arrêtera sur la 17 si des plans commission existent encore ; c'est voulu.
+4. **Seed des plans** : `pnpm db:seed:uat-feature` (crée le plan Gratuit, met à jour les autres).
+5. **Agences commission → Gratuit** : `pnpm subscription:commission-to-free:uat`, puis `-- --apply`. À faire aussitôt après le déploiement : le nouveau code ne lit plus les plans commission.
+6. **Migrations 17 et 18** : `pnpm migrate:deploy:uat`.
+7. **Délai de grâce** : `pnpm subscription:grace:uat`, puis `-- --apply` (échéance à J+7 pour les abonnements payants échus ou sans échéance ; le Gratuit est exclu).
+8. **Flag** : `SUBSCRIPTION_EXPIRY_ENABLED=true`, puis redémarrer. Les rappels J-7, J-3, J-1 partent ; une agence non renouvelée passe au Gratuit à son échéance.
+
+Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier passage du job horaire (elles passent au Gratuit) ; un e-mail d'avis reçu en test.
