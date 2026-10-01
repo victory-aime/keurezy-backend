@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AgencyModule } from '../agency/agency.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { PackAdminService } from './pack-admin.service';
 import { AdminPackController } from './admin-pack.controller';
 import { PackController } from './pack.controller';
@@ -18,7 +19,7 @@ import { SubscriptionChangeService } from './subscription-change.service';
  * politiques de quota et permissions assignables selon le plan.
  */
 @Module({
-  imports: [DatabaseModule, AgencyModule],
+  imports: [DatabaseModule, AgencyModule, PaymentsModule],
   controllers: [
     PackController,
     AdminPackController,

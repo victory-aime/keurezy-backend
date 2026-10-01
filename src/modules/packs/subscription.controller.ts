@@ -1,9 +1,12 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiNotFoundResponse,
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
+  ApiHeader,
+  ApiUnprocessableEntityResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -16,7 +19,7 @@ import { SubscriptionService } from './subscription.service';
 import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 import { ActivateAssetDto } from './asset-activation.dto';
 import { SubscriptionChangeService } from './subscription-change.service';
-import { SubscriptionTargetDto } from './subscription-change.dto';
+import { CheckoutDto, SubscriptionTargetDto } from './subscription-change.dto';
 
 /** Abonnement de l'agence, côté propriétaire (page « Mon abonnement »). */
 @ApiTags('Subscription')
@@ -104,5 +107,47 @@ export class SubscriptionController {
   @ApiNotFoundResponse({ description: 'SUBSCRIPTION_NOT_FOUND ou PLAN_NOT_FOUND' })
   getQuote(@Query() query: SubscriptionTargetDto, @AgencyProfileId() userId: string) {
     return this.changeService.getQuote(query.agencyId, userId, query.planId, query.billingCycle);
+  }
+
+  @AllowWhenInactive() // la réactivation passe par un paiement
+  @Post(API_URL.AGENCY.SUBSCRIPTION_CHECKOUT)
+  @ApiOperation({
+    summary: 'Payer un renouvellement, un upgrade ou une réactivation (propriétaire)',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description: 'Une clé par intention de paiement, renvoyée à chaque nouvelle tentative',
+  })
+  @ApiOkResponse({ description: '{ checkoutUrl, orderId } ; même clé → même checkout' })
+  @ApiBadRequestResponse({ description: 'IDEMPOTENCY_KEY_REQUIRED, DOWNGRADE_NOT_PAYABLE' })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'IDEMPOTENCY_KEY_REUSED, SELECTION_REQUIRED, SELECTION_INVALID, SELECTION_EXCEEDS_LIMIT',
+  })
+  @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
+  createCheckout(
+    @Body() body: CheckoutDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @AgencyProfileId() userId: string,
+  ) {
+    const { agencyId, ...target } = body;
+    return this.changeService.createCheckout(agencyId, userId, target, idempotencyKey);
+  }
+
+  @Get(API_URL.AGENCY.SUBSCRIPTION_PAYMENT)
+  @ApiOperation({ summary: "Statut d'un paiement d'abonnement de l'agence (propriétaire)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiQuery({ name: 'orderId', required: true, description: 'Commande NabooPay' })
+  @ApiOkResponse({ description: '{ status: PENDING | PAID | FAILED | CANCELLED }' })
+  @ApiNotFoundResponse({
+    description: "PAYMENT_NOT_FOUND : commande absente ou d'une autre agence",
+  })
+  getPaymentStatus(
+    @Query('agencyId') agencyId: string,
+    @Query('orderId') orderId: string,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.changeService.getPaymentStatus(agencyId, userId, orderId);
   }
 }

@@ -687,6 +687,9 @@ model Subscription {
   scheduledBillingCycle BillingCycle?
   // éléments gardés actifs par fonctionnalité limitée : { [feature]: string[] }
   scheduledKeep         Json?
+  // date d'effet du downgrade (échéance au moment du choix) : un renouvellement anticipé repousse
+  // currentPeriodEnd, pas le downgrade
+  scheduledAt           DateTime?
 
   // dernier rappel de renouvellement envoyé pour la période (7, 3 ou 1 jour avant)
   lastRenewalReminder Int?
@@ -861,6 +864,7 @@ model PaymentTransaction {
   userId         String?
   status         PaymentStatus    @default(PENDING)
   kind           PaymentKind      @default(ONBOARDING)
+  idempotencyKey String?          @unique // clé du client : une même intention de paiement = un seul checkout
   agencyId       String? // null pour une transaction d'onboarding non encore rattachée
   agency         Agency?          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   raw_webhook    Json? // payload brut archivé pour audit

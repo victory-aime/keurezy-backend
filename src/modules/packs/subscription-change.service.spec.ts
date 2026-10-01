@@ -2,6 +2,7 @@ import { SubscriptionChangeService } from './subscription-change.service';
 import { HttpError } from '../../config/http.error';
 
 jest.mock('./subscription.service', () => ({ SubscriptionService: class {} }));
+jest.mock('../payments/services/naboo.service', () => ({ NabooService: class {} }));
 
 const errorCodeOf = (promise: Promise<unknown>) =>
   promise.then(
@@ -47,6 +48,8 @@ describe('SubscriptionChangeService.getQuote', () => {
     prisma as never,
     subscriptions as never,
     policy as never,
+    {} as never,
+    {} as never,
   );
 
   const standard = planRecord('standard', 10_000, { manage_users: 8, publish_properties: null });
@@ -146,5 +149,228 @@ describe('SubscriptionChangeService.getQuote', () => {
       'OWNER_ONLY',
     );
     expect(prisma.subscription.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubscriptionChangeService.createCheckout', () => {
+  const KEY = 'checkout-intent-0001';
+  const standard = planRecord('standard', 10_000, {});
+  const premium = planRecord('premium', 20_000, {});
+  const prisma = {
+    subscription: { findUnique: jest.fn() },
+    subscriptionPlan: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() },
+    agency: { findUniqueOrThrow: jest.fn() },
+    paymentTransaction: { findUnique: jest.fn(), create: jest.fn() },
+  };
+  const subscriptions = { assertOwner: jest.fn() };
+  const naboo = { createTransaction: jest.fn() };
+  const service = new SubscriptionChangeService(
+    prisma as never,
+    subscriptions as never,
+    { counters: {} } as never,
+    naboo as never,
+    {} as never,
+  );
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      billingCycle: 'MONTHLY',
+      price: decimal(10_000),
+      currentPeriodStart: new Date(Date.now() - 15 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 15 * 86_400_000),
+      scheduledPlanId: null,
+      scheduledBillingCycle: null,
+      plan: standard,
+    });
+    prisma.subscriptionPlan.findUnique.mockImplementation(({ where }) =>
+      Promise.resolve(where.id === 'premium' ? premium : planRecord('basic', 5_000, {})),
+    );
+    prisma.subscriptionPlan.findUniqueOrThrow.mockResolvedValue({ name: 'PREMIUM_SUB' });
+    prisma.agency.findUniqueOrThrow.mockResolvedValue({ name: 'Keur Immo' });
+    naboo.createTransaction.mockResolvedValue({ order_id: 'o1', checkout_url: 'https://pay/o1' });
+  });
+
+  const checkout = (planId: string) =>
+    service.createCheckout('A', 'u', { planId, billingCycle: 'MONTHLY' }, KEY);
+
+  it('fige le montant du devis dans la transaction, avec la clé et le type', async () => {
+    await expect(checkout('premium')).resolves.toEqual({
+      checkoutUrl: 'https://pay/o1',
+      orderId: 'o1',
+    });
+    const { data } = prisma.paymentTransaction.create.mock.calls[0][0];
+    expect(data).toMatchObject({
+      agencyId: 'A',
+      kind: 'UPGRADE',
+      idempotencyKey: KEY,
+      planId: 'premium',
+      status: 'PENDING',
+    });
+    // 10 000 × ~15/30, arrondi supérieur
+    expect(data.amount_to_pay).toBeGreaterThanOrEqual(5_000);
+    expect(naboo.createTransaction.mock.calls[0][0].products[0].price).toBe(data.amount_to_pay);
+  });
+
+  it('même clé : renvoie le même checkout sans rappeler NabooPay', async () => {
+    prisma.paymentTransaction.findUnique.mockResolvedValue({
+      agencyId: 'A',
+      naboo_order_id: 'o1',
+      checkout_url: 'https://pay/o1',
+      metadata: { planId: 'premium', billingCycle: 'MONTHLY', keep: [] },
+    });
+    await expect(checkout('premium')).resolves.toEqual({
+      checkoutUrl: 'https://pay/o1',
+      orderId: 'o1',
+    });
+    expect(naboo.createTransaction).not.toHaveBeenCalled();
+  });
+
+  it('même clé pour une autre demande ou une autre agence : 422', async () => {
+    prisma.paymentTransaction.findUnique.mockResolvedValue({
+      agencyId: 'A',
+      naboo_order_id: 'o1',
+      checkout_url: 'u',
+      metadata: { planId: 'standard', billingCycle: 'MONTHLY', keep: [] },
+    });
+    await expect(errorCodeOf(checkout('premium'))).resolves.toBe('IDEMPOTENCY_KEY_REUSED');
+
+    prisma.paymentTransaction.findUnique.mockResolvedValue({
+      agencyId: 'B',
+      naboo_order_id: 'o1',
+      checkout_url: 'u',
+      metadata: { planId: 'premium', billingCycle: 'MONTHLY', keep: [] },
+    });
+    await expect(errorCodeOf(checkout('premium'))).resolves.toBe('IDEMPOTENCY_KEY_REUSED');
+  });
+
+  it('requête jumelle : la contrainte unique tranche, le checkout gagnant est renvoyé', async () => {
+    const { Prisma } = jest.requireActual('../../../prisma/generated/client');
+    prisma.paymentTransaction.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      agencyId: 'A',
+      naboo_order_id: 'o-winner',
+      checkout_url: 'https://pay/o-winner',
+      metadata: { planId: 'premium', billingCycle: 'MONTHLY', keep: [] },
+    });
+    prisma.paymentTransaction.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' }),
+    );
+    await expect(checkout('premium')).resolves.toEqual({
+      checkoutUrl: 'https://pay/o-winner',
+      orderId: 'o-winner',
+    });
+  });
+
+  it('refuse une clé absente et un downgrade', async () => {
+    const withoutKey = service.createCheckout(
+      'A',
+      'u',
+      { planId: 'premium', billingCycle: 'MONTHLY' },
+      undefined,
+    );
+    await expect(errorCodeOf(withoutKey)).resolves.toBe('IDEMPOTENCY_KEY_REQUIRED');
+    await expect(errorCodeOf(checkout('basic'))).resolves.toBe('DOWNGRADE_NOT_PAYABLE');
+    expect(naboo.createTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubscriptionChangeService.validateKeep', () => {
+  const service = new SubscriptionChangeService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const excess = [
+    {
+      feature: 'manage_users',
+      limit: 1,
+      used: 3,
+      items: [
+        { id: 's1', label: 'a', type: 'STAFF' as const },
+        { id: 's2', label: 'b', type: 'STAFF' as const },
+      ],
+    },
+  ];
+  const codeOf = (fn: () => unknown) => {
+    try {
+      fn();
+      return null;
+    } catch (error) {
+      return ((error as HttpError).getResponse() as { errorCode: string }).errorCode;
+    }
+  };
+
+  it('accepte un choix dans la limite', () => {
+    expect(service.validateKeep(excess, [{ feature: 'manage_users', ids: ['s2'] }])).toEqual([
+      { feature: 'manage_users', ids: ['s2'] },
+    ]);
+  });
+
+  it('refuse au-delà de la limite, un élément inconnu, un choix manquant', () => {
+    expect(
+      codeOf(() => service.validateKeep(excess, [{ feature: 'manage_users', ids: ['s1', 's2'] }])),
+    ).toBe('SELECTION_EXCEEDS_LIMIT');
+    expect(
+      codeOf(() => service.validateKeep(excess, [{ feature: 'manage_users', ids: ['x'] }])),
+    ).toBe('SELECTION_INVALID');
+    expect(codeOf(() => service.validateKeep(excess, []))).toBe('SELECTION_REQUIRED');
+  });
+});
+
+describe('SubscriptionChangeService.getPaymentStatus', () => {
+  const prisma = { paymentTransaction: { findFirst: jest.fn(), updateMany: jest.fn() } };
+  const naboo = { getTransactionById: jest.fn() };
+  const events = { emit: jest.fn() };
+  const service = new SubscriptionChangeService(
+    prisma as never,
+    { assertOwner: jest.fn() } as never,
+    {} as never,
+    naboo as never,
+    events as never,
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it("cherche la commande dans l'agence de l'appelant, hors onboarding", async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue(null);
+    await expect(errorCodeOf(service.getPaymentStatus('A', 'u', 'o1'))).resolves.toBe(
+      'PAYMENT_NOT_FOUND',
+    );
+    expect(prisma.paymentTransaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { naboo_order_id: 'o1', agencyId: 'A', kind: { not: 'ONBOARDING' } },
+      }),
+    );
+  });
+
+  it('payé chez NabooPay avant le webhook : émet la confirmation, reste en attente', async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue({ status: 'PENDING' });
+    naboo.getTransactionById.mockResolvedValue({ transaction_status: 'paid', paid_at: 'T' });
+    await expect(service.getPaymentStatus('A', 'u', 'o1')).resolves.toEqual({ status: 'PENDING' });
+    expect(events.emit).toHaveBeenCalledWith('subscription.payment.confirmed', {
+      orderId: 'o1',
+      paidAt: 'T',
+    });
+  });
+
+  it("annulé chez NabooPay : statut local mis à jour s'il était en attente", async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue({ status: 'PENDING' });
+    naboo.getTransactionById.mockResolvedValue({ transaction_status: 'cancelled' });
+    await expect(service.getPaymentStatus('A', 'u', 'o1')).resolves.toEqual({
+      status: 'CANCELLED',
+    });
+    expect(prisma.paymentTransaction.updateMany).toHaveBeenCalledWith({
+      where: { naboo_order_id: 'o1', status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
+  it('déjà traité : ne rappelle pas NabooPay', async () => {
+    prisma.paymentTransaction.findFirst.mockResolvedValue({ status: 'PAID' });
+    await expect(service.getPaymentStatus('A', 'u', 'o1')).resolves.toEqual({ status: 'PAID' });
+    expect(naboo.getTransactionById).not.toHaveBeenCalled();
   });
 });

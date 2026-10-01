@@ -7,6 +7,16 @@ export interface DomainEvents {
   'chat.message.created': ChatMessageCreatedEvent;
   'booking.status.changed': BookingStatusChangedEvent;
   'annonce.published': AnnoncePublishedEvent;
+  'subscription.payment.confirmed': SubscriptionPaymentConfirmedEvent;
+}
+
+/**
+ * NabooPay confirme le paiement d'un checkout d'abonnement (webhook ou polling). L'écouteur
+ * l'applique une seule fois : la clé d'idempotence est `orderId`.
+ */
+export interface SubscriptionPaymentConfirmedEvent {
+  orderId: string;
+  paidAt: string;
 }
 
 /** Réservation confirmée, refusée (y compris refus automatique) ou annulée par l'agence : e-mail au client. */

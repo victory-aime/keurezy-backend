@@ -288,7 +288,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - `isActive` (défaut `true`) sur `property`, `terrains` et `batiment` : bien désactivé par un downgrade.
 - **`GET agency/subscription?agencyId`** (propriétaire uniquement, `OWNER_ONLY` sinon) : souscription (plan, statut, cycle, prix numérique, période, résiliation), consommation par quota (`used`, `limit`, `remaining`, `percentage`, `state` : `OK`, `NEAR_LIMIT` dès 80 %, `REACHED`, `UNLIMITED`) et fonctionnalités commerciales (`included`). Un abonnement inactif est renvoyé sans erreur ; sans souscription, `subscription` vaut `null`. `subscription-info` est inchangé.
 - La consommation réutilise les compteurs qui bloquent la création (`countPropertyAssets`, `countUserSeats`, et `countAnnonces`, extrait d'`annonce.service.ts`) : une jauge ne peut pas contredire un refus.
-- La migration de contraction de l'invitation (section 30) prendra le numéro `14`.
+- La migration de contraction de l’invitation (section 30) prendra le numéro `15` (le `14` sert au checkout, section 39).
 - Spec : `keurezy-front/docs/subscription-ui/`.
 
 ## 35. Abonnement expiré : tableau de bord en lecture seule
@@ -320,3 +320,13 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - `excess` (downgrade et réactivation) : par fonctionnalité limitée dépassée, la limite visée, l'usage actif et les éléments actifs (biens, annonces en ligne, membres et invitations en attente) parmi lesquels l'owner choisit ce qui reste actif. Une fonctionnalité absente du plan visé a une limite de 0.
   - Plan inactif ou à la commission : `404 PLAN_NOT_FOUND` ; cycle non proposé : `400 BILLING_CYCLE_UNAVAILABLE`.
 - Calcul dans la fonction pure `quoteChange` (`packs/subscription-quote.ts`), réutilisée par le checkout.
+
+## 39. Checkout d'abonnement
+
+- **Migration `14_subscription_checkout`** (additive, appliquée en dev) : `payment_transaction.idempotencyKey` (unique) et `subscription.scheduledAt` (date d'effet d'un downgrade). La contraction de l'invitation passe en `15`.
+- **`POST agency/subscription/checkout`** `{ agencyId, planId, billingCycle, keep? }` (propriétaire, autorisé pendant l'expiration), en-tête **`Idempotency-Key` obligatoire** (16 à 100 caractères `A-Z a-z 0-9 - _`) : recalcule le devis, crée la transaction NabooPay au montant du devis (`kind`, `agencyId`, `metadata` = plan, cycle, choix), renvoie `{ checkoutUrl, orderId }`. Retour NabooPay vers `/dashboard/subscription?payment=success|error`.
+  - Même clé → même checkout, sans nouvel appel NabooPay ; même clé pour une autre demande ou une autre agence → `422 IDEMPOTENCY_KEY_REUSED` ; requêtes simultanées départagées par la contrainte unique.
+  - `400 DOWNGRADE_NOT_PAYABLE` (un downgrade se programme), `400 IDEMPOTENCY_KEY_REQUIRED`.
+  - Réactivation sur un plan plus petit : `keep` obligatoire pour chaque fonctionnalité en surplus (`422 SELECTION_REQUIRED`, `SELECTION_INVALID`, `SELECTION_EXCEEDS_LIMIT`).
+- **`GET agency/subscription/payment?agencyId&orderId`** (propriétaire) : `{ status }` d'un paiement d'abonnement de l'agence (`404 PAYMENT_NOT_FOUND` pour une autre agence ou un onboarding). Si NabooPay dit « payé » avant le webhook, émet `subscription.payment.confirmed` ; annulé ou échoué : statut local mis à jour. N'expose ni `metadata` ni mot de passe, contrairement à `common/polling`.
+- `PaymentsModule` exporte `NabooService`.

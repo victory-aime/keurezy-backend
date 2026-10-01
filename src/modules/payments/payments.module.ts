@@ -20,6 +20,6 @@ import { PaymentAdminService } from './services/payment-admin.service';
   ],
   controllers: [PaymentsController, AdminPaymentController],
   providers: [PaymentService, NabooService, PaymentAdminService],
-  exports: [PaymentService],
+  exports: [PaymentService, NabooService],
 })
 export class PaymentsModule {}

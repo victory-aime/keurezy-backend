@@ -1,11 +1,16 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from '../../database/prisma.service';
+import { NabooService } from '../payments/services/naboo.service';
+import { DomainEventBus } from '../events/domain-events';
 import { HttpError } from '../../config/http.error';
 import { FeatureCommercial } from '../../config/enum';
 import {
   AnnonceStatus,
   BillingCycle,
   InvitationStatus,
+  PaymentKind,
+  PaymentStatus,
   PlanCategory,
   SubscriptionStatus,
 } from '../../../prisma/generated/enums';
@@ -27,6 +32,27 @@ export interface FeatureExcess {
   used: number;
   items: ExcessItem[];
 }
+
+/** Choix de l'owner : éléments gardés actifs, par fonctionnalité limitée. */
+export type KeepSelection = { feature: string; ids: string[] }[];
+
+/** Ce que le webhook relit pour appliquer un paiement d'abonnement. */
+export interface SubscriptionCheckoutMetadata {
+  planId: string;
+  billingCycle: BillingCycle;
+  keep: KeepSelection;
+}
+
+/** Clé d'idempotence envoyée par le client : une par intention de paiement. */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,100}$/;
+
+const NABOO_TO_LOCAL: Record<string, PaymentStatus> = {
+  cancelled: PaymentStatus.CANCELLED,
+  failed: PaymentStatus.FAILED,
+};
+
+const isUniqueViolation = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 export interface SubscriptionQuote extends Quote {
   currency: string;
@@ -70,11 +96,217 @@ const quotePlanOf = (plan: PlanRecord): QuotePlan => ({
  */
 @Injectable()
 export class SubscriptionChangeService {
+  private readonly logger = new Logger(SubscriptionChangeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionService,
     private readonly policy: PlanFeaturePolicyService,
+    private readonly naboo: NabooService,
+    private readonly events: DomainEventBus,
   ) {}
+
+  /**
+   * Crée le checkout NabooPay d'un renouvellement, d'un upgrade ou d'une réactivation (owner).
+   * Le montant est celui du devis recalculé maintenant, figé dans la transaction.
+   *
+   * Idempotence : une même `idempotencyKey` renvoie toujours le même checkout. Sans elle, un double
+   * clic ou un retry réseau créerait deux paiements que l'owner pourrait régler tous les deux.
+   * Deux requêtes simultanées sont départagées par la contrainte unique.
+   */
+  async createCheckout(
+    agencyId: string,
+    userId: string,
+    target: { planId: string; billingCycle: BillingCycle; keep?: KeepSelection },
+    idempotencyKey: string | undefined,
+  ): Promise<{ checkoutUrl: string; orderId: string }> {
+    await this.subscriptions.assertOwner(agencyId, userId);
+    if (!idempotencyKey || !IDEMPOTENCY_KEY.test(idempotencyKey)) {
+      throw new HttpError(
+        "En-tête Idempotency-Key manquant ou invalide (16 à 100 caractères alphanumériques, '-' ou '_')",
+        HttpStatus.BAD_REQUEST,
+        'IDEMPOTENCY_KEY_REQUIRED',
+      );
+    }
+
+    const replay = await this.findCheckoutByKey(idempotencyKey, agencyId, target);
+    if (replay) return replay;
+
+    const { quote, targetPlan } = await this.buildQuote(
+      agencyId,
+      target.planId,
+      target.billingCycle,
+      new Date(),
+    );
+    if (quote.kind === 'DOWNGRADE') {
+      throw new HttpError(
+        "Un downgrade ne se paie pas : il se programme pour l'échéance",
+        HttpStatus.BAD_REQUEST,
+        'DOWNGRADE_NOT_PAYABLE',
+      );
+    }
+    if (quote.amount <= 0) {
+      // ponytail: crédit restant ≥ prix visé, impossible avec les grilles actuelles ; à traiter
+      // (application sans paiement) si une grille le permet un jour
+      throw new HttpError('Aucun montant à payer', HttpStatus.BAD_REQUEST, 'NOTHING_TO_PAY');
+    }
+    const keep =
+      quote.kind === 'REACTIVATION'
+        ? this.validateKeep(await this.findExcess(agencyId, targetPlan), target.keep ?? [])
+        : [];
+
+    const agency = await this.prisma.agency.findUniqueOrThrow({
+      where: { id: agencyId },
+      select: { name: true },
+    });
+    const planName = await this.prisma.subscriptionPlan.findUniqueOrThrow({
+      where: { id: targetPlan.id },
+      select: { name: true },
+    });
+    const returnUrl = `${process.env.NABOOPAY_FRONT_URL}/dashboard/subscription?payment=`;
+    const nabooTx = await this.naboo.createTransaction({
+      products: [
+        {
+          name: `Abonnement ${planName.name}`,
+          price: quote.amount,
+          quantity: 1,
+          description: `${quote.kind} de l'abonnement de l'agence ${agency.name}`,
+        },
+      ],
+      successUrl: `${returnUrl}success`,
+      errorUrl: `${returnUrl}error`,
+    });
+
+    const metadata: SubscriptionCheckoutMetadata = {
+      planId: targetPlan.id,
+      billingCycle: target.billingCycle,
+      keep,
+    };
+    try {
+      await this.prisma.paymentTransaction.create({
+        data: {
+          naboo_order_id: nabooTx.order_id,
+          checkout_url: nabooTx.checkout_url,
+          amount_to_pay: quote.amount,
+          planId: targetPlan.id,
+          userId,
+          agencyId,
+          kind: quote.kind as PaymentKind,
+          idempotencyKey,
+          status: PaymentStatus.PENDING,
+          metadata: metadata as object,
+        },
+      });
+    } catch (error) {
+      // Requête jumelle arrivée la première : son checkout fait foi, celui-ci n'est jamais montré
+      if (!isUniqueViolation(error)) throw error;
+      const winner = await this.findCheckoutByKey(idempotencyKey, agencyId, target);
+      if (winner) return winner;
+      throw error;
+    }
+    this.logger.log(`Checkout ${quote.kind} créé — agence ${agencyId}, order ${nabooTx.order_id}`);
+    return { checkoutUrl: nabooTx.checkout_url, orderId: nabooTx.order_id };
+  }
+
+  /**
+   * Checkout déjà créé avec cette clé. La même clé pour une autre demande (ou une autre agence)
+   * est une erreur du client : on refuse plutôt que de renvoyer un paiement qui ne correspond pas.
+   */
+  private async findCheckoutByKey(
+    idempotencyKey: string,
+    agencyId: string,
+    target: { planId: string; billingCycle: BillingCycle },
+  ) {
+    const existing = await this.prisma.paymentTransaction.findUnique({
+      where: { idempotencyKey },
+      select: { agencyId: true, naboo_order_id: true, checkout_url: true, metadata: true },
+    });
+    if (!existing) return null;
+    const meta = existing.metadata as unknown as SubscriptionCheckoutMetadata;
+    if (
+      existing.agencyId !== agencyId ||
+      meta.planId !== target.planId ||
+      meta.billingCycle !== target.billingCycle
+    ) {
+      throw new HttpError(
+        'Cette clé d’idempotence a déjà servi pour une autre demande',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'IDEMPOTENCY_KEY_REUSED',
+      );
+    }
+    return { checkoutUrl: existing.checkout_url, orderId: existing.naboo_order_id };
+  }
+
+  /**
+   * Statut d'un paiement d'abonnement de l'agence (owner), pour le retour depuis NabooPay.
+   * Rattrapage : si NabooPay dit « payé » avant l'arrivée du webhook, on émet la confirmation ;
+   * son application reste unique (clé `orderId`).
+   */
+  async getPaymentStatus(
+    agencyId: string,
+    userId: string,
+    orderId: string,
+  ): Promise<{ status: PaymentStatus }> {
+    await this.subscriptions.assertOwner(agencyId, userId);
+    const transaction = await this.prisma.paymentTransaction.findFirst({
+      where: { naboo_order_id: orderId, agencyId, kind: { not: PaymentKind.ONBOARDING } },
+      select: { status: true },
+    });
+    if (!transaction) {
+      throw new HttpError('Paiement introuvable', HttpStatus.NOT_FOUND, 'PAYMENT_NOT_FOUND');
+    }
+    if (transaction.status !== PaymentStatus.PENDING) return { status: transaction.status };
+
+    const nabooTx = await this.naboo.getTransactionById(orderId);
+    if (nabooTx.transaction_status === 'paid') {
+      this.events.emit('subscription.payment.confirmed', {
+        orderId,
+        paidAt: nabooTx.paid_at ?? new Date().toISOString(),
+      });
+    } else if (NABOO_TO_LOCAL[nabooTx.transaction_status]) {
+      await this.prisma.paymentTransaction.updateMany({
+        where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
+        data: { status: NABOO_TO_LOCAL[nabooTx.transaction_status] },
+      });
+      return { status: NABOO_TO_LOCAL[nabooTx.transaction_status] };
+    }
+    return { status: PaymentStatus.PENDING };
+  }
+
+  /**
+   * Vérifie le choix de l'owner face au surplus : pour chaque fonctionnalité en surplus, des
+   * éléments actifs de l'agence, sans dépasser la limite visée. Renvoie le choix normalisé
+   * (une entrée par fonctionnalité en surplus).
+   */
+  validateKeep(excess: FeatureExcess[], keep: KeepSelection): KeepSelection {
+    return excess.map(({ feature, limit, items }) => {
+      const chosen = keep.find((k) => k.feature === feature)?.ids;
+      if (!chosen && limit > 0) {
+        throw new HttpError(
+          `Choisissez les éléments à garder actifs pour « ${feature} »`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'SELECTION_REQUIRED',
+        );
+      }
+      const ids = chosen ?? [];
+      const known = new Set(items.map((item) => item.id));
+      if (ids.some((id) => !known.has(id))) {
+        throw new HttpError(
+          'Le choix contient un élément inconnu ou déjà inactif',
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'SELECTION_INVALID',
+        );
+      }
+      if (ids.length > limit) {
+        throw new HttpError(
+          `Vous pouvez garder au plus ${limit} élément(s) pour « ${feature} »`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'SELECTION_EXCEEDS_LIMIT',
+        );
+      }
+      return { feature, ids };
+    });
+  }
 
   /** Devis d'un passage au plan et au cycle visés, avec le surplus éventuel (owner). */
   async getQuote(
