@@ -184,23 +184,10 @@ export class SubscriptionService {
       };
     }
 
-    const context: PlanFeatureContext = {
-      planId: subscription.plan.id,
-      features: new Map(
-        subscription.plan.planFeatures.map((pf) => [
-          pf.feature.name,
-          { enabled: true, limit: pf.limit },
-        ]),
-      ),
-    };
-
-    const tracked = Object.keys(this.policy.counters).filter((name) => context.features.has(name));
-    const usage = await Promise.all(
-      tracked.map(async (name) =>
-        toUsage(
-          this.policy.checkCapacity(context, name, await this.policy.counters[name](agencyId)),
-        ),
-      ),
+    const { context, usage } = await this.computeUsage(
+      agencyId,
+      subscription.plan.id,
+      subscription.plan.planFeatures,
     );
 
     const {
@@ -240,6 +227,67 @@ export class SubscriptionService {
         included: context.features.has(f.name),
       })),
     };
+  }
+
+  /**
+   * Limites du plan et usage actif, pour toute l'équipe (owner et staff) : le front bloque les
+   * boutons « Ajouter » d'une fonctionnalité pleine. Ni prix ni montant : seulement des compteurs.
+   * `hasPaymentHistory` : un paiement payé autre que l'inscription (l'aperçu du plan supérieur
+   * n'est montré qu'aux agences qui n'en ont pas).
+   */
+  async getLimits(agencyId: string, userId: string) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { agencyId },
+      select: {
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            planFeatures: {
+              where: { enabled: true },
+              select: { limit: true, feature: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!subscription) return { plan: null, usage: [], hasPaymentHistory: false };
+
+    const [{ usage }, paidChanges] = await Promise.all([
+      this.computeUsage(agencyId, subscription.plan.id, subscription.plan.planFeatures),
+      this.prisma.paymentTransaction.count({
+        where: { agencyId, status: PaymentStatus.PAID, kind: { not: PaymentKind.ONBOARDING } },
+      }),
+    ]);
+    return {
+      plan: { id: subscription.plan.id, name: subscription.plan.name },
+      usage,
+      hasPaymentHistory: paidChanges > 0,
+    };
+  }
+
+  /** Consommation des fonctionnalités limitées du plan (mêmes compteurs que l'enforcement). */
+  private async computeUsage(
+    agencyId: string,
+    planId: string,
+    planFeatures: { limit: number | null; feature: { name: string } }[],
+  ) {
+    const context: PlanFeatureContext = {
+      planId,
+      features: new Map(
+        planFeatures.map((pf) => [pf.feature.name, { enabled: true, limit: pf.limit }]),
+      ),
+    };
+    const tracked = Object.keys(this.policy.counters).filter((name) => context.features.has(name));
+    const usage = await Promise.all(
+      tracked.map(async (name) =>
+        toUsage(
+          this.policy.checkCapacity(context, name, await this.policy.counters[name](agencyId)),
+        ),
+      ),
+    );
+    return { context, usage };
   }
 
   /**

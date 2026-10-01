@@ -542,3 +542,74 @@ describe('SubscriptionService.listPayments', () => {
     await expect(errorCodeOf(service.listPayments('A', 'staff'))).resolves.toBe('OWNER_ONLY');
   });
 });
+
+describe('SubscriptionService.getLimits', () => {
+  const prisma = {
+    subscription: { findUnique: jest.fn() },
+    paymentTransaction: { count: jest.fn() },
+    property: { count: jest.fn() },
+    land: { count: jest.fn() },
+    batiment: { count: jest.fn() },
+    annonce: { count: jest.fn() },
+    staff: { count: jest.fn() },
+    invitation: { count: jest.fn() },
+  };
+  const agencyService = { agencyAccessControl: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    agencyService as never,
+    new PlanFeaturePolicyService(prisma as never),
+    {} as never,
+    {} as never,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.subscription.findUnique.mockResolvedValue({
+      plan: {
+        id: 'std',
+        name: 'STANDARD_SUB',
+        planFeatures: [{ limit: 3, feature: { name: 'manage_properties' } }],
+      },
+    });
+    prisma.property.count.mockResolvedValue(2);
+    prisma.land.count.mockResolvedValue(1);
+    prisma.batiment.count.mockResolvedValue(0);
+    prisma.paymentTransaction.count.mockResolvedValue(0);
+  });
+
+  it("ouvert au staff de l'agence : usage, sans montant", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+    const limits = await service.getLimits('A', 'staff');
+    expect(limits.plan).toEqual({ id: 'std', name: 'STANDARD_SUB' });
+    expect(limits.usage).toEqual([
+      expect.objectContaining({
+        feature: 'manage_properties',
+        used: 3,
+        limit: 3,
+        state: 'REACHED',
+      }),
+    ]);
+    expect(JSON.stringify(limits)).not.toMatch(/price|amount/);
+  });
+
+  it("historique de paiement = un paiement payé autre que l'inscription", async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.paymentTransaction.count.mockResolvedValue(1);
+    await expect(service.getLimits('A', 'owner')).resolves.toMatchObject({
+      hasPaymentHistory: true,
+    });
+    expect(prisma.paymentTransaction.count).toHaveBeenCalledWith({
+      where: { agencyId: 'A', status: 'PAID', kind: { not: 'ONBOARDING' } },
+    });
+  });
+
+  it("refuse un utilisateur d'une autre agence", async () => {
+    agencyService.agencyAccessControl.mockRejectedValue(
+      new HttpError('x', 403, 'AGENCY_ACCESS_DENIED'),
+    );
+    await expect(errorCodeOf(service.getLimits('A', 'other'))).resolves.toBe(
+      'AGENCY_ACCESS_DENIED',
+    );
+  });
+});

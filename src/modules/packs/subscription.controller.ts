@@ -213,4 +213,13 @@ export class SubscriptionController {
       Number(limitPerPage ?? 10),
     );
   }
+
+  @Get(API_URL.AGENCY.SUBSCRIPTION_LIMITS)
+  @ApiOperation({ summary: "Limites du plan et usage actif (toute l'équipe de l'agence)" })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: '{ plan, usage, hasPaymentHistory } ; aucun montant' })
+  @ApiForbiddenResponse({ description: "AGENCY_ACCESS_DENIED : pas membre de l'agence" })
+  getLimits(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.subscriptionService.getLimits(agencyId, userId);
+  }
 }

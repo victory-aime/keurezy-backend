@@ -373,3 +373,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - **Migration `15_drop_invitation_temp_password`** (appliquée en dev) : la colonne est supprimée. Le code ne l'écrivait plus qu'à `null` (acceptation et annulation d'une invitation) ; ces écritures sont retirées.
 - **Ordre de déploiement** : déployer le code d'abord, puis appliquer la migration (`migrate:deploy:uat`). Dans l'autre sens, l'ancien code échouerait à l'acceptation et à l'annulation d'une invitation pendant le déploiement.
+
+## 46. Limites du plan pour toute l'équipe
+
+- **`GET agency/subscription/limits?agencyId`** (owner **et** staff de l'agence) : `{ plan: { id, name }, usage, hasPaymentHistory }`. `usage` vient des mêmes compteurs que la page abonnement et l'enforcement. Aucun prix ni montant n'est renvoyé.
+- `hasPaymentHistory` : l'agence a un paiement payé autre que l'inscription. Le web s'en sert pour n'afficher l'aperçu du plan supérieur qu'aux agences sans historique.
+- Sert au pop-up « limite atteinte » des boutons « Ajouter » (biens, annonces, invitations). Le backend reste la barrière : les créations au-delà de la limite sont toujours refusées.
