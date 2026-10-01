@@ -356,3 +356,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Événement `subscription.renewal.due { agencyId, daysLeft, periodEnd }` → `SubscriptionReminderListener` (`notifications/`) : notification in-app `PAYMENT` à l'owner et e-mail Resend avec un lien vers `/dashboard/subscription`. Message de facturation : envoyé quelles que soient les préférences de notification.
 - **Nouveau modèle Resend à créer** : `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID` (`mail/templates/subscription-renewal-reminder.html` et `.md`). Tant qu'il n'est pas configuré, l'e-mail est ignoré (la notification in-app part quand même).
 - Correctif : le checkout rattachait la transaction à l'identifiant du profil Owner au lieu de son `User.id` (`P2003 payment_transaction_userId_fkey`). `assertOwner` renvoie désormais le `User.id` de l'owner.
+
+## 43. Délai de grâce avant l'activation de l'expiration
+
+- Script `pnpm subscription:grace:dev` (ou `:uat`), **aperçu par défaut**, `-- --apply` pour écrire : les abonnements `ACTIVE`, non résiliés, dont l'échéance est passée **ou absente** reçoivent une échéance à J+7 (et leurs rappels sont réarmés). Idempotent.
+- **Procédure** pour un environnement : 1) lancer le script avec `--apply` ; 2) activer `SUBSCRIPTION_EXPIRY_ENABLED=true` ; 3) redémarrer. Les agences reçoivent les rappels J-7, J-3, J-1 et peuvent renouveler en ligne avant d'expirer.
+- Dev au 01/10/2026 : 13 abonnements concernés (8 échus, 5 sans échéance). Non appliqué.
