@@ -113,6 +113,7 @@ export class SubscriptionBillingService implements OnModuleInit {
     this.logger.log(`Paiement ${payment.kind} appliqué — agence ${agencyId}`);
     this.events.emit('subscription.payment.applied', {
       agencyId,
+      orderId,
       kind: payment.kind as 'RENEWAL' | 'UPGRADE' | 'REACTIVATION',
       amount: paidAmount,
       periodStart: period.start,

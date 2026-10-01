@@ -122,6 +122,8 @@ export class SendTemplateEmailOptions<T extends EMAIL_TEMPLATE_ID> {
   variables: TemplateVariables[T];
   replyTo?: string;
   tags?: { name: string; value: string }[];
+  /** Pièces jointes, ex. un reçu PDF */
+  attachments?: { filename: string; content: Buffer }[];
 }
 
 export class EmailResult {

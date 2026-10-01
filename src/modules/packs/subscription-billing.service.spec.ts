@@ -84,6 +84,7 @@ describe('SubscriptionBillingService.applyPayment', () => {
     await confirm();
     expect(events.emit).toHaveBeenCalledWith('subscription.payment.applied', {
       agencyId: 'A',
+      orderId: 'o1',
       kind: 'UPGRADE',
       amount: 5_000,
       periodStart: new Date('2026-10-20T10:00:00Z'),

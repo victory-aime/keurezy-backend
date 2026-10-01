@@ -480,3 +480,8 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
 - **`GET secured/agency/subscription/payments/receipt?agencyId&paymentId`** (owner) → `application/pdf`, `recu-KRZ-AAAA-NNNNNN.pdf`. `404 RECEIPT_NOT_FOUND` : autre agence, paiement non payé ou sans reçu.
 - `GET …/subscription/payments` : chaque paiement a en plus `receiptNumber`.
 - Le calcul de la période d'un paiement est partagé par l'historique et le reçu (`paymentPeriod`) ; les libellés de plans sont partagés par les e-mails et les reçus (`config/plan-labels.ts`).
+
+## 59. Reçus de paiement : pièce jointe de l'e-mail (R3)
+
+- L'avis « paiement confirmé » porte le reçu PDF en pièce jointe (`recu-KRZ-…pdf`). Si le reçu ne peut pas être généré, l'e-mail part sans pièce jointe (journalisé) et renvoie vers l'historique de facturation.
+- `sendTemplateEmail` accepte des pièces jointes (Resend les accepte avec un modèle) ; l'événement `subscription.payment.applied` porte l'`orderId`.

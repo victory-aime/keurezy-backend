@@ -1,3 +1,5 @@
+import { findReceiptData } from '../payments/receipts/receipt-data';
+import { renderReceiptPdf } from '../payments/receipts/receipt-pdf';
 import { planLabel } from '../../config/plan-labels';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { NotificationType } from '../../../prisma/generated/enums';
@@ -25,6 +27,7 @@ interface Notice {
   ctaLabel: string;
   /** Chemin du tableau de bord */
   ctaPath: string;
+  attachments?: { filename: string; content: Buffer }[];
   /** Texte court de la notification in-app */
   inApp: string;
 }
@@ -107,6 +110,7 @@ export class SubscriptionLifecycleListener implements OnModuleInit {
 
   async paymentApplied({
     agencyId,
+    orderId,
     kind,
     amount,
     periodStart,
@@ -117,11 +121,17 @@ export class SubscriptionLifecycleListener implements OnModuleInit {
       UPGRADE: 'Les nouvelles limites de votre plan sont actives dès maintenant.',
       REACTIVATION: 'Votre nouveau plan est actif dès maintenant.',
     }[kind];
+    const receipt = await this.receiptAttachment(agencyId, orderId);
     await this.notify(agencyId, `paiement ${kind}`, (agency) => ({
       subject: `Paiement confirmé : plan ${planLabel(agency.plan)}`,
       headline: 'Votre paiement est confirmé',
       highlight: `${frAmount(amount)} pour le plan ${planLabel(agency.plan)}, du ${frDate(periodStart)} au ${frDate(periodEnd)}.`,
-      body: `${effect} Merci de votre confiance. Vos paiements sont listés dans l’historique de facturation de la page Abonnement.`,
+      body: `${effect} Merci de votre confiance. ${
+        receipt
+          ? 'Votre reçu est joint à cet e-mail ; il reste disponible dans l’historique de facturation de la page Abonnement.'
+          : 'Vos paiements et leurs reçus sont dans l’historique de facturation de la page Abonnement.'
+      }`,
+      attachments: receipt ? [receipt] : undefined,
       ctaLabel: 'Voir mon abonnement',
       ctaPath: SUBSCRIPTION_PAGE,
       inApp: `Paiement de ${frAmount(amount)} confirmé. ${effect}`,
@@ -161,6 +171,18 @@ export class SubscriptionLifecycleListener implements OnModuleInit {
       ctaPath: SUBSCRIPTION_PAGE,
       inApp: `Votre agence est passée au plan ${planLabel(agency.plan)}.`,
     }));
+  }
+
+  /** Reçu PDF du paiement ; null si la génération échoue (l'e-mail part alors sans pièce jointe). */
+  private async receiptAttachment(agencyId: string, orderId: string) {
+    try {
+      const data = await findReceiptData(this.prisma, { agencyId, naboo_order_id: orderId });
+      if (!data) return null;
+      return { filename: `recu-${data.number}.pdf`, content: await renderReceiptPdf(data) };
+    } catch (error) {
+      this.logger.error(`Reçu du paiement ${orderId} non généré : ${String(error)}`);
+      return null;
+    }
   }
 
   /** Lit l'agence, rédige l'avis, puis notification in-app et e-mail. Une erreur est journalisée. */
@@ -219,6 +241,7 @@ export class SubscriptionLifecycleListener implements OnModuleInit {
           body: notice.body,
           ctaLabel: notice.ctaLabel,
           ctaLink: `${process.env.WEB_APP_URL}${notice.ctaPath}`,
+          attachments: notice.attachments,
         });
       }
       this.logger.log(`Avis d'abonnement (${label}) envoyé à l'agence ${agencyId}`);

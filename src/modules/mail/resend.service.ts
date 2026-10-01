@@ -96,7 +96,7 @@ export class ResendService {
   async sendTemplateEmail<T extends EMAIL_TEMPLATE_ID>(
     options: SendTemplateEmailOptions<T>,
   ): Promise<EmailResult> {
-    const { to, template, variables, subject, replyTo, tags } = options;
+    const { to, template, variables, subject, replyTo, tags, attachments } = options;
     const recipients = Array.isArray(to) ? to : [to];
     const templateId = EMAIL_TEMPLATE_RUNTIME_ID[template];
     // Modèle pas encore créé dans Resend : l'action métier continue, l'envoi est ignoré
@@ -119,6 +119,7 @@ export class ResendService {
           variables: escapeTemplateVariables(variables),
         },
         tags,
+        attachments,
       });
       return this.handleResendResponse(data, error, recipients[0]);
     } catch (err) {
@@ -330,10 +331,12 @@ export class ResendService {
     body: string;
     ctaLabel: string;
     ctaLink: string;
+    attachments?: { filename: string; content: Buffer }[];
   }) {
     return this.sendTemplateEmail({
       to: p.sendTo,
       subject: p.subject,
+      attachments: p.attachments,
       template: EMAIL_TEMPLATE_ID.SUBSCRIPTION_NOTICE,
       variables: {
         SUBJECT: p.subject,

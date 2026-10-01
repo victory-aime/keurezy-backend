@@ -17,6 +17,8 @@ export interface DomainEvents {
 /** Paiement d'abonnement appliqué : e-mail de confirmation à l'owner. */
 export interface SubscriptionPaymentAppliedEvent {
   agencyId: string;
+  /** Commande NabooPay : retrouve le reçu à joindre */
+  orderId: string;
   kind: 'RENEWAL' | 'UPGRADE' | 'REACTIVATION';
   /** Montant réglé (XOF) */
   amount: number;

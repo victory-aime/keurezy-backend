@@ -7,6 +7,7 @@ describe('SubscriptionLifecycleListener', () => {
   const prisma = {
     agency: { findUnique: jest.fn() },
     subscriptionPlan: { findUnique: jest.fn() },
+    paymentTransaction: { findFirst: jest.fn() },
   };
   const resend = { sendSubscriptionNotice: jest.fn() };
   const notifications = { createNotification: jest.fn() };
@@ -74,6 +75,7 @@ describe('SubscriptionLifecycleListener', () => {
     agency();
     await listener.paymentApplied({
       agencyId: 'A',
+      orderId: 'o1',
       kind: 'RENEWAL',
       amount: 10_000,
       periodStart: new Date('2026-10-31T00:00:00Z'),
@@ -83,6 +85,49 @@ describe('SubscriptionLifecycleListener', () => {
       subject: 'Paiement confirmé : plan Standard',
       highlight: '10 000 F CFA pour le plan Standard, du 31/10/2026 au 30/11/2026.',
     });
+  });
+
+  it('paiement confirmé : le reçu PDF est joint', async () => {
+    agency();
+    prisma.paymentTransaction.findFirst.mockResolvedValue({
+      naboo_order_id: 'o1',
+      amount_to_pay: { toString: () => '10000' },
+      confirmed_at: new Date('2026-10-31T00:00:00Z'),
+      updatedAt: new Date('2026-10-31T00:00:00Z'),
+      metadata: {},
+      receiptNumber: 'KRZ-2026-000009',
+      receiptAgency: { name: 'Keur Immo', address: 'Dakar', email: 'a@b.sn' },
+      plan: { name: 'STANDARD_SUB' },
+    });
+    await listener.paymentApplied({
+      agencyId: 'A',
+      orderId: 'o1',
+      kind: 'RENEWAL',
+      amount: 10_000,
+      periodStart: new Date('2026-10-31T00:00:00Z'),
+      periodEnd: new Date('2026-11-30T00:00:00Z'),
+    });
+    const [attachment] = mail().attachments;
+    expect(attachment.filename).toBe('recu-KRZ-2026-000009.pdf');
+    expect(attachment.content.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(prisma.paymentTransaction.findFirst.mock.calls[0][0].where).toMatchObject({
+      agencyId: 'A',
+      naboo_order_id: 'o1',
+    });
+  });
+
+  it('reçu impossible à générer : e-mail envoyé sans pièce jointe', async () => {
+    agency();
+    prisma.paymentTransaction.findFirst.mockRejectedValue(new Error('db down'));
+    await listener.paymentApplied({
+      agencyId: 'A',
+      orderId: 'o1',
+      kind: 'UPGRADE',
+      amount: 5_000,
+      periodStart: new Date('2026-10-31T00:00:00Z'),
+      periodEnd: new Date('2026-11-30T00:00:00Z'),
+    });
+    expect(mail().attachments).toBeUndefined();
   });
 
   it('passage au Gratuit en fin de période : lien vers le choix de plan', async () => {
