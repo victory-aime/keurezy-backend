@@ -421,3 +421,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Nouveaux événements : `subscription.payment.applied`, `subscription.moved.to.free`, `subscription.downgrade.applied`.
 - Les variables de ce modèle sont **échappées** (Resend insère `{{{…}}}` sans échappement ; le nom d'agence vient de l'utilisateur). Les noms de plan sont affichés en français (Gratuit, Débutant, Standard, Entreprise).
 - `.env` et `.env.uat` : `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` ajoutée (vide) ; `.env.uat` : `SUBSCRIPTION_EXPIRY_ENABLED=false` jusqu'à la procédure de mise en service.
+
+## 52. Changement de tarif
+
+- Un nouveau tarif du catalogue ne touche jamais la période en cours (prix payé figé sur l'abonnement) : il s'applique au **prochain renouvellement** (devis `RENEWAL` au tarif du catalogue, testé).
+- `GET agency/subscription` renvoie `subscription.nextRenewalPrice` : prix du prochain renouvellement au tarif actuel (plan et cycle programmés s'il y en a ; null pour le Gratuit). Le web l'annonce quand il diffère du prix payé.

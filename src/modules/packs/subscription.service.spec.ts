@@ -22,6 +22,7 @@ describe('SubscriptionService.getOverview', () => {
     staff: { count: jest.fn() },
     invitation: { count: jest.fn() },
     annonce: { count: jest.fn() },
+    planPricing: { findUnique: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
   const service = new SubscriptionService(
@@ -72,6 +73,20 @@ describe('SubscriptionService.getOverview', () => {
     prisma.invitation.count.mockResolvedValue(0);
   });
 
+  it('nouveau tarif du catalogue : annoncé pour le renouvellement, prix payé inchangé', async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      ...standardSubscription,
+      scheduledPlanId: null,
+    });
+    prisma.planPricing.findUnique.mockResolvedValue({ price: { toString: () => '12000' } });
+    const { subscription } = await service.getOverview('A', 'owner-1');
+    expect(subscription).toMatchObject({ price: 10_000, nextRenewalPrice: 12_000 });
+    expect(prisma.planPricing.findUnique).toHaveBeenCalledWith({
+      where: { planId_billingCycle: { planId: 'plan-standard', billingCycle: 'MONTHLY' } },
+      select: { price: true },
+    });
+  });
+
   it("refuse le staff : l'abonnement et ses montants sont réservés au propriétaire", async () => {
     agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
     await expect(errorCodeOf(service.getOverview('A', 'staff-1'))).resolves.toBe('OWNER_ONLY');
@@ -86,6 +101,7 @@ describe('SubscriptionService.getOverview', () => {
       plan: { id: 'plan-standard', name: 'STANDARD_SUB' },
       billingCycle: 'MONTHLY',
       price: 10000,
+      nextRenewalPrice: null,
       currency: 'XOF',
       currentPeriodStart: standardSubscription.currentPeriodStart,
       currentPeriodEnd: standardSubscription.currentPeriodEnd,

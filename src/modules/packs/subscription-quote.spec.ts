@@ -99,6 +99,20 @@ describe('quoteChange', () => {
     });
   });
 
+  it('tarif du catalogue modifié : le renouvellement est facturé au nouveau tarif', () => {
+    // Période en cours payée 10 000 (snapshot) ; le catalogue passe à 12 000
+    const quote = quoteChange(
+      standardMonthly,
+      { plan: standardMonthly.plan, billingCycle: 'MONTHLY', price: 12_000 },
+      day('2026-10-25'),
+    );
+    expect(quote).toMatchObject({
+      kind: 'RENEWAL',
+      amount: 12_000,
+      effectiveAt: day('2026-10-31'),
+    });
+  });
+
   it('renouvellement avec un downgrade programmé : prix et cycle du plan programmé', () => {
     const current = {
       ...standardMonthly,

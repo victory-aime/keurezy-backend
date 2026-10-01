@@ -31,6 +31,11 @@ export interface SubscriptionSummary {
   plan: { id: string; name: Plan };
   billingCycle: BillingCycle | null;
   price: number | null;
+  /**
+   * Prix du prochain renouvellement au tarif actuel du catalogue (plan et cycle programmés s'il y
+   * en a). Un changement de tarif ne touche jamais la période en cours. null : Gratuit, sans cycle.
+   */
+  nextRenewalPrice: number | null;
   currency: string | null;
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
@@ -206,11 +211,21 @@ export class SubscriptionService {
           select: { id: true, name: true },
         })
       : null;
+    const renewalCycle = scheduledBillingCycle ?? period.billingCycle;
+    const renewalPricing = renewalCycle
+      ? await this.prisma.planPricing.findUnique({
+          where: {
+            planId_billingCycle: { planId: scheduledPlanId ?? plan.id, billingCycle: renewalCycle },
+          },
+          select: { price: true },
+        })
+      : null;
     return {
       subscription: {
         ...period,
         plan: { id: plan.id, name: plan.name },
         price: price === null ? null : Number(price.toString()),
+        nextRenewalPrice: renewalPricing ? Number(renewalPricing.price.toString()) : null,
         scheduledChange:
           scheduledPlan && scheduledBillingCycle && scheduledAt
             ? {
