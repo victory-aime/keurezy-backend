@@ -299,3 +299,9 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **Job d'expiration horaire** (`SubscriptionService.runExpiryJob`) : un abonnement `ACTIVE` **résilié** dont `currentPeriodEnd` est passé devient `INACTIVE`. Les périodes simplement non renouvelées n'expirent qu'avec `SUBSCRIPTION_EXPIRY_ENABLED=true`, à activer une fois le renouvellement en ligne livré (module checkout) : en dev, 8 abonnements actifs sur 14 ont déjà une période échue et seraient bloqués immédiatement.
 - **Résiliation (propriétaire)** : `POST agency/subscription/cancel?agencyId` (fin de période, `canceledAt`), `POST agency/subscription/resume?agencyId` (annule la résiliation, sans paiement), idempotents et autorisés même abonnement expiré. `409 SUBSCRIPTION_EXPIRED` si l'abonnement est déjà `INACTIVE` (la réactivation passe alors par un paiement), `404 SUBSCRIPTION_NOT_FOUND` sans souscription. `GET agency/subscription/cancel-impact?agencyId` : fin de période, annonces en ligne, membres actifs, réservations confirmées à venir.
 - **`GET agency/subscription-info`** renvoie aussi `status` (ajout, rien de retiré) : le web affiche à toute l'équipe le bandeau « lecture seule » quand l'abonnement est `INACTIVE`.
+
+## 36. Quotas du plan : seuls les éléments actifs comptent
+
+- `publish_properties` compte les **annonces en ligne** (`ACTIVE`), `manage_users` les **membres actifs** et les invitations en attente, `manage_properties` les **biens actifs** (`isActive`). Désactiver un élément libère sa place.
+- Le quota est contrôlé au **passage à l'état actif** : création d'une annonce en ligne (un brouillon ne consomme plus rien), passage d'une annonce en `ACTIVE` (`updateAnnonce`), réactivation d'un membre (`team/change-status`, `403 USERS_CAPACITY_REACHED`). La désactivation n'est jamais bloquée.
+- `PlanFeaturePolicyService.counters` et `hasRoomFor(agencyId, feature)` : une seule source pour les jauges de la page abonnement et les contrôles.

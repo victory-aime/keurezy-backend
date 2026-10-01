@@ -1,7 +1,12 @@
 import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
-import { InvitationStatus, SubscriptionStatus } from '../../../prisma/generated/enums';
+import { FeatureCommercial } from '../../config/enum';
+import {
+  AnnonceStatus,
+  InvitationStatus,
+  SubscriptionStatus,
+} from '../../../prisma/generated/enums';
 
 export interface FeatureCapacityCheck {
   feature: string;
@@ -131,30 +136,53 @@ export class PlanFeaturePolicyService {
     };
   }
 
-  /** Biens de l'agence (propriétés, terrains, bâtiments), soumis à la même limite du plan. */
+  /**
+   * Compteur réel de chaque fonctionnalité limitée. Le quota porte sur ce qui est **actif** :
+   * un élément désactivé (à la main ou par un downgrade) libère sa place.
+   */
+  readonly counters: Record<string, (agencyId: string) => Promise<number>> = {
+    [FeatureCommercial.PROPERTIES]: (agencyId) => this.countPropertyAssets(agencyId),
+    [FeatureCommercial.ANNOUNCES]: (agencyId) => this.countAnnonces(agencyId),
+    [FeatureCommercial.USERS]: (agencyId) => this.countUserSeats(agencyId),
+  };
+
+  /** Biens actifs de l'agence (propriétés, terrains, bâtiments), soumis à une seule limite. */
   async countPropertyAssets(agencyId: string): Promise<number> {
+    const where = { agencyId, isActive: true };
     const counts = await Promise.all([
-      this.prisma.property.count({ where: { agencyId } }),
-      this.prisma.land.count({ where: { agencyId } }),
-      this.prisma.batiment.count({ where: { agencyId } }),
+      this.prisma.property.count({ where }),
+      this.prisma.land.count({ where }),
+      this.prisma.batiment.count({ where }),
     ]);
     return counts.reduce((total, count) => total + count, 0);
   }
 
-  /** Annonces de l'agence, toutes confondues : c'est ce que compte la limite `publish_properties`. */
+  /** Annonces en ligne de l'agence : c'est ce que compte la limite `publish_properties`. */
   countAnnonces(agencyId: string): Promise<number> {
-    return this.prisma.annonce.count({ where: { property: { agencyId } } });
+    return this.prisma.annonce.count({
+      where: { status: AnnonceStatus.ACTIVE, property: { agencyId } },
+    });
   }
 
-  /** Places utilisateurs occupées : membres de l'équipe et invitations en attente encore valides. */
+  /** Places utilisateurs occupées : membres actifs et invitations en attente encore valides. */
   async countUserSeats(agencyId: string): Promise<number> {
     const [staff, pendingInvitations] = await Promise.all([
-      this.prisma.staff.count({ where: { agencyId } }),
+      this.prisma.staff.count({ where: { agencyId, isActive: true } }),
       this.prisma.invitation.count({
         where: { agencyId, status: InvitationStatus.PENDING, expiresAt: { gt: new Date() } },
       }),
     ]);
     return staff + pendingInvitations;
+  }
+
+  /**
+   * Reste-t-il une place pour qu'un élément de plus devienne actif (création ou réactivation) ?
+   * À appeler uniquement sur un passage à l'état actif : l'élément lui-même n'est pas encore compté.
+   */
+  async hasRoomFor(agencyId: string, featureName: string): Promise<boolean> {
+    const context = await this.getAgencyFeatureContext(agencyId);
+    const used = await this.counters[featureName](agencyId);
+    return this.checkCapacity(context, featureName, used).allowed;
   }
 
   /**

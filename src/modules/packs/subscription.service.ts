@@ -2,7 +2,6 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
-import { FeatureCommercial } from '../../config/enum';
 import { AgencyService } from '../agency/agency.service';
 import {
   AnnonceStatus,
@@ -76,13 +75,6 @@ export interface AgencySubscriptionOverview {
 @Injectable()
 export class SubscriptionService {
   private readonly logger = new Logger(SubscriptionService.name);
-
-  /** Fonctionnalités limitées qui ont un compteur réel, dans l'ordre d'affichage. */
-  private readonly counters: Record<string, (agencyId: string) => Promise<number>> = {
-    [FeatureCommercial.PROPERTIES]: (agencyId) => this.policy.countPropertyAssets(agencyId),
-    [FeatureCommercial.ANNOUNCES]: (agencyId) => this.policy.countAnnonces(agencyId),
-    [FeatureCommercial.USERS]: (agencyId) => this.policy.countUserSeats(agencyId),
-  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -159,10 +151,12 @@ export class SubscriptionService {
       ),
     };
 
-    const tracked = Object.keys(this.counters).filter((name) => context.features.has(name));
+    const tracked = Object.keys(this.policy.counters).filter((name) => context.features.has(name));
     const usage = await Promise.all(
       tracked.map(async (name) =>
-        toUsage(this.policy.checkCapacity(context, name, await this.counters[name](agencyId))),
+        toUsage(
+          this.policy.checkCapacity(context, name, await this.policy.counters[name](agencyId)),
+        ),
       ),
     );
 

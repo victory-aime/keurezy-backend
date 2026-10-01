@@ -14,9 +14,36 @@ describe('TeamService.enableOrDisabledAccount', () => {
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
+  const policy = { hasRoomFor: jest.fn() };
+  const service = new TeamService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+    policy as never,
+  );
 
   beforeEach(() => jest.resetAllMocks());
+
+  it('refuse de réactiver un membre quand le plan est plein', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({ id: 'staff-2', userId: 'u2', isActive: false });
+    policy.hasRoomFor.mockResolvedValue(false);
+
+    await expect(
+      service.enableOrDisabledAccount({ status: true, id: 'staff-2' }, 'agency-A', 'owner-1'),
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(policy.hasRoomFor).toHaveBeenCalledWith('agency-A', 'manage_users');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('désactive un membre sans contrôler le quota', async () => {
+    agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    prisma.staff.findFirst.mockResolvedValue({ id: 'staff-2', userId: 'u2', isActive: true });
+
+    await service.enableOrDisabledAccount({ status: false, id: 'staff-2' }, 'agency-A', 'owner-1');
+    expect(policy.hasRoomFor).not.toHaveBeenCalled();
+  });
 
   it("refuse l'action à un membre qui n'est pas le propriétaire", async () => {
     agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
@@ -56,6 +83,7 @@ describe('TeamService.enableOrDisabledAccount', () => {
   it('ferme les sessions à la désactivation, pas à la réactivation', async () => {
     agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
     prisma.staff.findFirst.mockResolvedValue({ id: 'staff-2', userId: 'user-2' });
+    policy.hasRoomFor.mockResolvedValue(true);
 
     await service.enableOrDisabledAccount({ status: false, id: 'staff-2' }, 'agency-A', 'owner-1');
     expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-2' } });
@@ -77,7 +105,10 @@ describe('TeamService.updateMemberPermissions', () => {
   const service = new TeamService(
     prisma as never,
     agencyService as never,
-    permissionsService as never, {} as never);
+    permissionsService as never,
+    {} as never,
+    {} as never,
+  );
 
   const errorCode = async (promise: Promise<unknown>) => {
     try {
@@ -160,7 +191,13 @@ describe('TeamService.removeMember', () => {
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
+  const service = new TeamService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -212,7 +249,13 @@ describe('TeamService.getMemberImpact', () => {
     ticket: { count: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new TeamService(prisma as never, agencyService as never, {} as never, {} as never);
+  const service = new TeamService(
+    prisma as never,
+    agencyService as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
 
   beforeEach(() => jest.resetAllMocks());
 
@@ -260,6 +303,7 @@ describe('TeamService.resetMemberTwoFactor', () => {
     agencyService as never,
     {} as never,
     resend as never,
+    {} as never,
   );
 
   beforeEach(() => jest.resetAllMocks());

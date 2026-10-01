@@ -5,6 +5,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import { PermissionsService } from '../packs/permissions.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
+import { FeatureCommercial } from '../../config/enum';
 import { UpdateStaffPermissionsDto } from './team.dto';
 import { ResendService } from '../mail/resend.service';
 
@@ -41,6 +43,7 @@ export class TeamService {
     private readonly agencyService: AgencyService,
     private readonly permissionsService: PermissionsService,
     private readonly resendService: ResendService,
+    private readonly planFeaturePolicy: PlanFeaturePolicyService,
   ) {}
 
   /**
@@ -110,11 +113,24 @@ export class TeamService {
     // Le membre ciblé doit appartenir à l'agence ; son userId est déduit, jamais lu du client.
     const member = await this.prisma.staff.findFirst({
       where: { id: data.id, agencyId },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, isActive: true },
     });
 
     if (!member) {
       throw new HttpError('Membre introuvable', HttpStatus.NOT_FOUND, 'STAFF_NOT_FOUND');
+    }
+
+    // Réactiver un membre reprend une place du plan : un membre inactif n'en occupe pas
+    if (
+      data.status &&
+      !member.isActive &&
+      !(await this.planFeaturePolicy.hasRoomFor(agencyId, FeatureCommercial.USERS))
+    ) {
+      throw new HttpError(
+        "Votre capacité maximale d'utilisateur est atteinte.",
+        HttpStatus.FORBIDDEN,
+        'USERS_CAPACITY_REACHED',
+      );
     }
 
     await this.prisma.$transaction([

@@ -120,27 +120,25 @@ export class AnnounceService {
     }
   }
 
-  // 1. CREATE
-  async createAnnounce(dto: CreateAnnonceDto, userId: string): Promise<{ message: string }> {
-    await this.agencyService.agencyAccessControl(dto.agencyId, userId);
-
-    const context = await this.planFeaturePolicy.getAgencyFeatureContext(dto.agencyId);
-
-    const currentProperties = await this.planFeaturePolicy.countAnnonces(dto.agencyId);
-
-    const check = this.planFeaturePolicy.checkCapacity(
-      context,
-      FeatureCommercial.ANNOUNCES,
-      currentProperties,
-    );
-
-    if (!check.allowed) {
+  /** Refuse une mise en ligne au-delà de la limite d'annonces en ligne du plan. */
+  private async ensureAnnonceRoom(agencyId: string) {
+    if (!(await this.planFeaturePolicy.hasRoomFor(agencyId, FeatureCommercial.ANNOUNCES))) {
       throw new HttpError(
-        'Votre capacité maximale de biens est atteinte.',
+        "Votre capacité maximale d'annonces en ligne est atteinte.",
         HttpStatus.FORBIDDEN,
         'PROPERTY_CAPACITY_REACHED',
       );
     }
+  }
+
+  // 1. CREATE
+  async createAnnounce(dto: CreateAnnonceDto, userId: string): Promise<{ message: string }> {
+    await this.agencyService.agencyAccessControl(dto.agencyId, userId);
+
+    const status = dto.status ?? AnnonceStatus.INACTIVE;
+
+    // Le quota porte sur les annonces en ligne : un brouillon ne consomme rien
+    if (status === AnnonceStatus.ACTIVE) await this.ensureAnnonceRoom(dto.agencyId);
 
     if (!dto.galleryImages?.length) {
       throw new HttpError(
@@ -157,8 +155,6 @@ export class AnnounceService {
     if (!property || property.agencyId !== dto.agencyId) {
       throw new HttpError('Propriété introuvable', HttpStatus.NOT_FOUND, 'PROPERTY_NOT_FOUND');
     }
-
-    const status = dto.status ?? AnnonceStatus.INACTIVE;
 
     // règle métier
     if (status === AnnonceStatus.ACTIVE) {
@@ -354,6 +350,9 @@ export class AnnounceService {
     // vérification si passage en ACTIVE
     if (nextStatus === AnnonceStatus.ACTIVE) {
       await this.ensureNoActiveAnnounce(annonce.propertyId, dto.id);
+      if (annonce.status !== AnnonceStatus.ACTIVE) {
+        await this.ensureAnnonceRoom(annonce.property.agencyId);
+      }
     }
 
     const updated = await this.prisma.annonce.update({

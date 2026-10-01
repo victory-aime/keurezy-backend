@@ -16,11 +16,33 @@ describe('PlanFeaturePolicyService', () => {
 
   beforeEach(() => jest.resetAllMocks());
 
-  it('compte propriétés, terrains et bâtiments contre une seule limite de biens', async () => {
+  it('compte les biens actifs (propriétés, terrains, bâtiments) contre une seule limite', async () => {
     prisma.property.count.mockResolvedValue(2);
     prisma.land.count.mockResolvedValue(3);
     prisma.batiment.count.mockResolvedValue(1);
     await expect(service.countPropertyAssets('A')).resolves.toBe(6);
+    expect(prisma.land.count).toHaveBeenCalledWith({ where: { agencyId: 'A', isActive: true } });
+  });
+
+  it('ne compte que les membres actifs dans les places utilisateurs', async () => {
+    prisma.staff.count.mockResolvedValue(1);
+    prisma.invitation.count.mockResolvedValue(0);
+    await service.countUserSeats('A');
+    expect(prisma.staff.count).toHaveBeenCalledWith({ where: { agencyId: 'A', isActive: true } });
+  });
+
+  it("indique s'il reste une place pour un élément de plus", async () => {
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      plan: {
+        id: 'p',
+        planFeatures: [{ enabled: true, limit: 2, feature: { name: 'publish_properties' } }],
+      },
+    });
+    prisma.annonce.count.mockResolvedValue(1);
+    await expect(service.hasRoomFor('A', 'publish_properties')).resolves.toBe(true);
+    prisma.annonce.count.mockResolvedValue(2);
+    await expect(service.hasRoomFor('A', 'publish_properties')).resolves.toBe(false);
   });
 
   it('compte les invitations en attente non expirées dans les places utilisateurs', async () => {
@@ -50,10 +72,12 @@ describe('PlanFeaturePolicyService', () => {
     expect(service.checkCapacity(context, 'f', 5).allowed).toBe(true);
   });
 
-  it("compte toutes les annonces des biens de l'agence (même compteur que la création)", async () => {
+  it("ne compte que les annonces en ligne de l'agence", async () => {
     prisma.annonce.count.mockResolvedValue(4);
     await expect(service.countAnnonces('A')).resolves.toBe(4);
-    expect(prisma.annonce.count).toHaveBeenCalledWith({ where: { property: { agencyId: 'A' } } });
+    expect(prisma.annonce.count).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', property: { agencyId: 'A' } },
+    });
   });
 });
 
