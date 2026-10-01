@@ -1,3 +1,4 @@
+import { legalMissing } from './agency-legal';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AgencyStatus } from '../../../prisma/generated/enums';
 import { PrismaService } from '../../database/prisma.service';
@@ -91,6 +92,7 @@ export class AgencyAdminService {
     if (!agency) {
       throw new HttpError(`Agence est introuvable`, HttpStatus.NOT_FOUND, 'AGENCY_NOT_FOUND');
     }
+    const missing = legalMissing(agency);
 
     const {
       properties,
@@ -130,7 +132,14 @@ export class AgencyAdminService {
   // ─────────────────────────────────────────
   // 3. Changer le statut d'une agence
   // ─────────────────────────────────────────
-  async updateAgencyStatus(agencyId: string, status: AgencyStatus): Promise<{ message: string }> {
+  /**
+   * Statut d'une agence (SUPER_ADMIN). La vérification suit la complétude des informations
+   * légales : une agence incomplète peut être ouverte, mais reste non vérifiée.
+   */
+  async updateAgencyStatus(
+    agencyId: string,
+    status: AgencyStatus,
+  ): Promise<{ message: string; isVerified: boolean; legalMissing: string[] }> {
     const agency = await this.prismaService.agency.findUnique({
       where: { id: agencyId },
     });
@@ -138,15 +147,21 @@ export class AgencyAdminService {
     if (!agency) {
       throw new HttpError(`Agence est introuvable`, HttpStatus.NOT_FOUND, 'AGENCY_NOT_FOUND');
     }
+    const missing = legalMissing(agency);
 
     try {
       await this.prismaService.agency.update({
         where: { id: agencyId },
-        data: { status, isVerified: true },
+        data: { status, isVerified: missing.length === 0 },
       });
 
       return {
-        message: `Le statut de l'agence a été modifié avec succès.`,
+        message:
+          missing.length === 0
+            ? `Le statut de l'agence a été modifié avec succès.`
+            : `Statut modifié. Agence non vérifiée : informations légales incomplètes.`,
+        isVerified: missing.length === 0,
+        legalMissing: missing,
       };
     } catch (error) {
       if (error instanceof HttpError) throw error;

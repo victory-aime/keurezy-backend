@@ -25,6 +25,7 @@ import { ResetPasswordOtpDto, VerifyOtpDto } from '../modules/auth/auth.dto';
 import { CreateInvitationDto } from '../modules/invitations/invitation.dto';
 import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
 import { ExitFeedbackDto } from '../modules/agency/dto/exit-feedback.dto';
+import { UpdateAgencyLegalDto } from '../modules/agency/dto/update-agency-legal.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
 import { MultipartJson } from './multipart-json.decorator';
 import {

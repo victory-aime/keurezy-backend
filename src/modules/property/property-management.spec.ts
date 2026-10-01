@@ -222,4 +222,21 @@ describe('PropertyService.getAllPublicProperties', () => {
       },
     });
   });
+
+  it("n'expose aucune information légale de l'agence (seulement le badge vérifié)", async () => {
+    prisma.property.findMany.mockResolvedValue([]);
+    await service.getAllPublicProperties();
+    const agencySelect = prisma.property.findMany.mock.calls[0][0].include.agency.select;
+    for (const field of [
+      'companyName',
+      'legalForm',
+      'ninea',
+      'rccm',
+      'billingAddress',
+      'billingEmail',
+    ]) {
+      expect(agencySelect).not.toHaveProperty(field);
+    }
+    expect(agencySelect).toHaveProperty('isVerified', true);
+  });
 });

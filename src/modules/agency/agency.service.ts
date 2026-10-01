@@ -1,3 +1,5 @@
+import { changesIdentity, LEGAL_FIELDS, legalMissing } from './agency-legal';
+import { UpdateAgencyLegalDto } from './dto/update-agency-legal.dto';
 import { ExitFeedbackDto } from './dto/exit-feedback.dto';
 import { recordExitFeedback } from './exit-feedback';
 import {
@@ -35,6 +37,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 /** Délai de grâce entre la demande de fermeture et la fermeture effective. */
 export const AGENCY_CLOSE_DELAY_DAYS = 15;
 
+/** Colonnes des informations légales. */
+const LEGAL_SELECT = Object.fromEntries(LEGAL_FIELDS.map((field) => [field, true])) as Record<
+  (typeof LEGAL_FIELDS)[number],
+  true
+>;
+
 @Injectable()
 export class AgencyService {
   private readonly logger = new Logger(AgencyService.name);
@@ -51,6 +59,7 @@ export class AgencyService {
   // HELPERS PRIVÉS
   // ─────────────────────────────────────────
 
+  /** Agence (owner et staff), avec les informations légales encore manquantes. */
   async findAgency(agencyId: string, userId: string) {
     await this.agencyAccessControl(agencyId, userId);
     const agency = await this.prismaService.agency.findUnique({
@@ -60,7 +69,36 @@ export class AgencyService {
     if (!agency) {
       throw new NotFoundException('Agency not found');
     }
-    return agency;
+    return { ...agency, legalMissing: legalMissing(agency) };
+  }
+
+  /**
+   * Informations légales (owner uniquement). Modifier la raison sociale, le NINEA ou le RCCM
+   * d'une agence vérifiée retire la vérification : le SUPER_ADMIN doit la refaire.
+   */
+  async updateLegal(agencyId: string, userId: string, data: UpdateAgencyLegalDto) {
+    const actor = await this.agencyAccessControl(agencyId, userId);
+    if (actor.type !== 'OWNER') {
+      throw new HttpError(
+        'Seul le propriétaire peut modifier les informations légales',
+        HttpStatus.FORBIDDEN,
+        'OWNER_ONLY',
+      );
+    }
+    const current = await this.prismaService.agency.findUnique({
+      where: { id: agencyId },
+      select: { isVerified: true, ...LEGAL_SELECT },
+    });
+    if (!current) throw new NotFoundException('Agency not found');
+
+    const unverify = current.isVerified && changesIdentity(current, data);
+    const updated = await this.prismaService.agency.update({
+      where: { id: agencyId },
+      data: { ...data, ...(unverify ? { isVerified: false } : {}) },
+      select: { isVerified: true, ...LEGAL_SELECT },
+    });
+    const { isVerified, ...legal } = updated;
+    return { legal, legalMissing: legalMissing(legal), isVerified };
   }
 
   async getAgencyPlanFeatures(agencyId: string) {

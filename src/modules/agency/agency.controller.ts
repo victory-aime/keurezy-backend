@@ -1,7 +1,17 @@
+import { UpdateAgencyLegalDto } from './dto/update-agency-legal.dto';
 import { SIGNUP_THROTTLE } from '../../config/throttle';
 import { Throttle } from '@nestjs/throttler';
 import { ExitFeedbackDto } from './dto/exit-feedback.dto';
-import { Body, Controller, Get, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+  Patch,
+} from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import {
   ApiBadRequestResponse,
@@ -97,6 +107,22 @@ export class AgencyController {
       ...data,
       documents: files?.documents,
     });
+  }
+
+  @Patch(API_URL.AGENCY.UPDATE_LEGAL)
+  @ApiOperation({
+    summary: "Informations légales de l'agence (propriétaire uniquement)",
+    description:
+      'Raison sociale, forme juridique, NINEA, RCCM, adresse et e-mail de facturation. Modifier la raison sociale, le NINEA ou le RCCM d’une agence vérifiée retire la vérification.',
+  })
+  @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
+  @ApiOkResponse({ description: '{ legal, legalMissing, isVerified }' })
+  async updateLegal(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+    @Body() data: UpdateAgencyLegalDto,
+  ) {
+    return this.agencyService.updateLegal(agencyId, userId, data);
   }
 
   @Post(API_URL.AGENCY.UPDATE_AGENCY)

@@ -458,3 +458,11 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
   - les annonces et biens d'une agence ne sont **visibles du public** que si l'e-mail du propriétaire est vérifié (`publicAgencyWhere`, partagé par les annonces et la liste publique des biens). Le tableau de bord reste utilisable ; le bandeau « e-mail non vérifié » l'explique. Les deux parcours d'inscription envoient déjà l'e-mail de vérification, et il peut être renvoyé.
   - Dev au 02/10/2026 : 2 agences ont un propriétaire non vérifié (naboo, final) ; leurs annonces sont masquées jusqu'à vérification.
 - Dev : Mobelite a un prix payé simulé de 8 000 F CFA (catalogue Standard mensuel à 10 000) pour montrer la note « Nouveau tarif ». Remettre `subscription.price` à 10 000 pour annuler.
+
+## 56. Informations légales de l'agence et statut « vérifié »
+
+- **Migration `19_agency_legal_info`** (appliquée en dev, additive) : colonnes nullables `companyName`, `legalForm` (énumération `LegalForm` : SARL, SUARL, SA, SAS, SASU, GIE, INDIVIDUAL, OTHER), `ninea`, `rccm`, `billingAddress`, `billingEmail` sur `agency`. **Toutes les agences vérifiées repassent non vérifiées** (aucune n'a encore d'informations légales). En dev, Mobelite a été remise vérifiée pour les tests.
+- **`PATCH secured/agency/legal?agencyId`** (owner uniquement, `403 OWNER_ONLY` pour le staff) : seuls les champs envoyés changent ; NINEA et RCCM sont mis en majuscules, sans espaces, et leur format est contrôlé. Changer la raison sociale, le NINEA ou le RCCM d'une agence vérifiée **retire la vérification**. Réponse : `{ legal, legalMissing, isVerified }`.
+- `GET secured/agency` (owner et staff) renvoie en plus `legalMissing`.
+- **`PATCH admin/agency/status`** (SUPER_ADMIN) : `isVerified` suit la complétude des informations légales. Une agence incomplète peut être ouverte, mais reste non vérifiée ; la réponse liste ce qui manque.
+- Les informations légales ne sont jamais publiques : les réponses publiques ne renvoient que le badge `isVerified` (testé).

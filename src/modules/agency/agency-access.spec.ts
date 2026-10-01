@@ -213,3 +213,56 @@ describe('AgencyService.getAgencyPlanFeatures', () => {
     });
   });
 });
+
+describe('AgencyService.updateLegal', () => {
+  const prisma = { agency: { findUnique: jest.fn(), update: jest.fn() } };
+  const service = new AgencyService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    resend as never,
+  );
+  const owner = jest.spyOn(service, 'agencyAccessControl');
+  const verified = {
+    isVerified: true,
+    companyName: 'Keur Immo SARL',
+    legalForm: 'SARL',
+    ninea: '00123452G3',
+    rccm: 'SN-DKR-2020-B-12345',
+    billingAddress: 'Rue 10, Dakar',
+    billingEmail: 'compta@keur.sn',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    owner.mockResolvedValue({ type: 'OWNER' } as never);
+    prisma.agency.findUnique.mockResolvedValue(verified);
+    prisma.agency.update.mockImplementation(({ data }) =>
+      Promise.resolve({ ...verified, ...data }),
+    );
+  });
+
+  it('refuse le staff', async () => {
+    owner.mockResolvedValue({ type: 'STAFF' } as never);
+    await expect(errorCodeOf(service.updateLegal('A', 's1', { ninea: '0012345' }))).resolves.toBe(
+      'OWNER_ONLY',
+    );
+    expect(prisma.agency.update).not.toHaveBeenCalled();
+  });
+
+  it("changer le NINEA d'une agence vérifiée retire la vérification", async () => {
+    const result = await service.updateLegal('A', 'o1', { ninea: '00999991A1' });
+    expect(prisma.agency.update.mock.calls[0][0].data).toEqual({
+      ninea: '00999991A1',
+      isVerified: false,
+    });
+    expect(result.isVerified).toBe(false);
+  });
+
+  it("changer l'adresse de facturation garde la vérification", async () => {
+    const result = await service.updateLegal('A', 'o1', { billingAddress: 'Rue 12, Dakar' });
+    expect(prisma.agency.update.mock.calls[0][0].data).toEqual({ billingAddress: 'Rue 12, Dakar' });
+    expect(result).toMatchObject({ isVerified: true, legalMissing: [] });
+  });
+});

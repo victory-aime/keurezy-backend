@@ -224,7 +224,15 @@ model Agency {
   description      String?
   documents        String[]
   acceptTerms      Boolean
+  // Vérifiée par le SUPER_ADMIN, seulement si les informations légales sont complètes
   isVerified       Boolean              @default(false)
+  // Informations légales (factures, vérification) : jamais publiques
+  companyName      String?
+  legalForm        LegalForm?
+  ninea            String?
+  rccm             String?
+  billingAddress   String?
+  billingEmail     String?
   status           AgencyStatus         @default(PENDING)
   // Fermeture demandée par l'owner : exécutée par le cron à cette date, annulable d'ici là
   closeScheduledAt DateTime?
@@ -1350,5 +1358,16 @@ enum ExitFeedbackReason {
   SWITCHING_TOOL
   TECHNICAL_ISSUE
   BUSINESS_CLOSING
+  OTHER
+}
+
+enum LegalForm {
+  SARL
+  SUARL
+  SA
+  SAS
+  SASU
+  GIE
+  INDIVIDUAL
   OTHER
 }
