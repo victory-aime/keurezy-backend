@@ -515,3 +515,79 @@ describe('SubscriptionChangeService : downgrade programmé', () => {
     });
   });
 });
+
+describe('SubscriptionChangeService.reconcilePendingPayments', () => {
+  const prisma = { paymentTransaction: { findMany: jest.fn(), updateMany: jest.fn() } };
+  const naboo = { getTransactionById: jest.fn() };
+  const events = { emit: jest.fn() };
+  const service = new SubscriptionChangeService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    naboo as never,
+    events as never,
+    {} as never,
+  );
+  const now = new Date('2026-10-02T12:00:00Z');
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('relit les paiements en attente depuis plus de 5 min, hors inscription', async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([]);
+    await service.reconcilePendingPayments(now);
+    expect(prisma.paymentTransaction.findMany.mock.calls[0][0].where).toEqual({
+      status: 'PENDING',
+      kind: { not: 'ONBOARDING' },
+      createdAt: { lt: new Date(now.getTime() - 5 * 60_000) },
+    });
+  });
+
+  it('webhook perdu, payé chez NabooPay : émet la confirmation, sans annuler', async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([
+      { naboo_order_id: 'o1', createdAt: hoursAgo(50) },
+    ]);
+    naboo.getTransactionById.mockResolvedValue({
+      transaction_status: 'paid',
+      paid_at: '2026-10-02T11:00:00Z',
+      amount: 5000,
+    });
+    await service.reconcilePendingPayments(now);
+    expect(events.emit).toHaveBeenCalledWith('subscription.payment.confirmed', {
+      orderId: 'o1',
+      paidAt: '2026-10-02T11:00:00Z',
+      paidAmount: 5000,
+    });
+    expect(prisma.paymentTransaction.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('toujours en attente après 48 h : abandonné, annulé ; avant 48 h : laissé en attente', async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([
+      { naboo_order_id: 'old', createdAt: hoursAgo(49) },
+      { naboo_order_id: 'recent', createdAt: hoursAgo(2) },
+    ]);
+    naboo.getTransactionById.mockResolvedValue({ transaction_status: 'pending' });
+    await service.reconcilePendingPayments(now);
+    expect(prisma.paymentTransaction.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.paymentTransaction.updateMany).toHaveBeenCalledWith({
+      where: { naboo_order_id: 'old', status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
+  it("NabooPay indisponible : rien n'est annulé, les autres paiements sont traités", async () => {
+    prisma.paymentTransaction.findMany.mockResolvedValue([
+      { naboo_order_id: 'down', createdAt: hoursAgo(60) },
+      { naboo_order_id: 'failed', createdAt: hoursAgo(1) },
+    ]);
+    naboo.getTransactionById
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ transaction_status: 'failed' });
+    await expect(service.reconcilePendingPayments(now)).resolves.toBe(2);
+    expect(prisma.paymentTransaction.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.paymentTransaction.updateMany).toHaveBeenCalledWith({
+      where: { naboo_order_id: 'failed', status: 'PENDING' },
+      data: { status: 'FAILED' },
+    });
+  });
+});

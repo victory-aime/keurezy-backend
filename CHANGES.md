@@ -402,3 +402,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Les abonnements déjà `INACTIVE` passent aussi au Gratuit au prochain passage du job horaire.
 - Même bascule pour le script `commission-to-free` (logique partagée : `SubscriptionBillingService.moveToFree`).
 - `GET agency/subscription/cancel-impact` renvoie en plus `freePlanExcess` : `{ feature, used, limit }[]`, ce qui sera désactivé à l'échéance.
+
+## 50. Rattrapage des paiements d'abonnement
+
+- Job toutes les 15 min : les paiements d'abonnement (hors inscription) en attente depuis plus de 5 min sont relus chez NabooPay. Payé : la confirmation est émise (application unique, clé `orderId`) ; annulé ou échoué : statut local mis à jour. Couvre un webhook perdu quand l'owner n'est pas revenu sur la page.
+- Au-delà de 48 h, un paiement **toujours en attente chez NabooPay** passe `CANCELLED` (abandonné). Il est relu avant : un paiement réglé n'est jamais annulé. NabooPay indisponible : rien n'est annulé, retenté au passage suivant.
+- 100 paiements au plus par passage.
+- Dev au 02/10/2026 : les 2 paiements en attente (une inscription, une réactivation) ont été passés `CANCELLED` à la main.

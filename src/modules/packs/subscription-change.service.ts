@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from '../../database/prisma.service';
 import { NabooService } from '../payments/services/naboo.service';
@@ -256,7 +257,17 @@ export class SubscriptionChangeService {
       throw new HttpError('Paiement introuvable', HttpStatus.NOT_FOUND, 'PAYMENT_NOT_FOUND');
     }
     if (transaction.status !== PaymentStatus.PENDING) return { status: transaction.status };
+    // Payé chez NabooPay : reste « en attente » pour le client jusqu'à son application locale
+    const status = await this.reconcile(orderId);
+    return { status: status === PaymentStatus.PAID ? PaymentStatus.PENDING : status };
+  }
 
+  /**
+   * Relit chez NabooPay un paiement encore en attente. Payé : émet la confirmation (application
+   * unique, clé `orderId`) et renvoie PAID, même si l'application locale n'est pas encore faite ;
+   * annulé ou échoué : statut local mis à jour s'il était encore en attente.
+   */
+  private async reconcile(orderId: string): Promise<PaymentStatus> {
     const nabooTx = await this.naboo.getTransactionById(orderId);
     if (nabooTx.transaction_status === 'paid') {
       this.events.emit('subscription.payment.confirmed', {
@@ -264,14 +275,58 @@ export class SubscriptionChangeService {
         paidAt: nabooTx.paid_at ?? new Date().toISOString(),
         paidAmount: Number(nabooTx.amount),
       });
-    } else if (NABOO_TO_LOCAL[nabooTx.transaction_status]) {
-      await this.prisma.paymentTransaction.updateMany({
-        where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
-        data: { status: NABOO_TO_LOCAL[nabooTx.transaction_status] },
-      });
-      return { status: NABOO_TO_LOCAL[nabooTx.transaction_status] };
+      return PaymentStatus.PAID;
     }
-    return { status: PaymentStatus.PENDING };
+    const local = NABOO_TO_LOCAL[nabooTx.transaction_status];
+    if (!local) return PaymentStatus.PENDING;
+    await this.prisma.paymentTransaction.updateMany({
+      where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
+      data: { status: local },
+    });
+    return local;
+  }
+
+  @Cron('*/15 * * * *')
+  async runPaymentReconciliationJob(): Promise<void> {
+    await this.reconcilePendingPayments(new Date());
+  }
+
+  /**
+   * Rattrapage des paiements d'abonnement dont le webhook s'est perdu (et que l'owner n'a pas
+   * suivis au retour de NabooPay) : les paiements en attente depuis plus de 5 minutes sont relus
+   * chez NabooPay. Au-delà de 48 h, un paiement toujours en attente chez NabooPay est abandonné :
+   * CANCELLED. Il est relu avant, pour ne jamais annuler un paiement réglé.
+   * L'inscription (onboarding) a son propre suivi. Renvoie le nombre de paiements relus.
+   */
+  async reconcilePendingPayments(now = new Date()): Promise<number> {
+    const abandonedBefore = new Date(now.getTime() - 48 * 3_600_000);
+    const pending = await this.prisma.paymentTransaction.findMany({
+      where: {
+        status: PaymentStatus.PENDING,
+        kind: { not: PaymentKind.ONBOARDING },
+        createdAt: { lt: new Date(now.getTime() - 5 * 60_000) },
+      },
+      select: { naboo_order_id: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      // ponytail: 100 par passage (toutes les 15 min) ; paginer si le volume le dépasse un jour
+      take: 100,
+    });
+    for (const { naboo_order_id: orderId, createdAt } of pending) {
+      try {
+        const status = await this.reconcile(orderId);
+        if (status === PaymentStatus.PENDING && createdAt < abandonedBefore) {
+          await this.prisma.paymentTransaction.updateMany({
+            where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
+            data: { status: PaymentStatus.CANCELLED },
+          });
+          this.logger.log(`Paiement ${orderId} abandonné depuis plus de 48 h : annulé`);
+        }
+      } catch (error) {
+        // NabooPay indisponible : retenté au prochain passage, sans rien annuler
+        this.logger.error(`Rattrapage du paiement ${orderId} échoué : ${String(error)}`);
+      }
+    }
+    return pending.length;
   }
 
   /**
