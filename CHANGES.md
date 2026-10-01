@@ -338,7 +338,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Montant réglé (relu chez NabooPay) inférieur au montant figé : rien n'est appliqué, transaction `FAILED`, erreur journalisée pour vérification.
 - Effets :
   - sans période en cours : nouvelle période à partir du paiement (plan et cycle payés) ; réactivation sur un plan plus petit : éléments hors choix désactivés ;
-  - renouvellement : période suivante à partir de l'échéance (`currentPeriodStart` = ancienne échéance), sur le cycle du downgrade programmé s'il y en a un ; le downgrade garde sa date d'effet ;
+  - renouvellement : période suivante à partir de l’échéance (`currentPeriodStart` = ancienne échéance) au tarif actuel du plan, sur le cycle du downgrade programmé s’il y en a un (le downgrade garde sa date d’effet et pose son prix) ;
   - upgrade : plan et prix immédiats, échéance inchangée sur le même cycle, nouvelle période sur un cycle plus long ; le downgrade programmé est annulé ;
   - toujours : résiliation programmée annulée, rappels réarmés (`lastRenewalReminder = null`).
 - Désactivation (`deactivateExcess`, réutilisée par le downgrade) : biens non gardés `isActive = false` et leurs annonces retirées ; annonces non gardées `INACTIVE` ; membres non gardés désactivés et déconnectés ; invitations non gardées annulées. Rien n'est supprimé.

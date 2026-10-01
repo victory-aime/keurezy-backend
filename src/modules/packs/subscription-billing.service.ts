@@ -100,6 +100,7 @@ export class SubscriptionBillingService implements OnModuleInit {
         status: true,
         billingCycle: true,
         currentPeriodEnd: true,
+        scheduledPlanId: true,
         scheduledBillingCycle: true,
       },
     });
@@ -151,6 +152,11 @@ export class SubscriptionBillingService implements OnModuleInit {
         // La période payée commence à l'échéance : le prorata d'un upgrade ultérieur reste juste
         data: {
           ...common,
+          // Prix payé pour la période suivante ; avec un downgrade programmé, le job le pose
+          // à la date d'effet en même temps que le nouveau plan
+          ...(subscription.scheduledPlanId
+            ? {}
+            : { price: pricing.price, currency: pricing.currency }),
           currentPeriodStart: periodEnd,
           currentPeriodEnd: addBillingCycle(periodEnd, nextCycle),
         },

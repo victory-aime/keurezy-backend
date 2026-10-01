@@ -87,22 +87,30 @@ describe('SubscriptionBillingService.applyPayment', () => {
   it("renouvellement anticipé : la période suivante démarre à l'échéance, plan inchangé", async () => {
     pending('RENEWAL', { metadata: { planId: 'standard', billingCycle: 'MONTHLY', keep: [] } });
     await confirm();
-    expect(updateData()).toEqual({
+    expect(updateData()).toMatchObject({
       status: 'ACTIVE',
       cancelAtPeriodEnd: false,
       canceledAt: null,
       lastRenewalReminder: null,
       currentPeriodStart: day('2026-10-31'),
       currentPeriodEnd: day('2026-11-30'),
+      currency: 'XOF',
     });
+    expect(updateData().price.toString()).toBe('20000'); // tarif actuel du plan
+    expect(updateData().planId).toBeUndefined();
   });
 
   it('renouvellement avec downgrade programmé : durée du cycle programmé', async () => {
-    subscription({ billingCycle: 'YEARLY', scheduledBillingCycle: 'MONTHLY' });
+    subscription({
+      billingCycle: 'YEARLY',
+      scheduledPlanId: 'basic',
+      scheduledBillingCycle: 'MONTHLY',
+    });
     pending('RENEWAL');
     await confirm();
     expect(updateData().currentPeriodEnd).toEqual(day('2026-11-30'));
     expect(updateData().planId).toBeUndefined(); // le downgrade garde sa date d'effet
+    expect(updateData().price).toBeUndefined(); // posé par le job avec le nouveau plan
   });
 
   it('upgrade sur le même cycle : nouveau plan et prix, échéance inchangée, downgrade annulé', async () => {
