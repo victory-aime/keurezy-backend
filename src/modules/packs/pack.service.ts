@@ -7,15 +7,12 @@ export class PackService {
 
   async getAllPlans() {
     return this.prisma.subscriptionPlan.findMany({
-      where: {
-        planCategory: 'SUBSCRIPTION_BASED',
-        isActive: true,
-      },
+      where: { isActive: true },
       include: {
         planFeatures: { include: { feature: true }, orderBy: { limit: 'desc' } },
         pricings: true,
       },
-      orderBy: { pricingType: 'asc' },
+      orderBy: { createdAt: 'asc' },
     });
   }
 }

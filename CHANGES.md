@@ -386,3 +386,12 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - Un abonnement Gratuit n'a **ni cycle ni échéance** (`currentPeriodEnd` nul) : ni rappel, ni expiration. Sa résiliation est refusée (`409 FREE_PLAN_NO_PERIOD`).
 - **Passer au Gratuit** : un downgrade programmé à l'échéance, avec le choix des éléments gardés. Une agence **expirée** y passe tout de suite, sans paiement (`POST agency/subscription/schedule-change`, devis de réactivation à 0).
 - **Quitter le Gratuit** : un paiement plein tarif, avec une nouvelle période à partir du paiement (devis de type `REACTIVATION`).
+
+## 48. Contraction : fin du modèle à la commission
+
+- **Script `pnpm subscription:commission-to-free:dev`** (ou `:uat`), aperçu par défaut, `-- --apply` pour écrire : chaque agence sur un plan commission passe au **Gratuit** ; ce qui dépasse ses limites est désactivé (jamais supprimé), les éléments **les plus anciens** restent actifs. Les plans commission sont ensuite supprimés. Dev au 01/10/2026 : 4 agences passées au Gratuit (aucun élément désactivé), 3 plans supprimés.
+- **Migration `17_drop_commission`** (appliquée en dev) : retire `pricingType` et `commissionRate` (abonnement et plan), `planCategory`, les enums `PricingType` et `PlanCategory`, et les valeurs `*_COMMISSION` de `Plan`. Elle **échoue** tant qu'un plan commission existe.
+- Onboarding : le plan Gratuit crée l'agence directement, sans paiement ni documents (l'ancien parcours commission) ; tout autre plan passe par NabooPay, qui refuse désormais un montant nul. Plan inconnu : repli sur le Gratuit.
+- `CreatePlanDto` n'accepte plus `commissionRate` ; `GET packs` renvoie tous les plans actifs.
+- Le script de délai de grâce (section 43) ignore le plan Gratuit.
+- **Ordre en UAT** : déployer le code, migrations 15 et 16, seed des plans, script `commission-to-free` avec `--apply` (aussitôt après le déploiement : le nouveau code ne lit plus les valeurs commission), puis migration 17.

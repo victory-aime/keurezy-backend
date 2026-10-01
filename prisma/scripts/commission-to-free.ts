@@ -1,15 +1,10 @@
 import { prisma } from '../seed/client';
-import {
-  AnnonceStatus,
-  InvitationStatus,
-  Plan,
-  PlanCategory,
-  SubscriptionStatus,
-} from '../generated/enums';
+import { AnnonceStatus, InvitationStatus, Plan, SubscriptionStatus } from '../generated/enums';
 
 /**
  * Fin du modèle à la commission (décisions du 2026-10-01), à lancer après la migration
- * `16_free_plan` et le seed du plan Gratuit, avant la migration `17` qui retire la commission.
+ * `16_free_plan` et le seed du plan Gratuit, avant la migration `17_drop_commission`, qui refuse
+ * de passer tant qu'un plan commission existe.
  *
  * Chaque agence encore sur un plan commission passe au plan Gratuit (sans échéance). Ce qui
  * dépasse ses limites est désactivé, jamais supprimé : les éléments **les plus anciens** restent
@@ -116,7 +111,6 @@ async function moveToFree(
       status: SubscriptionStatus.ACTIVE,
       price: 0,
       currency: 'XOF',
-      commissionRate: null,
       billingCycle: null,
       currentPeriodStart: now,
       currentPeriodEnd: null,
@@ -143,8 +137,11 @@ async function main() {
   if (!free) throw new Error('Plan Gratuit absent : lancer le seed (db:seed:*-feature) avant.');
   const limits = new Map(free.planFeatures.map((pf) => [pf.feature.name, pf.limit]));
 
+  // Par le nom en SQL : les valeurs `*_COMMISSION` ne sont plus dans le client généré (migration 17)
+  const commissionIds = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM subscription_plan WHERE name::text LIKE '%\_COMMISSION'`;
   const commissionPlans = await prisma.subscriptionPlan.findMany({
-    where: { planCategory: PlanCategory.COMMISSION_BASED },
+    where: { id: { in: commissionIds.map((p) => p.id) } },
     select: { id: true, name: true, _count: { select: { paymentTransaction: true } } },
   });
   const subscriptions = await prisma.subscription.findMany({

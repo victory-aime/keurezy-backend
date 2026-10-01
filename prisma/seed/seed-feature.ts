@@ -1,5 +1,5 @@
 import { prisma } from './client';
-import { Plan, FeatureCategory, PricingType, BillingCycle, PlanCategory } from '../generated/enums';
+import { Plan, FeatureCategory, BillingCycle } from '../generated/enums';
 
 async function seed() {
   console.log('🌱 Seeding Features, Permissions & Plans...');
@@ -240,7 +240,6 @@ async function seed() {
   // ─────────────────────────────────────────
   // 2. PLANS
   // RULES IMPORTANTES :
-  // - COMMISSION => PAS DE PRICING TABLE
   // - SUBSCRIPTION => PRICING + DISCOUNT ICI UNIQUEMENT
   // - FEATURES TOUJOURS APPLIQUÉES
   // ─────────────────────────────────────────
@@ -255,96 +254,6 @@ async function seed() {
   });
 
   await prisma.$transaction(async (tx) => {
-    // =========================================================
-    // 💰 COMMISSION PLANS (3)
-    // =========================================================
-
-    // // BASIC COMMISSION
-    // await tx.subscriptionPlan.upsert({
-    //   where: { name: Plan.BASIC_COMMISSION },
-    //   update: {
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 8,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //     planFeatures: {
-    //       deleteMany: {},
-    //       create: [
-    //         feature('manage_properties', 6),
-    //         feature('publish_properties', 6),
-    //         feature('manage_users', 1),
-    //         feature('premium_support', 1),
-    //       ],
-    //     },
-    //   },
-    //   create: {
-    //     name: Plan.BASIC_COMMISSION,
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 8,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //     isActive: true,
-    //   },
-    // });
-    //
-    // // STANDARD COMMISSION
-    // await tx.subscriptionPlan.upsert({
-    //   where: { name: Plan.STANDARD_COMMISSION },
-    //   update: {
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 12,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //
-    //     planFeatures: {
-    //       deleteMany: {},
-    //       create: [
-    //         feature('manage_properties', 20),
-    //         feature('publish_properties', 20),
-    //         feature('boost_annonces', 3),
-    //         feature('annonce_stats'),
-    //         feature('manage_users', 5),
-    //         feature('view_reports'),
-    //         feature('premium_support', 5),
-    //       ],
-    //     },
-    //   },
-    //   create: {
-    //     name: Plan.STANDARD_COMMISSION,
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 12,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //     isActive: true,
-    //   },
-    // });
-    //
-    // // PREMIUM COMMISSION
-    // await tx.subscriptionPlan.upsert({
-    //   where: { name: Plan.PREMIUM_COMMISSION },
-    //   update: {
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 15,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //     planFeatures: {
-    //       deleteMany: {},
-    //       create: [
-    //         feature('manage_properties'),
-    //         feature('publish_properties'),
-    //         feature('boost_annonces'),
-    //         feature('annonce_stats'),
-    //         feature('manage_users'),
-    //         feature('manage_accounting'),
-    //         feature('view_reports'),
-    //         feature('premium_support'),
-    //       ],
-    //     },
-    //   },
-    //   create: {
-    //     name: Plan.PREMIUM_COMMISSION,
-    //     pricingType: PricingType.COMMISSION,
-    //     commissionRate: 15,
-    //     planCategory: PlanCategory.COMMISSION_BASED,
-    //     isActive: true,
-    //   },
-    // });
-
     // =========================================================
     // 💳 SUBSCRIPTION PLANS (3)
     // 👉 AVEC PRICING + RÉDUCTION ICI UNIQUEMENT
@@ -371,8 +280,6 @@ async function seed() {
       },
       create: {
         name: Plan.FREE_SUB,
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
         isActive: true,
         pricings: { create: freePricings },
         planFeatures: { create: freeFeatures },
@@ -383,9 +290,6 @@ async function seed() {
     await tx.subscriptionPlan.upsert({
       where: { name: Plan.BASIC_SUB },
       update: {
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
-        commissionRate: 0,
         planFeatures: {
           deleteMany: {},
           create: [
@@ -416,9 +320,6 @@ async function seed() {
       },
       create: {
         name: Plan.BASIC_SUB,
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
-        commissionRate: 0,
         isActive: true,
       },
     });
@@ -427,8 +328,6 @@ async function seed() {
     await tx.subscriptionPlan.upsert({
       where: { name: Plan.STANDARD_SUB },
       update: {
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
         pricings: {
           deleteMany: {},
           create: [
@@ -462,9 +361,6 @@ async function seed() {
       },
       create: {
         name: Plan.STANDARD_SUB,
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
-        commissionRate: 0,
         isActive: true,
       },
     });
@@ -473,8 +369,6 @@ async function seed() {
     await tx.subscriptionPlan.upsert({
       where: { name: Plan.PREMIUM_SUB },
       update: {
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
         pricings: {
           deleteMany: {},
           create: [
@@ -509,9 +403,6 @@ async function seed() {
       },
       create: {
         name: Plan.PREMIUM_SUB,
-        pricingType: PricingType.SUBSCRIPTION,
-        planCategory: PlanCategory.SUBSCRIPTION_BASED,
-        commissionRate: 0,
         isActive: true,
       },
     });

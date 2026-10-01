@@ -73,7 +73,6 @@ export class FeaturesAdminService {
               select: {
                 id: true,
                 name: true,
-                pricingType: true,
                 isActive: true,
               },
             },
@@ -96,7 +95,6 @@ export class FeaturesAdminService {
       plans: feature.planFeatures.map((pf) => ({
         id: pf.plan.id,
         name: pf.plan.name,
-        pricingType: pf.plan.pricingType,
         isActive: pf.plan.isActive,
         enabled: pf.enabled,
         limit: pf.limit,

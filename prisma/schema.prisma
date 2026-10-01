@@ -662,16 +662,12 @@ model Subscription {
   agency   Agency             @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   status   SubscriptionStatus @default(ACTIVE)
 
-  // stratégie appliquée
-  pricingType  PricingType   @default(SUBSCRIPTION)
+  // null : plan Gratuit (ni cycle ni échéance)
   billingCycle BillingCycle?
 
   // snapshot pricing SaaS
   price    Decimal? @db.Decimal(10, 2)
   currency String?
-
-  // snapshot commission
-  commissionRate Decimal? @db.Decimal(5, 2)
 
   // cycle de facturation
   currentPeriodStart DateTime?
@@ -702,15 +698,12 @@ model Subscription {
 }
 
 model SubscriptionPlan {
-  id             String      @id @default(cuid())
-  name           Plan        @unique @default(BASIC_COMMISSION)
-  pricingType    PricingType @default(SUBSCRIPTION)
-  popular        Boolean     @default(false)
-  commissionRate Decimal?    @db.Decimal(5, 2)
+  id      String  @id @default(cuid())
+  name    Plan    @unique
+  popular Boolean @default(false)
 
-  pricings     PlanPricing[]
-  planCategory PlanCategory  @default(SUBSCRIPTION_BASED)
-  isActive     Boolean       @default(true)
+  pricings PlanPricing[]
+  isActive Boolean       @default(true)
 
   planFeatures       PlanFeature[]
   subscriptions      Subscription[]
@@ -1164,9 +1157,6 @@ enum FeatureCategory {
 }
 
 enum Plan {
-  BASIC_COMMISSION
-  STANDARD_COMMISSION
-  PREMIUM_COMMISSION
   FREE_SUB
   BASIC_SUB
   STANDARD_SUB
@@ -1304,16 +1294,6 @@ enum ReportType {
   PERFORMANCE
   LEADS
   CUSTOM
-}
-
-enum PricingType {
-  COMMISSION
-  SUBSCRIPTION
-}
-
-enum PlanCategory {
-  COMMISSION_BASED
-  SUBSCRIPTION_BASED
 }
 
 enum BillingCycle {

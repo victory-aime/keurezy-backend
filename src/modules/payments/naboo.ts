@@ -1,4 +1,4 @@
-import { BillingCycle, PricingType } from '../../../prisma/generated/enums';
+import { BillingCycle } from '../../../prisma/generated/enums';
 
 type NabooPaidStatus =
   | 'pending'
@@ -169,8 +169,6 @@ export interface AgencyOnboardingMetadata {
   documents: string[];
   planId: string;
   billingCycle: BillingCycle | null;
-  pricingType: PricingType;
-  commissionRate: string | null; // Decimal sérialisé en string pour le JSON
   pricingId: string | null; // ID du PlanPricing sélectionné
   priceXOF: number;
 }

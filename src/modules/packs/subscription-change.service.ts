@@ -11,7 +11,6 @@ import {
   InvitationStatus,
   PaymentKind,
   PaymentStatus,
-  PlanCategory,
   SubscriptionStatus,
 } from '../../../prisma/generated/enums';
 import { PlanFeaturePolicyService } from './plan-feature-policy.service';
@@ -65,7 +64,6 @@ export interface SubscriptionQuote extends Quote {
 const PLAN_SELECT = {
   id: true,
   isActive: true,
-  planCategory: true,
   pricings: { select: { billingCycle: true, price: true } },
   planFeatures: {
     where: { enabled: true },
@@ -450,13 +448,13 @@ export class SubscriptionChangeService {
     return { quote, targetPlan };
   }
 
-  /** Plan en vente (actif, par abonnement) ; un plan à la commission n'est jamais proposé. */
+  /** Plan en vente (actif). */
   private async findPlanForSale(planId: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: planId },
       select: PLAN_SELECT,
     });
-    if (!plan || !plan.isActive || plan.planCategory !== PlanCategory.SUBSCRIPTION_BASED) {
+    if (!plan || !plan.isActive) {
       throw new HttpError('Plan introuvable ou inactif', HttpStatus.NOT_FOUND, 'PLAN_NOT_FOUND');
     }
     return plan;

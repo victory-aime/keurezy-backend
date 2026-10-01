@@ -53,11 +53,6 @@ export class CreatePlanDto {
   @IsEnum(Plan)
   name: Plan;
 
-  @ApiProperty({ example: 5.5, description: 'Taux de commission appliqué au plan (en %)' })
-  @Type(() => Number)
-  @IsNumber()
-  commissionRate: number;
-
   @ApiPropertyOptional({ example: true, description: 'Indique si le plan est actif' })
   @IsOptional()
   @IsBoolean()
@@ -83,7 +78,7 @@ export class CreatePlanDto {
 }
 
 export class UpdatePlanDto {
-  @ApiPropertyOptional({ description: 'Nouveau taux de commission (en %)' })
+  @ApiPropertyOptional({ description: 'Nouveaux prix par cycle' })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

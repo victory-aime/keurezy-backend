@@ -10,7 +10,6 @@ import {
   PaymentKind,
   PaymentStatus,
   Plan,
-  PlanCategory,
   SubscriptionStatus,
 } from '../../../prisma/generated/enums';
 import {
@@ -164,10 +163,7 @@ export class SubscriptionService {
           some: {
             enabled: true,
             plan: {
-              OR: [
-                { isActive: true, planCategory: PlanCategory.SUBSCRIPTION_BASED },
-                ...(subscription ? [{ id: subscription.plan.id }] : []),
-              ],
+              OR: [{ isActive: true }, ...(subscription ? [{ id: subscription.plan.id }] : [])],
             },
           },
         },

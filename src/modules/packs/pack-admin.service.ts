@@ -1,9 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
-import { Decimal } from '../../../prisma/generated/internal/prismaNamespace';
 import { CreatePlanDto, UpdatePlanDto } from './pack.dto';
-import { PlanCategory } from '../../../prisma/generated/enums';
 
 @Injectable()
 export class PackAdminService {
@@ -14,10 +12,7 @@ export class PackAdminService {
   // ─────────────────────────────────────────
   async getAllPlans(planId?: string) {
     try {
-      const plansFilterOptions = {
-        ...{ id: planId },
-        ...{ planCategory: 'SUBSCRIPTION_BASED' as PlanCategory },
-      };
+      const plansFilterOptions = { id: planId };
 
       const plans = await this.prisma.subscriptionPlan.findMany({
         where: plansFilterOptions,
@@ -46,7 +41,6 @@ export class PackAdminService {
         id: plan.id,
         name: plan.name,
         popular: plan.popular,
-        planCategory: plan.planCategory,
         planFeatures: plan.planFeatures,
         pricing: plan.pricings,
         status: plan.isActive,
@@ -122,7 +116,6 @@ export class PackAdminService {
       await this.prisma.subscriptionPlan.create({
         data: {
           name: data.name,
-          commissionRate: new Decimal(data.commissionRate),
           isActive: data.isActive ?? false,
           pricings: {
             create: data.pricing.map((value) => ({

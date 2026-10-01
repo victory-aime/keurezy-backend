@@ -12,7 +12,7 @@ import {
   AgencyStatus,
   AnnonceStatus,
   BookingStatus,
-  PricingType,
+  Plan,
   PropertyStatus,
   Role,
   SubscriptionStatus,
@@ -25,7 +25,6 @@ import { getAuthInstance } from '../../lib/auth';
 import { UsersService } from '../users/users.service';
 import { PaymentService } from '../payments/services/payment.service';
 import { HttpError } from '../../config/http.error';
-import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { ResendService } from '../mail/resend.service';
 import { todayCalendarDate } from '../rentals/calendar-date';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -115,7 +114,7 @@ export class AgencyService {
     });
     if (!plan) {
       return this.prismaService.subscriptionPlan.findUnique({
-        where: { name: 'BASIC_COMMISSION' },
+        where: { name: Plan.FREE_SUB },
         include: {
           pricings: true,
         },
@@ -147,37 +146,15 @@ export class AgencyService {
       }
 
       const plan = await this.resolveActivePlan(data.plan?.planId);
-      const isCommission = plan?.pricingType === PricingType.COMMISSION;
-      const isSubscription = plan?.pricingType === PricingType.SUBSCRIPTION;
-
-      // ─────────────────────────────────────────
-      // SUBSCRIPTION PLAN LOGIC
-      // ─────────────────────────────────────────
-      if (isSubscription) {
+      // Plan payant : l'agence n'est créée qu'au paiement confirmé (webhook NabooPay)
+      if (plan?.name !== Plan.FREE_SUB) {
         const uploadSessionId = `upload_${crypto.randomUUID()}`;
         return this.paymentService.initiateAgencyPayment(data, uploadSessionId);
       }
 
       // ─────────────────────────────────────────
-      // 5. TRANSACTION ATOMIQUE
+      // 5. PLAN GRATUIT : TRANSACTION ATOMIQUE, SANS PAIEMENT
       // ─────────────────────────────────────────
-
-      let uploadedDocuments: string[] = [];
-
-      if (isCommission && data.documents?.length) {
-        uploadedDocuments = await Promise.all(
-          data.documents.map(async (file) => {
-            const result = await this.uploadsService.uploadAgencyFile({
-              file,
-              agencyName: data.name,
-              folderName: CLOUDINARY_FOLDER_NAME.DOC,
-              isTemp: false,
-            });
-
-            return result.secure_url;
-          }),
-        );
-      }
 
       await this.prismaService.$transaction(async (tx) => {
         const { user } = await getAuthInstance().api.signUpEmail({
@@ -212,7 +189,7 @@ export class AgencyService {
             address: data.address,
             phone: data.phone,
             description: data.description,
-            documents: isCommission ? uploadedDocuments : [],
+            documents: [],
             acceptTerms: data.acceptTerms,
           },
         });
@@ -220,12 +197,14 @@ export class AgencyService {
         // ─────────────────────────────────────────
         // 5. CREATE SUBSCRIPTION
         // ─────────────────────────────────────────
+        // Gratuit : ni cycle ni échéance
         await tx.subscription.create({
           data: {
             agencyId: agency.id,
-            planId: plan?.id!,
-            pricingType: plan?.pricingType!,
-            commissionRate: plan?.commissionRate,
+            planId: plan.id,
+            price: 0,
+            currency: 'XOF',
+            currentPeriodStart: new Date(),
           },
         });
       });

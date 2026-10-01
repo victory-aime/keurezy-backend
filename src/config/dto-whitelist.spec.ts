@@ -247,7 +247,6 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
       CreatePlanDto,
       {
         name: 'BASIC_SUB',
-        commissionRate: 5.5,
         isActive: true,
         pricing: [{ billingCycle: 'MONTHLY', price: 5000, discountPercentage: 0 }],
         features: [{ featureId: uuid, enabled: true, limit: 10 }],

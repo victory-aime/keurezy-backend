@@ -21,7 +21,6 @@ const planRecord = (
 ) => ({
   id,
   isActive: true,
-  planCategory: 'SUBSCRIPTION_BASED',
   pricings: [
     { billingCycle: 'MONTHLY', price: decimal(monthly) },
     { billingCycle: 'YEARLY', price: decimal(monthly * 10) },
@@ -116,17 +115,11 @@ describe('SubscriptionChangeService.getQuote', () => {
     expect(quote.excess).toEqual([]);
   });
 
-  it('refuse un plan inactif ou à la commission', async () => {
+  it('refuse un plan inactif', async () => {
     prisma.subscriptionPlan.findUnique.mockResolvedValue(
       planRecord('old', 1_000, {}, { isActive: false }),
     );
     await expect(errorCodeOf(service.getQuote('A', 'u', 'old', 'MONTHLY'))).resolves.toBe(
-      'PLAN_NOT_FOUND',
-    );
-    prisma.subscriptionPlan.findUnique.mockResolvedValue(
-      planRecord('com', 1_000, {}, { planCategory: 'COMMISSION_BASED' }),
-    );
-    await expect(errorCodeOf(service.getQuote('A', 'u', 'com', 'MONTHLY'))).resolves.toBe(
       'PLAN_NOT_FOUND',
     );
   });

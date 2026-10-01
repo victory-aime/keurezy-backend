@@ -1,13 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { NabooService } from './naboo.service';
 import { InitiateAgencyPaymentDto } from '../payment.dto';
-import {
-  BillingCycle,
-  PaymentKind,
-  PaymentStatus,
-  PricingType,
-  Role,
-} from '../../../../prisma/generated/enums';
+import { BillingCycle, PaymentKind, PaymentStatus, Role } from '../../../../prisma/generated/enums';
 import { DomainEventBus } from '../../events/domain-events';
 import { PrismaService } from '../../../database/prisma.service';
 import { UploadsService } from '../../cloudinary/uploads.service';
@@ -31,8 +25,8 @@ export class PaymentService {
 
   // ── 1. Initier le paiement d'onboarding ───────────────────────────────────
   /**
-   * Remplace createAgency() pour les plans SUBSCRIPTION.
-   * Pour COMMISSION : l'agence peut être créée directement sans paiement.
+   * Remplace createAgency() pour les plans payants.
+   * Plan Gratuit : l'agence est créée directement, sans paiement (`AgencyService.createAgency`).
    *
    * Étapes :
    *  a. Vérifier que l'email n'existe pas
@@ -75,19 +69,15 @@ export class PaymentService {
       throw new NotFoundException('Plan introuvable ou inactif');
     }
 
-    const isSubscription = plan.pricingType === PricingType.SUBSCRIPTION;
-
-    let selectedPricing: (typeof plan.pricings)[0] | undefined;
-    let priceXOF = 0;
-
-    if (isSubscription) {
-      selectedPricing = plan.pricings.find(
-        (p) => p.billingCycle === (dto.plan.billingCycle ?? BillingCycle.MONTHLY),
-      );
-      if (!selectedPricing) {
-        throw new BadRequestException('Cycle de facturation invalide pour ce plan');
-      }
-      priceXOF = Number(selectedPricing.price);
+    const selectedPricing = plan.pricings.find(
+      (p) => p.billingCycle === (dto.plan.billingCycle ?? BillingCycle.MONTHLY),
+    );
+    if (!selectedPricing) {
+      throw new BadRequestException('Cycle de facturation invalide pour ce plan');
+    }
+    const priceXOF = Number(selectedPricing.price);
+    if (priceXOF <= 0) {
+      throw new BadRequestException('Le plan Gratuit ne demande pas de paiement');
     }
 
     let uploadedDocuments: string[] = [];
@@ -136,10 +126,8 @@ export class PaymentService {
         acceptTerms: dto.acceptTerms,
         documents: uploadedDocuments,
         planId: plan.id,
-        billingCycle: selectedPricing?.billingCycle ?? null,
-        pricingType: plan.pricingType,
-        commissionRate: plan.commissionRate?.toString() ?? null,
-        pricingId: selectedPricing?.id ?? null,
+        billingCycle: selectedPricing.billingCycle,
+        pricingId: selectedPricing.id,
         priceXOF,
       };
 
@@ -286,10 +274,6 @@ export class PaymentService {
           },
         });
 
-        if (meta.pricingType === PricingType.COMMISSION) {
-          throw new Error('Plan COMMISSION non éligible au flux de paiement NabooPay');
-        }
-
         const now = new Date(payload.paid_at);
         const endDate = new Date(now);
         if (meta.billingCycle === BillingCycle.MONTHLY) endDate.setMonth(endDate.getMonth() + 1);
@@ -300,7 +284,6 @@ export class PaymentService {
           data: {
             agencyId: agency.id,
             planId: meta.planId,
-            pricingType: meta.pricingType,
             billingCycle: meta.billingCycle!,
             price: meta.priceXOF,
             currency: 'XOF',
