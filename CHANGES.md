@@ -414,7 +414,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - **Un modèle Resend générique** `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` (`mail/templates/subscription-notice.html` et `.md`, **à créer**) pour tous les avis d'abonnement ; le texte de chaque cas est rédigé par le backend (`notifications/subscription-lifecycle.listener.ts`). Il remplace le rappel `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID`, qui n'est plus lu (son texte annonçait l'ancienne expiration en lecture seule).
 - Avis envoyés à l'owner, par e-mail et notification in-app :
-  - **rappel d'échéance** (J-7, J-3, J-1) : renouvellement, sinon passage au Gratuit ; variantes pour un downgrade programmé (payant, ou vers le Gratuit : « rien à payer ») ;
+  - **rappel d'échéance** (J-7, J-3, J-1) : renouvellement, sinon passage au Gratuit ; variantes pour un downgrade programmé (payant, ou vers le Gratuit : « 0 F CFA à payer ») ;
   - **paiement confirmé** : montant, plan, période couverte ;
   - **passage au plan Gratuit** : fin de période sans renouvellement, ou downgrade programmé vers le Gratuit ;
   - **downgrade appliqué** vers un plan payant (période renouvelée ; sinon c'est l'avis de passage au Gratuit qui part).

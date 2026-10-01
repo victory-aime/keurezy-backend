@@ -83,7 +83,7 @@ export class SubscriptionLifecycleListener implements OnModuleInit {
           subject: `Votre agence passe au plan Gratuit le ${date}`,
           headline: `Votre agence passe au plan Gratuit le ${date}`,
           highlight: `Comme vous l’avez demandé, le plan ${planLabel(agency.plan)} laisse place au plan Gratuit le ${date}.`,
-          body: 'Rien à payer. Les éléments que vous n’avez pas choisi de garder seront désactivés, sans rien supprimer. Vous pouvez encore modifier ou annuler ce changement.',
+          body: '0 F CFA à payer. Les éléments que vous n’avez pas choisi de garder seront désactivés, sans rien supprimer. Vous pouvez encore modifier ou annuler ce changement.',
           ctaLabel: 'Voir mon abonnement',
           ctaPath: SUBSCRIPTION_PAGE,
           inApp: `Votre agence passe au plan Gratuit le ${date}.`,

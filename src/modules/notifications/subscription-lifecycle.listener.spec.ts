@@ -61,7 +61,7 @@ describe('SubscriptionLifecycleListener', () => {
     agency('FREE_SUB');
     await listener.renewalDue({ agencyId: 'A', daysLeft: 3, periodEnd });
     expect(mail().subject).toBe('Votre agence passe au plan Gratuit le 31/10/2026');
-    expect(mail().body).toContain('Rien à payer');
+    expect(mail().body).toContain('0 F CFA à payer');
   });
 
   it('rappel avec un downgrade payant programmé : renouveler au tarif du nouveau plan', async () => {
