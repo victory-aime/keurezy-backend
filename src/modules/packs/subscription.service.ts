@@ -405,8 +405,11 @@ export class SubscriptionService {
     return subscription;
   }
 
-  /** L'abonnement (montants compris) n'est visible et modifiable que par le propriétaire. */
-  async assertOwner(agencyId: string, userId: string) {
+  /**
+   * L'abonnement (montants compris) n'est visible et modifiable que par le propriétaire.
+   * Renvoie le `User.id` de l'owner (pour les tables reliées à User).
+   */
+  async assertOwner(agencyId: string, userId: string): Promise<string | undefined> {
     const actor = await this.agencyService.agencyAccessControl(agencyId, userId);
     if (actor.type !== 'OWNER') {
       throw new HttpError(
@@ -415,5 +418,7 @@ export class SubscriptionService {
         'OWNER_ONLY',
       );
     }
+    // `userId` reçu est l'identifiant du profil Owner (@AgencyProfileId) : on renvoie son User.id
+    return actor.userOwnerId;
   }
 }

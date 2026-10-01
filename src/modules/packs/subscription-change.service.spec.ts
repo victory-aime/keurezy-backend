@@ -195,6 +195,12 @@ describe('SubscriptionChangeService.createCheckout', () => {
   const checkout = (planId: string) =>
     service.createCheckout('A', 'u', { planId, billingCycle: 'MONTHLY' }, KEY);
 
+  it("rattache la transaction au User de l'owner, pas à son profil agence", async () => {
+    subscriptions.assertOwner.mockResolvedValue('user-of-owner');
+    await checkout('premium');
+    expect(prisma.paymentTransaction.create.mock.calls[0][0].data.userId).toBe('user-of-owner');
+  });
+
   it('fige le montant du devis dans la transaction, avec la clé et le type', async () => {
     await expect(checkout('premium')).resolves.toEqual({
       checkoutUrl: 'https://pay/o1',

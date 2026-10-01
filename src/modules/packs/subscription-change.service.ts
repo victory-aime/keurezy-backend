@@ -120,7 +120,7 @@ export class SubscriptionChangeService {
     target: { planId: string; billingCycle: BillingCycle; keep?: KeepSelection },
     idempotencyKey: string | undefined,
   ): Promise<{ checkoutUrl: string; orderId: string }> {
-    await this.subscriptions.assertOwner(agencyId, userId);
+    const ownerUserId = await this.subscriptions.assertOwner(agencyId, userId);
     if (!idempotencyKey || !IDEMPOTENCY_KEY.test(idempotencyKey)) {
       throw new HttpError(
         "En-tête Idempotency-Key manquant ou invalide (16 à 100 caractères alphanumériques, '-' ou '_')",
@@ -189,7 +189,7 @@ export class SubscriptionChangeService {
           checkout_url: nabooTx.checkout_url,
           amount_to_pay: quote.amount,
           planId: targetPlan.id,
-          userId,
+          userId: ownerUserId ?? null,
           agencyId,
           kind: quote.kind as PaymentKind,
           idempotencyKey,
