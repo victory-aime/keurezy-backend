@@ -1,3 +1,5 @@
+import { ExitFeedbackDto } from './dto/exit-feedback.dto';
+import { recordExitFeedback } from './exit-feedback';
 import {
   BadRequestException,
   HttpStatus,
@@ -12,6 +14,7 @@ import {
   AgencyStatus,
   AnnonceStatus,
   BookingStatus,
+  ExitFeedbackContext,
   Plan,
   PropertyStatus,
   Role,
@@ -301,7 +304,7 @@ export class AgencyService {
    * Rien ne change d'ici là : l'agence fonctionne, et l'owner peut annuler. Idempotent : une
    * fermeture déjà programmée garde sa date.
    */
-  async scheduleClose(data: { agencyId: string; userId: string }) {
+  async scheduleClose(data: { agencyId: string; userId: string; feedback?: ExitFeedbackDto }) {
     const agency = await this.findOwnedAgency(data.agencyId, data.userId);
     if (agency.closeScheduledAt) return { closeScheduledAt: agency.closeScheduledAt };
 
@@ -310,6 +313,15 @@ export class AgencyService {
       where: { id: agency.id },
       data: { closeScheduledAt },
     });
+    // Questionnaire facultatif : ne bloque jamais la fermeture
+    await recordExitFeedback(
+      this.prismaService,
+      agency.id,
+      ExitFeedbackContext.AGENCY_CLOSE,
+      data.feedback,
+    ).catch((error: unknown) =>
+      this.logger.error(`Questionnaire de fermeture non enregistré : ${String(error)}`),
+    );
     // Trace hors de l'application : l'owner est prévenu même si la demande ne vient pas de lui
     await this.resendService.sendAgencyCloseScheduled({
       sendTo: agency.owner.user.email,

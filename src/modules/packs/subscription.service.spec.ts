@@ -221,6 +221,7 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
     staff: { count: jest.fn() },
     booking: { count: jest.fn() },
     subscriptionPlan: { findUnique: jest.fn() },
+    exitFeedback: { create: jest.fn() },
   };
   const agencyService = { agencyAccessControl: jest.fn() };
   const policy = {
@@ -296,6 +297,33 @@ describe('SubscriptionService : résilier, réactiver, impact', () => {
       currentPeriodEnd: end,
     });
     await expect(errorCodeOf(service.resume('A', 'owner-1'))).resolves.toBe('SUBSCRIPTION_EXPIRED');
+  });
+
+  it('enregistre le questionnaire au passage en résiliation, pas à une répétition', async () => {
+    prisma.exitFeedback.create.mockResolvedValue({});
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: end,
+    });
+    await service.cancel('A', 'owner-1', { reason: 'LOW_USAGE' });
+    expect(prisma.exitFeedback.create).toHaveBeenCalledWith({
+      data: {
+        agencyId: 'A',
+        context: 'SUBSCRIPTION_CANCEL',
+        reason: 'LOW_USAGE',
+        comment: undefined,
+      },
+    });
+
+    prisma.exitFeedback.create.mockClear();
+    prisma.subscription.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: end,
+    });
+    await service.cancel('A', 'owner-1', { reason: 'LOW_USAGE' });
+    expect(prisma.exitFeedback.create).not.toHaveBeenCalled();
   });
 
   it("refuse la résiliation du plan Gratuit (pas d'échéance)", async () => {

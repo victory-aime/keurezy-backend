@@ -426,3 +426,10 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 - Un nouveau tarif du catalogue ne touche jamais la période en cours (prix payé figé sur l'abonnement) : il s'applique au **prochain renouvellement** (devis `RENEWAL` au tarif du catalogue, testé).
 - `GET agency/subscription` renvoie `subscription.nextRenewalPrice` : prix du prochain renouvellement au tarif actuel (plan et cycle programmés s'il y en a ; null pour le Gratuit). Le web l'annonce quand il diffère du prix payé.
+
+## 53. Questionnaire de départ (facultatif)
+
+- **Migration `18_exit_feedback`** (appliquée en dev, additive) : table `exit_feedback` (agence, contexte `SUBSCRIPTION_CANCEL` | `AGENCY_CLOSE`, raison, commentaire de 1 000 caractères au plus, date) et enums `ExitFeedbackContext`, `ExitFeedbackReason` (`TOO_EXPENSIVE`, `MISSING_FEATURES`, `LOW_USAGE`, `SWITCHING_TOOL`, `TECHNICAL_ISSUE`, `BUSINESS_CLOSING`, `OTHER`).
+- `POST agency/subscription/cancel` et `POST agency/close` acceptent un corps facultatif `{ reason?, comment? }` (validé, liste blanche). Un corps vide reste accepté : les clients actuels ne changent pas.
+- Enregistré une seule fois, au passage en résiliation ou à la programmation de la fermeture, et seulement s'il est rempli. Un échec d'enregistrement ne bloque jamais l'action (journalisé).
+- Lecture : aucune route (pas de back-office) ; requête SQL sur `exit_feedback` en attendant.

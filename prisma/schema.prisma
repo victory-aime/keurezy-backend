@@ -236,6 +236,7 @@ model Agency {
   tenants          Tenant[]
   contracts        Contract[]
   subscriptions    Subscription[]
+  exitFeedbacks    ExitFeedback[]
   payments         PaymentTransaction[]
   tickets          Ticket[]
   transactions     Transaction[]
@@ -1314,4 +1315,40 @@ enum BookingStatus {
   CANCELLED
   REJECTED
   COMPLETED
+}
+
+// ─────────────────────────────────────────
+// QUESTIONNAIRE DE DÉPART (facultatif)
+// ─────────────────────────────────────────
+
+/**
+ * Raisons données à la résiliation de l'abonnement ou à la fermeture de l'agence.
+ */
+model ExitFeedback {
+  id       String              @id @default(uuid())
+  agencyId String
+  agency   Agency              @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  context  ExitFeedbackContext
+  reason   ExitFeedbackReason?
+  comment  String?             @db.VarChar(1000)
+
+  createdAt DateTime @default(now())
+
+  @@index([context, createdAt])
+  @@map("exit_feedback")
+}
+
+enum ExitFeedbackContext {
+  SUBSCRIPTION_CANCEL
+  AGENCY_CLOSE
+}
+
+enum ExitFeedbackReason {
+  TOO_EXPENSIVE
+  MISSING_FEATURES
+  LOW_USAGE
+  SWITCHING_TOOL
+  TECHNICAL_ISSUE
+  BUSINESS_CLOSING
+  OTHER
 }

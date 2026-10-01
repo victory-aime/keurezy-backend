@@ -30,6 +30,7 @@ import { AllowWhenInactive } from '../../guard/active-subscription.guard';
 import { ActivateAssetDto } from './asset-activation.dto';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { CheckoutDto, SubscriptionTargetDto } from './subscription-change.dto';
+import { ExitFeedbackDto } from '../agency/dto/exit-feedback.dto';
 
 /** Abonnement de l'agence, côté propriétaire (page « Mon abonnement »). */
 @ApiTags('Subscription')
@@ -74,8 +75,12 @@ export class SubscriptionController {
   @ApiOkResponse({ description: '{ cancelAtPeriodEnd: true, activeUntil }' })
   @ApiForbiddenResponse({ description: 'OWNER_ONLY : réservé au propriétaire' })
   @ApiConflictResponse({ description: 'SUBSCRIPTION_EXPIRED : abonnement déjà expiré' })
-  cancel(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
-    return this.subscriptionService.cancel(agencyId, userId);
+  cancel(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+    @Body() feedback: ExitFeedbackDto,
+  ) {
+    return this.subscriptionService.cancel(agencyId, userId, feedback);
   }
 
   @AllowWhenInactive()

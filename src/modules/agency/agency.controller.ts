@@ -1,3 +1,4 @@
+import { ExitFeedbackDto } from './dto/exit-feedback.dto';
 import { Body, Controller, Get, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import {
@@ -173,8 +174,12 @@ export class AgencyController {
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence à fermer" })
   @ApiOkResponse({ description: 'Date de fermeture programmée' })
   @ApiUnauthorizedResponse({ description: 'Token Bearer manquant ou invalide' })
-  async closeAgency(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
-    return this.agencyService.scheduleClose({ agencyId, userId });
+  async closeAgency(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+    @Body() feedback: ExitFeedbackDto,
+  ) {
+    return this.agencyService.scheduleClose({ agencyId, userId, feedback });
   }
 
   @AllowWhenInactive()

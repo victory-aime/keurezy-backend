@@ -1,9 +1,12 @@
+import { ExitFeedbackDto } from '../agency/dto/exit-feedback.dto';
+import { recordExitFeedback } from '../agency/exit-feedback';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
 import { AgencyService } from '../agency/agency.service';
 import {
+  ExitFeedbackContext,
   AnnonceStatus,
   BillingCycle,
   BookingStatus,
@@ -378,13 +381,26 @@ export class SubscriptionService {
    * Résiliation en fin de période (owner) : rien ne change avant `currentPeriodEnd`, puis le job
    * d'expiration passe l'agence au plan Gratuit. Idempotent.
    */
-  async cancel(agencyId: string, userId: string): Promise<CancellationState> {
+  async cancel(
+    agencyId: string,
+    userId: string,
+    feedback?: ExitFeedbackDto,
+  ): Promise<CancellationState> {
     const subscription = await this.findRunningSubscription(agencyId, userId);
     if (!subscription.cancelAtPeriodEnd) {
       await this.prisma.subscription.update({
         where: { agencyId },
         data: { cancelAtPeriodEnd: true, canceledAt: new Date() },
       });
+      // Questionnaire facultatif, enregistré une fois (au passage en résiliation)
+      await recordExitFeedback(
+        this.prisma,
+        agencyId,
+        ExitFeedbackContext.SUBSCRIPTION_CANCEL,
+        feedback,
+      ).catch((error: unknown) =>
+        this.logger.error(`Questionnaire de résiliation non enregistré : ${String(error)}`),
+      );
     }
     return { cancelAtPeriodEnd: true, activeUntil: subscription.currentPeriodEnd };
   }

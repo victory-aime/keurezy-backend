@@ -24,6 +24,7 @@ import {
 import { ResetPasswordOtpDto, VerifyOtpDto } from '../modules/auth/auth.dto';
 import { CreateInvitationDto } from '../modules/invitations/invitation.dto';
 import { CreatePlanDto, UpdatePlanDto } from '../modules/packs/pack.dto';
+import { ExitFeedbackDto } from '../modules/agency/dto/exit-feedback.dto';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from '../modules/agency/agency.dto';
 import { MultipartJson } from './multipart-json.decorator';
 import {
@@ -241,6 +242,11 @@ describe('Whitelist globale — les DTO conservent les champs envoyés par les c
           permissions: [{ permissionId: uuid, granted: true }],
         },
       },
+    ],
+    [
+      'ExitFeedbackDto',
+      ExitFeedbackDto,
+      { reason: 'TOO_EXPENSIVE', comment: 'Trop cher pour nous' },
     ],
     [
       'CreatePlanDto',
