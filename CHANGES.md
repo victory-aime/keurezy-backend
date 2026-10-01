@@ -495,3 +495,14 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
   - catalogue des variables `{{groupe.cle}}` (agence, client, facture, réservation, bien), refus des variables inconnues ou mal formées, remplacement en texte brut ;
   - **montant en lettres** en français (« quatre cent quarante-deux mille cinq cents francs CFA ») ;
   - `renderInvoicePdf(config, data)` : un seul moteur pour l'aperçu et les factures ; totaux HT, TVA, TTC ; « TVA non applicable » à 0 % ; mention « ANNULÉE » ; logo passé en mémoire (aucun appel réseau au rendu).
+
+## 61. Facturation client, I1 : routes des modèles (T3)
+
+- Nouveau module `invoicing` (`InvoicingModule`). Au démarrage, les 3 modèles communs sont créés ou mis à jour depuis leur définition dans le code (dev : Classique, Moderne, Minimal).
+- Routes (`secured/invoicing/…`, paramètre `agencyId`) :
+  - `GET templates` (owner et staff) : modèles communs et de l'agence, et réglages `{ vatRate, invoicePrefix, defaultTemplateId }` (Classique si aucun modèle par défaut, ou s'il a été supprimé) ;
+  - `GET templates/variables` : catalogue des variables ;
+  - `POST templates`, `PATCH templates?id`, `DELETE templates?id` (owner) : modifier un modèle commun **crée une copie** pour l'agence ; un modèle commun ne se supprime pas (`409 DEFAULT_TEMPLATE_LOCKED`) ; un modèle d'une autre agence est introuvable ; variable inconnue : `422 UNKNOWN_VARIABLES` ;
+  - `PATCH settings` (owner) : TVA (0 à 100 %), préfixe (1 à 8 lettres ou chiffres), modèle par défaut ;
+  - `POST templates/preview` : PDF d'aperçu d'une configuration, même non enregistrée, avec les vraies informations de l'agence et des données d'exemple.
+- Logo de l'agence sur la facture : téléchargé seulement en HTTPS depuis Cloudinary (pas d'URL arbitraire), PNG ou JPEG, 2 Mo et 5 s au plus ; sinon la facture s'imprime sans logo.

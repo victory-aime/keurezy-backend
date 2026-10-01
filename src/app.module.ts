@@ -29,6 +29,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { DomainEventsModule } from './modules/events/domain-events';
 import { PreferencesModule } from './modules/preferences/preferences.module';
+import { InvoicingModule } from './modules/invoicing/invoicing.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
     ChatModule,
     IntegrationsModule,
     PreferencesModule,
+    InvoicingModule,
   ],
 
   providers: [

@@ -22,6 +22,7 @@ enum APIS_URL_GLOBAL_PATH {
   PUSH_NOTIF = 'push-notification',
   INTEGRATIONS = 'integrations',
   PREFERENCES = 'preferences',
+  INVOICING = 'invoicing',
 }
 
 enum CLOUDINARY_FOLDER_NAME {
