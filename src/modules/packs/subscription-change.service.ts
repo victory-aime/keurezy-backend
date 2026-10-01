@@ -262,6 +262,7 @@ export class SubscriptionChangeService {
       this.events.emit('subscription.payment.confirmed', {
         orderId,
         paidAt: nabooTx.paid_at ?? new Date().toISOString(),
+        paidAmount: Number(nabooTx.amount),
       });
     } else if (NABOO_TO_LOCAL[nabooTx.transaction_status]) {
       await this.prisma.paymentTransaction.updateMany({

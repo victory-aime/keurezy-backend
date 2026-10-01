@@ -348,11 +348,16 @@ describe('SubscriptionChangeService.getPaymentStatus', () => {
 
   it('payé chez NabooPay avant le webhook : émet la confirmation, reste en attente', async () => {
     prisma.paymentTransaction.findFirst.mockResolvedValue({ status: 'PENDING' });
-    naboo.getTransactionById.mockResolvedValue({ transaction_status: 'paid', paid_at: 'T' });
+    naboo.getTransactionById.mockResolvedValue({
+      transaction_status: 'paid',
+      paid_at: 'T',
+      amount: 5_000,
+    });
     await expect(service.getPaymentStatus('A', 'u', 'o1')).resolves.toEqual({ status: 'PENDING' });
     expect(events.emit).toHaveBeenCalledWith('subscription.payment.confirmed', {
       orderId: 'o1',
       paidAt: 'T',
+      paidAmount: 5_000,
     });
   });
 

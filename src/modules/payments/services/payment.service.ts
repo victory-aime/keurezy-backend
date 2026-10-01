@@ -1,7 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { NabooService } from './naboo.service';
 import { InitiateAgencyPaymentDto } from '../payment.dto';
-import { BillingCycle, PaymentStatus, PricingType, Role } from '../../../../prisma/generated/enums';
+import {
+  BillingCycle,
+  PaymentKind,
+  PaymentStatus,
+  PricingType,
+  Role,
+} from '../../../../prisma/generated/enums';
+import { DomainEventBus } from '../../events/domain-events';
 import { PrismaService } from '../../../database/prisma.service';
 import { UploadsService } from '../../cloudinary/uploads.service';
 import { CloudinaryService } from '../../cloudinary/cloudinary.service';
@@ -19,6 +26,7 @@ export class PaymentService {
     private readonly naboo: NabooService,
     private readonly uploadsService: UploadsService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly events: DomainEventBus,
   ) {}
 
   // ── 1. Initier le paiement d'onboarding ───────────────────────────────────
@@ -190,6 +198,17 @@ export class PaymentService {
       this.logger.log(
         `Paiement non confirmé (${nabooTx.transaction_status}) — order_id: ${order_id}`,
       );
+      return;
+    }
+
+    // Paiement d'abonnement d'une agence existante : appliqué par le module abonnement, une
+    // seule fois (clé = order_id), même si le polling confirme en même temps
+    if (paymentTransaction.kind !== PaymentKind.ONBOARDING) {
+      this.events.emit('subscription.payment.confirmed', {
+        orderId: order_id,
+        paidAt: nabooTx.paid_at ?? payload.paid_at ?? new Date().toISOString(),
+        paidAmount: Number(nabooTx.amount),
+      });
       return;
     }
 

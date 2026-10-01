@@ -17,6 +17,8 @@ export interface DomainEvents {
 export interface SubscriptionPaymentConfirmedEvent {
   orderId: string;
   paidAt: string;
+  /** Montant réglé selon NabooPay (relu chez eux, jamais pris du webhook) */
+  paidAmount: number;
 }
 
 /** Réservation confirmée, refusée (y compris refus automatique) ou annulée par l'agence : e-mail au client. */

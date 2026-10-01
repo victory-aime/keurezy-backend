@@ -1,0 +1,215 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
+import { PrismaService } from '../../database/prisma.service';
+import { FeatureCommercial } from '../../config/enum';
+import {
+  AnnonceStatus,
+  InvitationStatus,
+  PaymentKind,
+  PaymentStatus,
+  SubscriptionStatus,
+} from '../../../prisma/generated/enums';
+import { DomainEventBus, SubscriptionPaymentConfirmedEvent } from '../events/domain-events';
+import { addBillingCycle } from './subscription-quote';
+import type { KeepSelection, SubscriptionCheckoutMetadata } from './subscription-change.service';
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Applique les paiements d'abonnement confirmés par NabooPay, et les désactivations d'un
+ * downgrade. Écoute `subscription.payment.confirmed` (webhook ou polling) : le module paiements
+ * ne dépend pas du module abonnement.
+ */
+@Injectable()
+export class SubscriptionBillingService implements OnModuleInit {
+  private readonly logger = new Logger(SubscriptionBillingService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: DomainEventBus,
+  ) {}
+
+  onModuleInit() {
+    this.events.on('subscription.payment.confirmed', async (event) => {
+      await this.applyPayment(event);
+    });
+  }
+
+  /**
+   * Applique un paiement une seule fois. Clé d'idempotence : `orderId`. La transaction est
+   * réclamée (`PENDING` → `PAID`, compte = 1) dans la même transaction que l'application : un
+   * webhook et un polling simultanés n'appliquent qu'une fois, et un échec remet tout en attente
+   * (le prochain webhook ou polling réessaie). Renvoie true si le paiement a été appliqué ici.
+   */
+  async applyPayment({ orderId, paidAt, paidAmount }: SubscriptionPaymentConfirmedEvent) {
+    const payment = await this.prisma.paymentTransaction.findUnique({
+      where: { naboo_order_id: orderId },
+      select: { kind: true, agencyId: true, amount_to_pay: true, status: true, metadata: true },
+    });
+    if (!payment?.agencyId || payment.kind === PaymentKind.ONBOARDING) return false;
+    if (payment.status !== PaymentStatus.PENDING) return false;
+
+    if (!(paidAmount >= Number(payment.amount_to_pay.toString()))) {
+      // Montant réglé inférieur au devis figé : rien n'est appliqué, à vérifier à la main
+      this.logger.error(
+        `Paiement ${orderId} : ${paidAmount} réglé pour ${payment.amount_to_pay.toString()} attendu — non appliqué`,
+      );
+      await this.prisma.paymentTransaction.updateMany({
+        where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
+        data: { status: PaymentStatus.FAILED },
+      });
+      return false;
+    }
+
+    const paidOn = Number.isNaN(Date.parse(paidAt)) ? new Date() : new Date(paidAt);
+    const agencyId = payment.agencyId;
+    const meta = payment.metadata as unknown as SubscriptionCheckoutMetadata;
+
+    const applied = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.paymentTransaction.updateMany({
+        where: { naboo_order_id: orderId, status: PaymentStatus.PENDING },
+        data: { status: PaymentStatus.PAID, confirmed_at: paidOn },
+      });
+      if (claim.count !== 1) return false;
+      await this.applyToSubscription(tx, agencyId, payment.kind, meta, paidOn);
+      return true;
+    });
+    if (applied) this.logger.log(`Paiement ${payment.kind} appliqué — agence ${agencyId}`);
+    return applied;
+  }
+
+  /**
+   * Effet d'un paiement sur l'abonnement :
+   * - sans période en cours (expiré, échu) : nouvelle période à partir du paiement ;
+   * - renouvellement : période suivante à la suite de l'échéance (le downgrade programmé garde
+   *   sa date d'effet, `scheduledAt`) ;
+   * - upgrade sur le même cycle : plan et prix changent, échéance inchangée ; cycle plus long :
+   *   nouvelle période à partir du paiement. Un upgrade annule le downgrade programmé.
+   * Tout paiement annule une résiliation programmée et réarme les rappels.
+   */
+  private async applyToSubscription(
+    tx: Tx,
+    agencyId: string,
+    kind: PaymentKind,
+    meta: SubscriptionCheckoutMetadata,
+    paidOn: Date,
+  ) {
+    const subscription = await tx.subscription.findUniqueOrThrow({
+      where: { agencyId },
+      select: {
+        status: true,
+        billingCycle: true,
+        currentPeriodEnd: true,
+        scheduledBillingCycle: true,
+      },
+    });
+    const pricing = await tx.planPricing.findUniqueOrThrow({
+      where: { planId_billingCycle: { planId: meta.planId, billingCycle: meta.billingCycle } },
+      select: { price: true, currency: true },
+    });
+    const running =
+      subscription.status === SubscriptionStatus.ACTIVE &&
+      !!subscription.currentPeriodEnd &&
+      subscription.currentPeriodEnd > paidOn;
+
+    const common = {
+      status: SubscriptionStatus.ACTIVE,
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      lastRenewalReminder: null,
+    };
+    const newPlan = {
+      planId: meta.planId,
+      billingCycle: meta.billingCycle,
+      price: pricing.price,
+      currency: pricing.currency,
+      scheduledPlanId: null,
+      scheduledBillingCycle: null,
+      scheduledKeep: Prisma.DbNull,
+      scheduledAt: null,
+    };
+
+    if (!running) {
+      await tx.subscription.update({
+        where: { agencyId },
+        data: {
+          ...common,
+          ...newPlan,
+          currentPeriodStart: paidOn,
+          currentPeriodEnd: addBillingCycle(paidOn, meta.billingCycle),
+        },
+      });
+      if (kind === PaymentKind.REACTIVATION) await this.deactivateExcess(tx, agencyId, meta.keep);
+      return;
+    }
+
+    const periodEnd = subscription.currentPeriodEnd!;
+    if (kind === PaymentKind.RENEWAL) {
+      const nextCycle = subscription.scheduledBillingCycle ?? meta.billingCycle;
+      await tx.subscription.update({
+        where: { agencyId },
+        // La période payée commence à l'échéance : le prorata d'un upgrade ultérieur reste juste
+        data: {
+          ...common,
+          currentPeriodStart: periodEnd,
+          currentPeriodEnd: addBillingCycle(periodEnd, nextCycle),
+        },
+      });
+      return;
+    }
+
+    const sameCycle = meta.billingCycle === subscription.billingCycle;
+    await tx.subscription.update({
+      where: { agencyId },
+      data: {
+        ...common,
+        ...newPlan,
+        ...(sameCycle
+          ? {}
+          : {
+              currentPeriodStart: paidOn,
+              currentPeriodEnd: addBillingCycle(paidOn, meta.billingCycle),
+            }),
+      },
+    });
+  }
+
+  /**
+   * Désactive ce qui n'a pas été gardé, pour chaque fonctionnalité en surplus choisie par l'owner
+   * (réactivation sur un plan plus petit, downgrade). Rien n'est supprimé ; un élément créé après
+   * le choix est désactivé aussi. Un bien désactivé retire ses annonces en ligne ; un membre
+   * désactivé perd ses sessions ; une invitation non gardée est annulée.
+   */
+  async deactivateExcess(tx: Tx, agencyId: string, keep: KeepSelection) {
+    for (const { feature, ids } of keep) {
+      const notKept = { notIn: ids };
+      if (feature === FeatureCommercial.PROPERTIES) {
+        const where = { agencyId, isActive: true, id: notKept };
+        const properties = await tx.property.findMany({ where, select: { id: true } });
+        await tx.property.updateMany({ where, data: { isActive: false } });
+        await tx.land.updateMany({ where, data: { isActive: false } });
+        await tx.batiment.updateMany({ where, data: { isActive: false } });
+        await tx.annonce.updateMany({
+          where: { propertyId: { in: properties.map((p) => p.id) }, status: AnnonceStatus.ACTIVE },
+          data: { status: AnnonceStatus.INACTIVE },
+        });
+      } else if (feature === FeatureCommercial.ANNOUNCES) {
+        await tx.annonce.updateMany({
+          where: { status: AnnonceStatus.ACTIVE, property: { agencyId }, id: notKept },
+          data: { status: AnnonceStatus.INACTIVE },
+        });
+      } else if (feature === FeatureCommercial.USERS) {
+        const where = { agencyId, isActive: true, id: notKept };
+        const members = await tx.staff.findMany({ where, select: { userId: true } });
+        const userIds = members.map((m) => m.userId);
+        await tx.staff.updateMany({ where, data: { isActive: false } });
+        await tx.user.updateMany({ where: { id: { in: userIds } }, data: { status: 'INACTIVE' } });
+        await tx.session.deleteMany({ where: { userId: { in: userIds } } });
+        await tx.invitation.updateMany({
+          where: { agencyId, status: InvitationStatus.PENDING, id: notKept },
+          data: { status: InvitationStatus.CANCELLED },
+        });
+      }
+    }
+  }
+}

@@ -13,6 +13,7 @@ import { PermissionsService } from './permissions.service';
 import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
 import { SubscriptionChangeService } from './subscription-change.service';
+import { SubscriptionBillingService } from './subscription-billing.service';
 
 /**
  * Plans et abonnements : catalogue des plans, fonctionnalités commerciales,
@@ -34,6 +35,7 @@ import { SubscriptionChangeService } from './subscription-change.service';
     PermissionsService,
     SubscriptionService,
     SubscriptionChangeService,
+    SubscriptionBillingService,
   ],
   exports: [PlanFeaturePolicyService, PermissionsService],
 })

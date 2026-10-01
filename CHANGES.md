@@ -330,3 +330,15 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
   - Réactivation sur un plan plus petit : `keep` obligatoire pour chaque fonctionnalité en surplus (`422 SELECTION_REQUIRED`, `SELECTION_INVALID`, `SELECTION_EXCEEDS_LIMIT`).
 - **`GET agency/subscription/payment?agencyId&orderId`** (propriétaire) : `{ status }` d'un paiement d'abonnement de l'agence (`404 PAYMENT_NOT_FOUND` pour une autre agence ou un onboarding). Si NabooPay dit « payé » avant le webhook, émet `subscription.payment.confirmed` ; annulé ou échoué : statut local mis à jour. N'expose ni `metadata` ni mot de passe, contrairement à `common/polling`.
 - `PaymentsModule` exporte `NabooService`.
+
+## 40. Confirmation des paiements d'abonnement
+
+- Le webhook NabooPay (et le rattrapage de `agency/subscription/payment`) émettent `subscription.payment.confirmed { orderId, paidAt, paidAmount }` pour toute transaction autre que `ONBOARDING`, après avoir relu son statut chez NabooPay. L'onboarding est inchangé.
+- **`SubscriptionBillingService`** applique le paiement **une seule fois** : clé d'idempotence `naboo_order_id`, réclamation atomique (`updateMany where status = PENDING`, compte = 1) **dans la même transaction** que l'application. Webhook et polling simultanés : le second ne fait rien. Échec : tout revient en attente, le prochain webhook ou polling réessaie.
+- Montant réglé (relu chez NabooPay) inférieur au montant figé : rien n'est appliqué, transaction `FAILED`, erreur journalisée pour vérification.
+- Effets :
+  - sans période en cours : nouvelle période à partir du paiement (plan et cycle payés) ; réactivation sur un plan plus petit : éléments hors choix désactivés ;
+  - renouvellement : période suivante à partir de l'échéance (`currentPeriodStart` = ancienne échéance), sur le cycle du downgrade programmé s'il y en a un ; le downgrade garde sa date d'effet ;
+  - upgrade : plan et prix immédiats, échéance inchangée sur le même cycle, nouvelle période sur un cycle plus long ; le downgrade programmé est annulé ;
+  - toujours : résiliation programmée annulée, rappels réarmés (`lastRenewalReminder = null`).
+- Désactivation (`deactivateExcess`, réutilisée par le downgrade) : biens non gardés `isActive = false` et leurs annonces retirées ; annonces non gardées `INACTIVE` ; membres non gardés désactivés et déconnectés ; invitations non gardées annulées. Rien n'est supprimé.
