@@ -253,7 +253,7 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - `GET unsecured/invite/preview?token` : aperçu **en lecture seule** (agence, qui invite, rôle, permissions, e-mail masqué, expiration). L'ouverture du lien ne consomme plus l'invitation. Auparavant, l'acceptation partait au chargement de la page : un double appel (StrictMode) ou un scanner de liens (Outlook, Gmail) la consommait avant l'invité.
 - `POST unsecured/invite/send-code { token }` : code à 6 chiffres, envoyé à l'adresse invitée (modèle OTP, objet « Code de confirmation de votre invitation »). Il est stocké **haché** dans `verification` (`invitation-<id>`) : validité `OTP_SETTINGS`, délai de renvoi, 5 essais.
 - `POST unsecured/invite/accept-invitation { token, code, password }` (**nouveau contrat**, web livré en même temps) : l'invité choisit son mot de passe. En une transaction : compte créé avec `emailVerified = true` (plus d'e-mail de vérification) ou ancien membre réactivé (même `userId`), Staff, permissions encore dans le plan, invitation ACCEPTED. La réponse ne contient que l'e-mail, **jamais de mot de passe** (auparavant renvoyé en clair).
-- **Plus de mot de passe temporaire** : ni généré (il l'était côté navigateur), ni stocké, ni envoyé par e-mail. `Invitation.temporaryPassword` n'est plus écrit (expand). La migration de contraction `13_drop_invitation_temp_password` suivra.
+- **Plus de mot de passe temporaire** : ni généré (il l'était côté navigateur), ni stocké, ni envoyé par e-mail. `Invitation.temporaryPassword` n'est plus écrit (expand). La migration de contraction est la `15_drop_invitation_temp_password` (section 45).
 - Modèle Resend de l'invitation : la variable `USER_PASSWORD` n'est plus envoyée ; le texte du modèle est à mettre à jour (action manuelle).
 
 ## 31. Récupération de compte (2FA perdue) et prévention
@@ -368,3 +368,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 - **`GET agency/subscription/payments?agencyId&initialPage&limitPerPage`** (propriétaire, page de 10 par défaut, 50 au plus) : `{ content, totalItems, totalPages, currentPage, totalDataPerPage }`, du plus récent au plus ancien. Chaque paiement : `id`, `kind`, `plan`, `amount`, `currency`, `status`, `periodStart`, `periodEnd`, `paidAt`, `createdAt`. **Aucun champ de `metadata` brut**.
 - Un onboarding n'apparaît que **payé** ; `initiateAgencyPayment` refuse désormais l'e-mail d'une agence existante (`400`), avant tout appel NabooPay. Les deux ferment le cas d'un onboarding lancé par un tiers avec l'e-mail d'une agence.
 - La période couverte est enregistrée sur la transaction à l'application du paiement ; pour les onboardings antérieurs, elle est déduite de la date de paiement et du cycle choisi.
+
+## 45. Contraction : suppression de `Invitation.temporaryPassword`
+
+- **Migration `15_drop_invitation_temp_password`** (appliquée en dev) : la colonne est supprimée. Le code ne l'écrivait plus qu'à `null` (acceptation et annulation d'une invitation) ; ces écritures sont retirées.
+- **Ordre de déploiement** : déployer le code d'abord, puis appliquer la migration (`migrate:deploy:uat`). Dans l'autre sens, l'ancien code échouerait à l'acceptation et à l'annulation d'une invitation pendant le déploiement.

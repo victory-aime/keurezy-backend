@@ -309,7 +309,7 @@ export class InvitationService {
       });
       await tx.invitation.update({
         where: { id: invitation.id },
-        data: { status: 'ACCEPTED', temporaryPassword: null },
+        data: { status: 'ACCEPTED' },
       });
     });
 
@@ -327,10 +327,7 @@ export class InvitationService {
     await this.agencyService.agencyAccessControl(invitation.agencyId, userId);
     await this.prisma.invitation.update({
       where: { id },
-      data: {
-        status: 'CANCELLED',
-        temporaryPassword: null,
-      },
+      data: { status: 'CANCELLED' },
     });
     return {
       message: 'Invitation annulée avec succès.',

@@ -40,7 +40,6 @@ describe('InvitationService.resendInvitation', () => {
     name: 'Awa',
     token: 'tok',
     status: 'PENDING',
-    temporaryPassword: 'enc:Secret#1',
     agency: { name: 'Agence' },
     ...overrides,
   });

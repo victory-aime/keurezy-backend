@@ -616,15 +616,14 @@ model Transaction {
 // INVITATION
 // ─────────────────────────────────────────
 model Invitation {
-  id                String           @id @default(uuid())
-  name              String
-  email             String           @unique
-  temporaryPassword String?
-  agencyId          String
-  agencyRole        AgencyRole       @default(AGENT)
-  token             String           @unique @default(uuid())
-  status            InvitationStatus @default(PENDING)
-  invitedBy         String // userId de l'admin
+  id         String           @id @default(uuid())
+  name       String
+  email      String           @unique
+  agencyId   String
+  agencyRole AgencyRole       @default(AGENT)
+  token      String           @unique @default(uuid())
+  status     InvitationStatus @default(PENDING)
+  invitedBy  String // userId de l'admin
 
   // Permissions pré-configurées par l'admin au moment de l'invite
   permissions InvitationPermission[]
