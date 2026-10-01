@@ -440,7 +440,8 @@ L'ancien chat (conversations LEAD / DIRECT) est remplacé : une conversation rel
 
 1. **Avant** : dans Resend, créer le modèle `subscription-notice.html` (section 51) et renseigner `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` dans l'environnement UAT. Vérifier `SUBSCRIPTION_EXPIRY_ENABLED=false`.
 2. **Déployer le code** (backend puis web).
-3. **Migrations 15 et 16** : `pnpm migrate:deploy:uat` s'arrêtera sur la 17 si des plans commission existent encore ; c'est voulu.
+3. **Migrations 15 et 16** : `pnpm migrate:deploy:uat`. S'il reste des plans commission, la 17 s'arrête sur son garde-fou (rien n'est modifié, l'erreur est levée avant tout changement) et Prisma la marque en échec. La débloquer avant de continuer :
+   `npx dotenv -e .env.uat -- npx prisma migrate resolve --rolled-back 17_drop_commission`
 4. **Seed des plans** : `pnpm db:seed:uat-feature` (crée le plan Gratuit, met à jour les autres).
 5. **Agences commission → Gratuit** : `pnpm subscription:commission-to-free:uat`, puis `-- --apply`. À faire aussitôt après le déploiement : le nouveau code ne lit plus les plans commission.
 6. **Migrations 17 et 18** : `pnpm migrate:deploy:uat`.

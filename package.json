@@ -25,7 +25,7 @@
     "db:seed:dev-admin": "dotenv -e .env -- cross-env NODE_ENV=local ts-node prisma/seed/seed-admin.ts",
     "db:seed:dev-feature": "dotenv -e .env -- cross-env NODE_ENV=local ts-node prisma/seed/seed-feature.ts",
     "db:seed:uat-feature": "dotenv -e .env.uat -- cross-env NODE_ENV=uat ts-node prisma/seed/seed-feature.ts",
-    "subscription:grace:dev": "dotenv -e .env -- cross-env NODE_ENV=local ts-node prisma/scripts/subscription-expiry-grace.ts",
+    "subscription:grace:dev": "dotenv -e .env -- cross-env NODE_ENV=local ts-node prisma/scripts/subscription-expiry-grace.ts -- --apply",
     "subscription:grace:uat": "dotenv -e .env.uat -- cross-env NODE_ENV=uat ts-node prisma/scripts/subscription-expiry-grace.ts",
     "subscription:commission-to-free:dev": "dotenv -e .env -- cross-env NODE_ENV=local ts-node prisma/scripts/commission-to-free.ts",
     "subscription:commission-to-free:uat": "dotenv -e .env.uat -- cross-env NODE_ENV=uat ts-node prisma/scripts/commission-to-free.ts",
