@@ -53,4 +53,30 @@ describe('PermissionGuard', () => {
       ForbiddenException,
     );
   });
+
+  describe('route partagée avec les clients (staffOnly)', () => {
+    const route = (permission: string) =>
+      reflector.getAllAndOverride.mockImplementation((key: string) =>
+        key === 'required_permission' ? permission : true,
+      );
+
+    it('laisse passer un client : son accès est limité par le service', async () => {
+      route('view_conversations');
+      const session = { user: { role: 'USER' }, session: { token: 't' } };
+      await expect(guard.canActivate(contextWith(session))).resolves.toBe(true);
+    });
+
+    it('exige la permission d’un collaborateur', async () => {
+      route('view_conversations');
+      const without = { user: { role: 'AGENT' }, session: { token: 't', permissions: [] } };
+      await expect(guard.canActivate(contextWith(without))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      const withPermission = {
+        user: { role: 'AGENT' },
+        session: { token: 't', permissions: [{ name: 'view_conversations' }] },
+      };
+      await expect(guard.canActivate(contextWith(withPermission))).resolves.toBe(true);
+    });
+  });
 });

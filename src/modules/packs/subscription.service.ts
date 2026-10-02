@@ -294,12 +294,11 @@ export class SubscriptionService {
         planFeatures.map((pf) => [pf.feature.name, { enabled: true, limit: pf.limit }]),
       ),
     };
-    const tracked = Object.keys(this.policy.counters).filter((name) => context.features.has(name));
+    const counters = this.policy.allCounters;
+    const tracked = Object.keys(counters).filter((name) => context.features.has(name));
     const usage = await Promise.all(
       tracked.map(async (name) =>
-        toUsage(
-          this.policy.checkCapacity(context, name, await this.policy.counters[name](agencyId)),
-        ),
+        toUsage(this.policy.checkCapacity(context, name, await counters[name](agencyId))),
       ),
     );
     return { context, usage };

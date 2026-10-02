@@ -1179,6 +1179,8 @@ enum FeatureCategory {
   MARKETING
   MESSAGING
   BOOKINGS
+  INVOICING
+  AGENCY
 }
 
 enum Plan {
@@ -1475,6 +1477,17 @@ model Invoice {
   @@index([agencyId, issuedAt])
   @@index([bookingId])
   @@map("invoice")
+}
+
+/// Image (logo, cachet) copiée à l'émission d'une facture, identifiée par son empreinte SHA-256 :
+/// une facture émise ne dépend plus de Cloudinary. Une même image n'est stockée qu'une fois.
+model InvoiceAsset {
+  id        String   @id // empreinte SHA-256 en hexadécimal
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@map("invoice_asset")
 }
 
 /// Dernier rang de facture attribué, par agence et par année civile.

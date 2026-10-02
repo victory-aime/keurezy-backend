@@ -1,9 +1,15 @@
 import { HttpError } from '../../config/http.error';
 import { DEFAULT_INVOICE_TEMPLATES } from './invoice-template.config';
-import { InvoiceTemplatesService, isPngOrJpeg } from './invoice-templates.service';
+import {
+  cloudinaryPublicId,
+  InvoiceTemplatesService,
+  isPngOrJpeg,
+} from './invoice-templates.service';
 
 jest.mock('../agency/agency.service', () => ({ AgencyService: class {} }));
 jest.mock('../cloudinary/uploads.service', () => ({ UploadsService: class {} }));
+jest.mock('../cloudinary/cloudinary.service', () => ({ CloudinaryService: class {} }));
+jest.mock('../packs/plan-feature-policy.service', () => ({ PlanFeaturePolicyService: class {} }));
 
 const errorCodeOf = (promise: Promise<unknown>) =>
   promise.then(
@@ -26,10 +32,19 @@ describe('InvoiceTemplatesService', () => {
   };
   const agencyService = { agencyAccessControl: jest.fn() };
   const uploads = { uploadFiles: jest.fn() };
+  const cloudinary = { deleteImage: jest.fn() };
+  const policy = {
+    hasRoomFor: jest.fn(),
+    getAgencyFeatureContext: jest.fn(),
+    countInvoiceTemplates: jest.fn(),
+    checkCapacity: jest.fn(),
+  };
   const service = new InvoiceTemplatesService(
     prisma as never,
     agencyService as never,
     uploads as never,
+    cloudinary as never,
+    policy as never,
   );
   const classic = DEFAULT_INVOICE_TEMPLATES[0];
   const commonTemplate = {
@@ -44,6 +59,9 @@ describe('InvoiceTemplatesService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     agencyService.agencyAccessControl.mockResolvedValue({ type: 'OWNER' });
+    policy.hasRoomFor.mockResolvedValue(true);
+    policy.countInvoiceTemplates.mockResolvedValue(1);
+    policy.checkCapacity.mockReturnValue({ enabled: true, capacity: 3 });
     prisma.invoiceTemplate.create.mockImplementation(({ data }) =>
       Promise.resolve({ id: 'new-id', defaultKey: null, updatedAt: new Date(), ...data }),
     );
@@ -165,5 +183,49 @@ describe('InvoiceTemplatesService', () => {
         data: { invoiceStampUrl: 'https://res.cloudinary.com/x/c.png' },
       });
     });
+  });
+
+  describe('quota de modèles', () => {
+    it('création ou personnalisation refusées à la limite du plan', async () => {
+      policy.hasRoomFor.mockResolvedValue(false);
+      await expect(
+        errorCodeOf(service.create('A', 'o1', { name: 'Loyer', config: classic.config })),
+      ).resolves.toBe('INVOICE_TEMPLATE_CAPACITY_REACHED');
+      prisma.invoiceTemplate.findFirst.mockResolvedValue(commonTemplate);
+      await expect(
+        errorCodeOf(service.update('A', 'o1', 'classic-id', { config: classic.config })),
+      ).resolves.toBe('INVOICE_TEMPLATE_CAPACITY_REACHED');
+      expect(prisma.invoiceTemplate.create).not.toHaveBeenCalled();
+    });
+
+    it('après un downgrade, un modèle en trop ne se modifie plus', async () => {
+      prisma.invoiceTemplate.findFirst.mockResolvedValue({ ...commonTemplate, agencyId: 'A' });
+      policy.countInvoiceTemplates.mockResolvedValue(2);
+      policy.checkCapacity.mockReturnValue({ enabled: true, capacity: 1 });
+      await expect(
+        errorCodeOf(service.update('A', 'o1', 'own', { config: classic.config })),
+      ).resolves.toBe('INVOICE_TEMPLATE_CAPACITY_REACHED');
+      expect(prisma.invoiceTemplate.update).not.toHaveBeenCalled();
+    });
+  });
+
+  it('ancien cachet retiré de Cloudinary une fois remplacé', async () => {
+    prisma.agency.findUniqueOrThrow.mockResolvedValue({
+      name: 'Keur Immo',
+      invoiceStampUrl:
+        'https://res.cloudinary.com/demo/image/upload/v1712/agency/keur/invoicing/old.png',
+    });
+    uploads.uploadFiles.mockResolvedValue({ secure_url: 'https://res.cloudinary.com/x/new.png' });
+    await service.uploadStamp('A', 'o1', {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      originalname: 'c.png',
+    } as Express.Multer.File);
+    expect(cloudinary.deleteImage).toHaveBeenCalledWith('agency/keur/invoicing/old');
+  });
+
+  it('identifiant Cloudinary : seulement pour une URL Cloudinary', () => {
+    expect(cloudinaryPublicId('https://res.cloudinary.com/d/image/upload/a/b.jpg')).toBe('a/b');
+    expect(cloudinaryPublicId('https://exemple.com/image/upload/a/b.jpg')).toBeNull();
+    expect(cloudinaryPublicId(null)).toBeNull();
   });
 });

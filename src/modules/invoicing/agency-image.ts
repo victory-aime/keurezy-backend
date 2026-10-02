@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { InvoiceSignatureStyle, type InvoiceTemplateConfig } from './invoice-template.config';
 
 /** Hôtes autorisés pour les images d'une agence (téléversées sur Cloudinary par l'application). */
@@ -38,4 +39,13 @@ export async function loadInvoiceImages(
     withStamp ? loadAgencyImage(urls.stampUrl) : null,
   ]);
   return { logo, stamp };
+}
+
+/** Image prête à être figée : empreinte SHA-256 (identifiant), type et contenu. */
+export function invoiceAsset(image: Buffer | null) {
+  if (!image) return null;
+  const mimeType = image[0] === 0x89 ? 'image/png' : 'image/jpeg';
+  const id = createHash('sha256').update(image).digest('hex');
+  // Copie dans un Uint8Array propre (type attendu par Prisma pour une colonne Bytes)
+  return { id, mimeType, data: new Uint8Array(image) };
 }

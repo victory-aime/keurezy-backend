@@ -97,6 +97,8 @@ enum FeatureCommercial {
   BOOST_ANNOUNCES = 'boost_annonces',
   USERS = 'manage_users',
   SUPPORT = 'premium_support',
+  INVOICES = 'manage_invoices',
+  INVOICE_TEMPLATES = 'invoice_templates',
 }
 
 export {

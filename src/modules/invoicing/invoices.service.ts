@@ -4,7 +4,9 @@ import { BookingStatus, InvoiceStatus } from '../../../prisma/generated/enums';
 import { HttpError } from '../../config/http.error';
 import { PrismaService } from '../../database/prisma.service';
 import { AgencyService } from '../agency/agency.service';
-import { loadInvoiceImages } from './agency-image';
+import { FeatureCommercial } from '../../config/enum';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
+import { invoiceAsset, loadInvoiceImages } from './agency-image';
 import {
   bookingDetails,
   bookingReference,
@@ -74,6 +76,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly policy: PlanFeaturePolicyService,
   ) {}
 
   async list(agencyId: string, userId: string, query: ListInvoicesDto) {
@@ -248,18 +251,44 @@ export class InvoicesService {
     const invoice = await this.find(agencyId, id);
     if (invoice.status !== InvoiceStatus.DRAFT) throw notDraft();
 
+    // Hors transaction : lectures et téléchargement des images (le verrou du compteur reste court)
+    const context = await this.policy.getAgencyFeatureContext(agencyId);
+    const { snapshot, prefix } = await this.assemble(this.prisma, agencyId, invoice);
+    const images = await loadInvoiceImages(snapshot.config, snapshot.agency);
+    const logo = invoiceAsset(images.logo);
+    const stamp = invoiceAsset(images.stamp);
+    const frozen: InvoiceSnapshot = {
+      ...snapshot,
+      version: 2,
+      agency: { ...snapshot.agency, logoAsset: logo?.id ?? null, stampAsset: stamp?.id ?? null },
+    };
+
     await this.prisma.$transaction(async (tx) => {
-      const { snapshot, prefix } = await this.assemble(tx, agencyId, invoice);
       const issuedAt = new Date();
+      // Le compteur verrouille la ligne de l'agence : les émissions simultanées passent une à une,
+      // le quota ci-dessous ne peut donc pas être dépassé en concurrence
       const number = await nextInvoiceNumber(tx, agencyId, prefix, issuedAt.getUTCFullYear());
-      const totals = invoiceTotals(invoice.lines as unknown as InvoiceLine[], snapshot.vatRate);
+      const used = await this.policy.countInvoicesThisMonth(agencyId, issuedAt, tx);
+      if (!this.policy.checkCapacity(context, FeatureCommercial.INVOICES, used).allowed) {
+        throw new HttpError(
+          'Limite de factures émises ce mois-ci atteinte pour votre plan',
+          HttpStatus.FORBIDDEN,
+          'INVOICE_CAPACITY_REACHED',
+        );
+      }
+      for (const asset of [logo, stamp]) {
+        if (asset) {
+          await tx.invoiceAsset.upsert({ where: { id: asset.id }, create: asset, update: {} });
+        }
+      }
+      const totals = invoiceTotals(invoice.lines as unknown as InvoiceLine[], frozen.vatRate);
       const { count } = await tx.invoice.updateMany({
         where: { id, agencyId, status: InvoiceStatus.DRAFT },
         data: {
           status: InvoiceStatus.ISSUED,
           number,
           issuedAt,
-          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          snapshot: frozen as unknown as Prisma.InputJsonValue,
           totalHt: totals.ht,
           totalVat: totals.vat,
           totalTtc: totals.ttc,
@@ -327,9 +356,27 @@ export class InvoicesService {
       invoice.status === InvoiceStatus.DRAFT
         ? (await this.assemble(this.prisma, agencyId, invoice)).snapshot
         : (invoice.snapshot as unknown as InvoiceSnapshot);
-    const images = await loadInvoiceImages(snapshot.config, snapshot.agency);
+    const images =
+      snapshot.version === 2
+        ? await this.frozenImages(snapshot)
+        : await loadInvoiceImages(snapshot.config, snapshot.agency);
     const pdf = await renderInvoicePdf(snapshot.config, renderDataOf(invoice, snapshot, images));
     return { filename: `${invoice.number ?? 'brouillon'}.pdf`, pdf };
+  }
+
+  /** Images copiées à l'émission : aucune lecture de Cloudinary pour une facture émise. */
+  private async frozenImages(snapshot: InvoiceSnapshot) {
+    const ids = [snapshot.agency.logoAsset, snapshot.agency.stampAsset].filter(
+      (assetId): assetId is string => !!assetId,
+    );
+    const assets = ids.length
+      ? await this.prisma.invoiceAsset.findMany({ where: { id: { in: ids } } })
+      : [];
+    const byId = new Map(assets.map((asset) => [asset.id, Buffer.from(asset.data)]));
+    return {
+      logo: byId.get(snapshot.agency.logoAsset ?? '') ?? null,
+      stamp: byId.get(snapshot.agency.stampAsset ?? '') ?? null,
+    };
   }
 
   /** Facture de l'agence ; celle d'une autre agence est introuvable (`404`). */

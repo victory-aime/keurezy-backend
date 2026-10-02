@@ -146,6 +146,38 @@ export class PlanFeaturePolicyService {
     [FeatureCommercial.USERS]: (agencyId) => this.countUserSeats(agencyId),
   };
 
+  /**
+   * Quotas affichés et contrôlés, mais hors du choix « éléments à garder » d'un downgrade : rien
+   * ne s'y désactive (une facture émise le reste ; un modèle en trop devient non modifiable).
+   */
+  readonly quotaCounters: Record<string, (agencyId: string) => Promise<number>> = {
+    [FeatureCommercial.INVOICES]: (agencyId) => this.countInvoicesThisMonth(agencyId),
+    [FeatureCommercial.INVOICE_TEMPLATES]: (agencyId) => this.countInvoiceTemplates(agencyId),
+  };
+
+  /** Tous les compteurs, pour les jauges de la page Abonnement. */
+  get allCounters() {
+    return { ...this.counters, ...this.quotaCounters };
+  }
+
+  /**
+   * Factures émises pendant le mois civil en cours (UTC, l'heure de Dakar), annulées comprises :
+   * annuler ne libère pas de place.
+   */
+  countInvoicesThisMonth(
+    agencyId: string,
+    now = new Date(),
+    db: Pick<PrismaService, 'invoice'> = this.prisma,
+  ) {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return db.invoice.count({ where: { agencyId, issuedAt: { gte: start } } });
+  }
+
+  /** Modèles propres à l'agence (les modèles communs ne comptent pas). */
+  countInvoiceTemplates(agencyId: string) {
+    return this.prisma.invoiceTemplate.count({ where: { agencyId } });
+  }
+
   /** Biens actifs de l'agence (propriétés, terrains, bâtiments), soumis à une seule limite. */
   async countPropertyAssets(agencyId: string): Promise<number> {
     const where = { agencyId, isActive: true };
@@ -181,7 +213,7 @@ export class PlanFeaturePolicyService {
    */
   async hasRoomFor(agencyId: string, featureName: string): Promise<boolean> {
     const context = await this.getAgencyFeatureContext(agencyId);
-    const used = await this.counters[featureName](agencyId);
+    const used = await this.allCounters[featureName](agencyId);
     return this.checkCapacity(context, featureName, used).allowed;
   }
 

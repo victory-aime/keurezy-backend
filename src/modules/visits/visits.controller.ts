@@ -62,6 +62,7 @@ export class VisitsController {
 
   // GET v1/secure/visits/detail?visitId=
   @Get(API_URL.VISITS.DETAIL)
+  @RequirePermission('view_visits', { staffOnly: true })
   @ApiOperation({ summary: "Détail d'une visite" })
   @ApiOkResponse({ description: 'Visite récupérée avec succès' })
   @ApiBadRequestResponse({ description: 'Une erreur est survenue' })

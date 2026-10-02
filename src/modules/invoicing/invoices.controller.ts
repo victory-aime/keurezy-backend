@@ -32,7 +32,10 @@ import {
 } from './invoices.dto';
 import { InvoicesService } from './invoices.service';
 
-/** Factures de l'agence à ses clients. Owner, et staff avec la permission de facturation. */
+/**
+ * Factures de l'agence à ses clients. Owner, et staff avec `view_invoices` (lecture) ou
+ * `manage_invoices` (écriture, par défaut sur tout le contrôleur).
+ */
 @ApiTags('Invoicing')
 @Controller()
 @ApiBearerAuth()
@@ -42,6 +45,7 @@ export class InvoicesController {
   constructor(private readonly invoices: InvoicesService) {}
 
   @Get(API_URL.INVOICING.INVOICES)
+  @RequirePermission('view_invoices')
   @ApiOperation({ summary: 'Factures de l’agence (paginées), avec le nombre par statut' })
   list(
     @Query('agencyId') agencyId: string,
@@ -52,12 +56,14 @@ export class InvoicesController {
   }
 
   @Get(API_URL.INVOICING.INVOICE_BOOKINGS)
+  @RequirePermission('view_invoices')
   @ApiOperation({ summary: 'Réservations confirmées ou terminées, à facturer' })
   bookings(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
     return this.invoices.invoiceableBookings(agencyId, userId);
   }
 
   @Get(API_URL.INVOICING.INVOICE_DETAIL)
+  @RequirePermission('view_invoices')
   @ApiQuery({ name: 'id', required: true })
   @ApiNotFoundResponse({ description: 'INVOICE_NOT_FOUND' })
   get(
@@ -151,6 +157,7 @@ export class InvoicesController {
   }
 
   @Get(API_URL.INVOICING.INVOICE_PDF)
+  @RequirePermission('view_invoices')
   @ApiOperation({ summary: 'PDF d’une facture (brouillon : mention BROUILLON)' })
   @ApiQuery({ name: 'id', required: true })
   @ApiQuery({ name: 'download', required: false, description: '1 : téléchargement' })

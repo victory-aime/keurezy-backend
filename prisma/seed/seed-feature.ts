@@ -206,6 +206,44 @@ async function seed() {
     },
 
     // ─────────────────────────────────────────
+    // FACTURATION AUX CLIENTS (quotas : factures émises par mois, modèles de l'agence)
+    // ─────────────────────────────────────────
+    {
+      name: 'manage_invoices',
+      category: FeatureCategory.INVOICING,
+      isCommercial: true,
+      permissions: [
+        { name: 'view_invoices', description: 'Voir les factures et les modèles de facture' },
+        {
+          name: 'manage_invoices',
+          description: 'Créer, émettre, marquer payées et annuler les factures',
+        },
+      ],
+    },
+    {
+      // Les modèles se gèrent par le propriétaire seul : quota sans permission propre
+      name: 'invoice_templates',
+      category: FeatureCategory.INVOICING,
+      isCommercial: true,
+      permissions: [],
+    },
+
+    // ─────────────────────────────────────────
+    // AGENCE
+    // ─────────────────────────────────────────
+    {
+      name: 'manage_agency',
+      category: FeatureCategory.AGENCY,
+      isCommercial: false,
+      permissions: [
+        {
+          name: 'update_agency',
+          description: 'Modifier le profil de l’agence (nom, logo, description, coordonnées)',
+        },
+      ],
+    },
+
+    // ─────────────────────────────────────────
     // INVITATIONS
     // ─────────────────────────────────────────
     {
@@ -253,6 +291,17 @@ async function seed() {
     limit,
   });
 
+  // Fonctionnalités sans quota présentes dans tous les plans : leurs permissions doivent pouvoir
+  // être attribuées au staff (une permission n'est attribuable que si son plan l'inclut)
+  const everyPlan = () => [
+    feature('manage_conversations'),
+    feature('manage_bookings'),
+    feature('manage_visits'),
+    feature('manage_invitations'),
+    feature('manage_property_types'),
+    feature('manage_agency'),
+  ];
+
   await prisma.$transaction(async (tx) => {
     // =========================================================
     // 💳 SUBSCRIPTION PLANS (3)
@@ -268,9 +317,10 @@ async function seed() {
     const freeFeatures = [
       feature('manage_properties', 2),
       feature('publish_properties', 2),
-      feature('manage_conversations'),
-      feature('manage_bookings'),
       feature('manage_users', 0),
+      feature('manage_invoices', 5),
+      feature('invoice_templates', 0),
+      ...everyPlan(),
     ];
     await tx.subscriptionPlan.upsert({
       where: { name: Plan.FREE_SUB },
@@ -295,10 +345,11 @@ async function seed() {
           create: [
             feature('manage_properties', 6),
             feature('publish_properties', 6),
-            feature('manage_conversations'),
-            feature('manage_bookings'),
             feature('manage_users', 1),
             feature('premium_support', 1),
+            feature('manage_invoices', 30),
+            feature('invoice_templates', 1),
+            ...everyPlan(),
           ],
         },
         pricings: {
@@ -349,13 +400,14 @@ async function seed() {
           create: [
             feature('manage_properties', 20),
             feature('publish_properties', 20),
-            feature('manage_conversations'),
-            feature('manage_bookings'),
             feature('boost_annonces', 3),
             feature('annonce_stats'),
             feature('manage_users', 5),
             feature('view_reports'),
             feature('premium_support', 5),
+            feature('manage_invoices', 150),
+            feature('invoice_templates', 3),
+            ...everyPlan(),
           ],
         },
       },
@@ -390,14 +442,15 @@ async function seed() {
           create: [
             feature('manage_properties'),
             feature('publish_properties'),
-            feature('manage_conversations'),
-            feature('manage_bookings'),
             feature('boost_annonces'),
             feature('annonce_stats'),
             feature('manage_users'),
             feature('manage_accounting'),
             feature('view_reports'),
             feature('premium_support'),
+            feature('manage_invoices'),
+            feature('invoice_templates'),
+            ...everyPlan(),
           ],
         },
       },

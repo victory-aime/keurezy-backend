@@ -28,6 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { API_URL } from '../../config/api';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
+import { RequirePermission } from '../../guard/permission.guard';
 import {
   CreateInvoiceTemplateDto,
   InvoiceSettingsDto,
@@ -36,7 +37,10 @@ import {
 } from './invoice-templates.dto';
 import { InvoiceTemplatesService } from './invoice-templates.service';
 
-/** Modèles de facture de l'agence et réglages de facturation. */
+/**
+ * Modèles de facture de l'agence et réglages de facturation. Lecture : owner et staff avec
+ * `view_invoices` ; écriture : owner seul (contrôlé par le service).
+ */
 @ApiTags('Invoicing')
 @Controller()
 @ApiBearerAuth()
@@ -45,6 +49,7 @@ export class InvoiceTemplatesController {
   constructor(private readonly templates: InvoiceTemplatesService) {}
 
   @Get(API_URL.INVOICING.TEMPLATES)
+  @RequirePermission('view_invoices')
   @ApiOperation({ summary: 'Modèles communs et modèles de l’agence, avec les réglages' })
   @ApiOkResponse({
     description: '{ templates, settings: { vatRate, invoicePrefix, defaultTemplateId } }',
@@ -54,6 +59,7 @@ export class InvoiceTemplatesController {
   }
 
   @Get(API_URL.INVOICING.TEMPLATE_VARIABLES)
+  @RequirePermission('view_invoices')
   @ApiOperation({ summary: 'Catalogue des variables insérables dans les textes d’un modèle' })
   variables() {
     return this.templates.variables();
@@ -113,6 +119,7 @@ export class InvoiceTemplatesController {
   }
 
   @Post(API_URL.INVOICING.TEMPLATE_PREVIEW)
+  @RequirePermission('view_invoices')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Aperçu PDF d’une configuration, avec des données d’exemple' })
   @ApiOkResponse({ description: 'application/pdf' })

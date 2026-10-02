@@ -90,6 +90,9 @@ export function draftFromBooking(booking: InvoiceableBooking) {
 export type SnapshotAgency = Omit<InvoiceRenderData['agency'], 'logo' | 'stamp'> & {
   logoUrl: string | null;
   stampUrl: string | null;
+  /** Empreinte de l'image copiée dans `invoice_asset` à l'émission (version 2) */
+  logoAsset?: string | null;
+  stampAsset?: string | null;
 };
 
 /**
@@ -97,7 +100,8 @@ export type SnapshotAgency = Omit<InvoiceRenderData['agency'], 'logo' | 'stamp'>
  * numéro) qui ne changent plus une fois émise.
  */
 export interface InvoiceSnapshot {
-  version: 1;
+  /** 1 : images relues sur Cloudinary ; 2 : images copiées en base (`invoice_asset`) */
+  version: 1 | 2;
   templateName: string;
   config: InvoiceTemplateConfig;
   vatRate: number;
@@ -126,7 +130,13 @@ export function renderDataOf(
   frozen: Omit<InvoiceSnapshot, 'version' | 'templateName' | 'config'>,
   images: { logo: Buffer | null; stamp: Buffer | null },
 ): InvoiceRenderData {
-  const { logoUrl: _logo, stampUrl: _stamp, ...agency } = frozen.agency;
+  const {
+    logoUrl: _logo,
+    stampUrl: _stamp,
+    logoAsset: _logoAsset,
+    stampAsset: _stampAsset,
+    ...agency
+  } = frozen.agency;
   const watermark: InvoiceWatermark | null =
     invoice.status === 'DRAFT' ? 'BROUILLON' : invoice.status === 'CANCELLED' ? 'ANNULÉE' : null;
   return {

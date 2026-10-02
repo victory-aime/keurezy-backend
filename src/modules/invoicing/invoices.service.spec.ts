@@ -4,6 +4,7 @@ import { DEFAULT_INVOICE_TEMPLATES } from './invoice-template.config';
 import { formatInvoiceNumber, InvoicesService } from './invoices.service';
 
 jest.mock('../agency/agency.service', () => ({ AgencyService: class {} }));
+jest.mock('../packs/plan-feature-policy.service', () => ({ PlanFeaturePolicyService: class {} }));
 
 const errorCodeOf = (promise: Promise<unknown>) =>
   promise.then(
@@ -114,6 +115,7 @@ describe('InvoicesService', () => {
   const tx = {
     $queryRaw: jest.fn(),
     invoice: { updateMany: jest.fn() },
+    invoiceAsset: { upsert: jest.fn(), findMany: jest.fn() },
     agency: { findUniqueOrThrow: jest.fn() },
     invoiceTemplate: { findFirst: jest.fn(), findFirstOrThrow: jest.fn() },
     booking: { findFirst: jest.fn() },
@@ -132,7 +134,12 @@ describe('InvoicesService', () => {
     $transaction: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new InvoicesService(prisma as never, agencyService as never);
+  const policy = {
+    getAgencyFeatureContext: jest.fn(),
+    countInvoicesThisMonth: jest.fn(),
+    checkCapacity: jest.fn(),
+  };
+  const service = new InvoicesService(prisma as never, agencyService as never, policy as never);
   const classic = { name: 'Classique', config: DEFAULT_INVOICE_TEMPLATES[0].config };
 
   beforeEach(() => {
@@ -142,6 +149,8 @@ describe('InvoicesService', () => {
     tx.agency.findUniqueOrThrow.mockResolvedValue(agencyRow);
     tx.invoiceTemplate.findFirst.mockResolvedValue(null);
     tx.invoiceTemplate.findFirstOrThrow.mockResolvedValue(classic);
+    policy.countInvoicesThisMonth.mockResolvedValue(0);
+    policy.checkCapacity.mockReturnValue({ allowed: true });
     prisma.invoice.create.mockImplementation(({ data }) => Promise.resolve({ ...draft, ...data }));
   });
 
@@ -283,5 +292,49 @@ describe('InvoicesService', () => {
     expect(prisma.invoice.updateMany.mock.calls[0][0].where.status).toEqual({
       in: ['ISSUED', 'PAID'],
     });
+  });
+
+  it('quota mensuel atteint : émission refusée dans la transaction, rien d’émis', async () => {
+    prisma.invoice.findFirst.mockResolvedValue(draft);
+    tx.$queryRaw.mockResolvedValue([{ last: 6 }]);
+    policy.countInvoicesThisMonth.mockResolvedValue(5);
+    policy.checkCapacity.mockReturnValue({ allowed: false });
+    await expect(errorCodeOf(service.issue('A', 'o1', 'inv-1'))).resolves.toBe(
+      'INVOICE_CAPACITY_REACHED',
+    );
+    // Compté dans la transaction (après le verrou du compteur), sans rien émettre
+    expect(policy.countInvoicesThisMonth.mock.calls[0][2]).toBe(tx);
+    expect(policy.checkCapacity.mock.calls[0][1]).toBe('manage_invoices');
+    expect(tx.invoice.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('facture émise (version 2) : images lues en base, jamais sur Cloudinary', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    tx.invoiceAsset.findMany.mockResolvedValue([]);
+    prisma.invoice.findFirst.mockResolvedValue({
+      ...draft,
+      status: 'ISSUED',
+      number: 'FAC-2026-0002',
+      issuedAt: new Date('2026-10-02'),
+      snapshot: {
+        version: 2,
+        templateName: 'Classique',
+        config: classic.config,
+        vatRate: 18,
+        agency: {
+          ...agencyRow,
+          logoUrl: 'https://res.cloudinary.com/x/logo.png',
+          stampUrl: null,
+          logoAsset: 'abc',
+          stampAsset: null,
+        },
+        booking: null,
+        property: null,
+      },
+    });
+    await service.pdf('A', 'o1', 'inv-1');
+    expect(tx.invoiceAsset.findMany).toHaveBeenCalledWith({ where: { id: { in: ['abc'] } } });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

@@ -1,9 +1,11 @@
 import { HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
-import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
+import { CLOUDINARY_FOLDER_NAME, FeatureCommercial } from '../../config/enum';
 import { AgencyService } from '../agency/agency.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UploadsService } from '../cloudinary/uploads.service';
+import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { loadInvoiceImages } from './agency-image';
 import { renderInvoicePdf } from './invoice-pdf';
 import {
@@ -54,6 +56,8 @@ export class InvoiceTemplatesService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly uploads: UploadsService,
+    private readonly cloudinary: CloudinaryService,
+    private readonly policy: PlanFeaturePolicyService,
   ) {}
 
   /** Crée ou met à jour les modèles communs à partir de leur définition dans le code. */
@@ -112,6 +116,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
   async create(agencyId: string, userId: string, data: CreateInvoiceTemplateDto) {
     await this.assertOwner(agencyId, userId);
     assertKnownVariables(data.config);
+    await this.assertTemplateRoom(agencyId);
     const created = await this.prisma.invoiceTemplate.create({
       data: { agencyId, name: data.name, config: data.config as object },
       select: TEMPLATE_SELECT,
@@ -128,6 +133,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
     assertKnownVariables(data.config);
     const template = await this.findUsable(agencyId, id);
     if (template.agencyId === null) {
+      await this.assertTemplateRoom(agencyId);
       const copy = await this.prisma.invoiceTemplate.create({
         data: {
           agencyId,
@@ -138,6 +144,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
       });
       return toView(copy);
     }
+    await this.assertTemplateEditable(agencyId);
     const updated = await this.prisma.invoiceTemplate.update({
       where: { id },
       data: { ...(data.name ? { name: data.name } : {}), config: data.config as object },
@@ -214,7 +221,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
     }
     const agency = await this.prisma.agency.findUniqueOrThrow({
       where: { id: agencyId },
-      select: { name: true },
+      select: { name: true, invoiceStampUrl: true },
     });
     const uploaded = await this.uploads.uploadFiles(
       file,
@@ -225,17 +232,59 @@ export class InvoiceTemplatesService implements OnModuleInit {
       where: { id: agencyId },
       data: { invoiceStampUrl: uploaded.secure_url },
     });
+    await this.deleteFromCloudinary(agency.invoiceStampUrl);
     return { stampUrl: uploaded.secure_url as string };
   }
 
   /** Retire le cachet : les modèles qui l'utilisaient impriment un cadre vide. */
   async removeStamp(agencyId: string, userId: string) {
     await this.assertOwner(agencyId, userId);
+    const { invoiceStampUrl } = await this.prisma.agency.findUniqueOrThrow({
+      where: { id: agencyId },
+      select: { invoiceStampUrl: true },
+    });
     await this.prisma.agency.update({
       where: { id: agencyId },
       data: { invoiceStampUrl: null },
     });
+    await this.deleteFromCloudinary(invoiceStampUrl);
     return { stampUrl: null };
+  }
+
+  /** Place pour un modèle de plus (création ou personnalisation d'un modèle commun). */
+  private async assertTemplateRoom(agencyId: string) {
+    if (!(await this.policy.hasRoomFor(agencyId, FeatureCommercial.INVOICE_TEMPLATES))) {
+      throw templateCapacity('Limite de modèles personnalisés atteinte pour votre plan');
+    }
+  }
+
+  /**
+   * Après un downgrade, les modèles en trop restent utilisables mais ne se modifient plus
+   * (supprimer un modèle en trop rend la main sur les autres).
+   */
+  private async assertTemplateEditable(agencyId: string) {
+    const context = await this.policy.getAgencyFeatureContext(agencyId);
+    const used = await this.policy.countInvoiceTemplates(agencyId);
+    const check = this.policy.checkCapacity(context, FeatureCommercial.INVOICE_TEMPLATES, used);
+    if (!check.enabled || (check.capacity !== null && used > check.capacity)) {
+      throw templateCapacity(
+        'Votre plan compte moins de modèles que vous n’en avez : supprimez-en pour modifier les autres',
+      );
+    }
+  }
+
+  /**
+   * Retire une ancienne image de Cloudinary. Sans risque pour les factures émises : leurs images
+   * sont copiées en base à l'émission. Un échec est journalisé, jamais bloquant.
+   */
+  private async deleteFromCloudinary(url: string | null) {
+    const publicId = cloudinaryPublicId(url);
+    if (!publicId) return;
+    try {
+      await this.cloudinary.deleteImage(publicId);
+    } catch (error) {
+      this.logger.warn(`Ancien cachet non supprimé de Cloudinary (${publicId}) : ${String(error)}`);
+    }
   }
 
   /** Modèle commun ou de l'agence ; un modèle d'une autre agence est introuvable. */
@@ -278,6 +327,22 @@ function toView(template: {
     config: template.config as InvoiceTemplateConfig,
     updatedAt: template.updatedAt,
   };
+}
+
+const templateCapacity = (message: string) =>
+  new HttpError(message, HttpStatus.FORBIDDEN, 'INVOICE_TEMPLATE_CAPACITY_REACHED');
+
+/**
+ * Identifiant Cloudinary d'une image à partir de son URL de livraison :
+ * `https://res.cloudinary.com/<cloud>/image/upload/v123/<dossier>/<nom>.png` → `<dossier>/<nom>`.
+ */
+export function cloudinaryPublicId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match =
+    /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-z0-9]+)?$/i.exec(
+      url,
+    );
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /** Signature binaire PNG ou JPEG : les seuls formats que pdfkit sait imprimer. */

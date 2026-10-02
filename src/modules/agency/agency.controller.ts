@@ -33,6 +33,7 @@ import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { AgencyProfileId } from '../../guard/current-user.decorator';
 import { MultipartJson } from '../../config/multipart-json.decorator';
 import { AllowWhenInactive } from '../../guard/active-subscription.guard';
+import { RequirePermission } from '../../guard/permission.guard';
 
 @ApiTags('Agency')
 @Controller()
@@ -126,6 +127,7 @@ export class AgencyController {
   }
 
   @Post(API_URL.AGENCY.UPDATE_AGENCY)
+  @RequirePermission('update_agency')
   @ApiOperation({ summary: "Mettre à jour les informations d'une agence" })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -244,6 +246,7 @@ export class AgencyController {
   }
 
   @Get(API_URL.AGENCY.STATS)
+  @RequirePermission('view_reports')
   @ApiOperation({ summary: "Statistiques globales de l'agence" })
   @ApiQuery({ name: 'agencyId', required: true, description: "Identifiant de l'agence" })
   @ApiOkResponse({ description: 'Statistiques recuperees avec succes' })
