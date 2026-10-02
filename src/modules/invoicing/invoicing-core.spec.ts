@@ -1,6 +1,6 @@
 import { amountInWords, numberToFrenchWords } from './amount-in-words';
 import { invoiceTotals, renderInvoicePdf } from './invoice-pdf';
-import { DEFAULT_INVOICE_TEMPLATES } from './invoice-template.config';
+import { DEFAULT_INVOICE_TEMPLATES, InvoiceSignatureStyle } from './invoice-template.config';
 import { fillVariables, unknownVariables } from './invoice-variables';
 import { sampleInvoice } from './sample-invoice';
 
@@ -113,5 +113,31 @@ describe('renderInvoicePdf', () => {
     );
     expect(text).toContain('TVA non applicable.');
     expect(text).toContain('ANNULÉE');
+  });
+
+  it('cachet généré : raison sociale, NINEA et RCCM dans la zone de signature', async () => {
+    const config = {
+      ...DEFAULT_INVOICE_TEMPLATES[0].config,
+      blocks: { legal: false, bank: false, signature: true },
+      signatureStyle: InvoiceSignatureStyle.GENERATED,
+      texts: { ...DEFAULT_INVOICE_TEMPLATES[0].config.texts, footer: '' },
+    };
+    const text = pdfText(
+      await renderInvoicePdf(config, sampleInvoice(agency, 18), { compress: false }),
+    );
+    expect(text).toContain('KEUR IMMO SARL');
+    expect(text).toContain('NINEA 00123452G3 RCCM SN-DKR-2020-B-12345');
+  });
+
+  it('cachet scanné illisible : la facture reste générée', async () => {
+    const config = {
+      ...DEFAULT_INVOICE_TEMPLATES[0].config,
+      blocks: { legal: true, bank: true, signature: true },
+      signatureStyle: InvoiceSignatureStyle.IMAGE,
+    };
+    const pdf = await renderInvoicePdf(config, {
+      ...sampleInvoice({ ...agency, stamp: Buffer.from('pas une image') }, 18),
+    });
+    expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
   });
 });

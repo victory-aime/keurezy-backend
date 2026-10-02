@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AgencyModule } from '../agency/agency.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { InvoiceTemplatesController } from './invoice-templates.controller';
 import { InvoiceTemplatesService } from './invoice-templates.service';
 
@@ -9,7 +10,7 @@ import { InvoiceTemplatesService } from './invoice-templates.service';
  * quotas (I3) et envoi (I4). Spec : keurezy-front/docs/agency-invoicing.
  */
 @Module({
-  imports: [DatabaseModule, AgencyModule],
+  imports: [DatabaseModule, AgencyModule, CloudinaryModule],
   controllers: [InvoiceTemplatesController],
   providers: [InvoiceTemplatesService],
 })

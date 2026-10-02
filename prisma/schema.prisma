@@ -241,6 +241,8 @@ model Agency {
   vatRate                  Decimal              @default(0) @db.Decimal(5, 2)
   invoicePrefix            String               @default("FAC")
   defaultInvoiceTemplateId String?
+  // Cachet ou signature scanné (PNG ou JPEG sur Cloudinary), imprimé sur les factures
+  invoiceStampUrl          String?
   status                   AgencyStatus         @default(PENDING)
   // Fermeture demandée par l'owner : exécutée par le cron à cette date, annulable d'ici là
   closeScheduledAt         DateTime?

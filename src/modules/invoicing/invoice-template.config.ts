@@ -1,6 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 export enum InvoiceLayout {
   CLASSIC = 'CLASSIC',
@@ -12,6 +20,16 @@ export enum InvoiceFont {
   HELVETICA = 'HELVETICA',
   TIMES = 'TIMES',
   COURIER = 'COURIER',
+}
+
+/** Contenu de la zone « Signature et cachet ». */
+export enum InvoiceSignatureStyle {
+  /** Cadre vide, signé et tamponné à la main après impression */
+  BOX = 'BOX',
+  /** Cachet ou signature scanné de l'agence (cadre vide s'il n'y en a pas) */
+  IMAGE = 'IMAGE',
+  /** Cachet dessiné à partir des informations légales de l'agence, sans scan */
+  GENERATED = 'GENERATED',
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -74,6 +92,12 @@ export class InvoiceTemplateConfigDto {
   @Type(() => InvoiceBlocksDto)
   blocks: InvoiceBlocksDto;
 
+  /** Absent des modèles enregistrés avant son ajout : BOX */
+  @ApiPropertyOptional({ enum: InvoiceSignatureStyle, default: InvoiceSignatureStyle.BOX })
+  @IsOptional()
+  @IsEnum(InvoiceSignatureStyle)
+  signatureStyle?: InvoiceSignatureStyle;
+
   @ApiProperty({ type: InvoiceTextsDto })
   @ValidateNested()
   @Type(() => InvoiceTextsDto)
@@ -88,11 +112,15 @@ const legalFooter = '{{agence.raison_sociale}} - NINEA {{agence.ninea}} - RCCM {
 export const DEFAULT_INVOICE_TEMPLATES: {
   key: InvoiceLayout;
   name: string;
+  /** Présentation du modèle à l'agence */
+  description: string;
   config: InvoiceTemplateConfig;
 }[] = [
   {
     key: InvoiceLayout.CLASSIC,
     name: 'Classique',
+    description:
+      'Sobre et complet : logo, tableau détaillé (période, quantité, prix, TVA) et coordonnées de paiement. Convient à toutes les factures.',
     config: {
       layout: InvoiceLayout.CLASSIC,
       primaryColor: '#1f2937',
@@ -113,6 +141,8 @@ export const DEFAULT_INVOICE_TEMPLATES: {
   {
     key: InvoiceLayout.MODERN,
     name: 'Moderne',
+    description:
+      'Bandeau de couleur en en-tête, mot de remerciement au client et cachet de l’agence. Idéal pour les loyers et séjours.',
     config: {
       layout: InvoiceLayout.MODERN,
       primaryColor: '#673ab6',
@@ -121,6 +151,7 @@ export const DEFAULT_INVOICE_TEMPLATES: {
       showLogo: true,
       columns: { period: true, quantity: false, unitPrice: false, vat: true },
       blocks: { legal: true, bank: true, signature: true },
+      signatureStyle: InvoiceSignatureStyle.GENERATED,
       texts: {
         title: 'FACTURE',
         intro: 'Merci pour votre confiance, {{client.nom}}.',
@@ -133,6 +164,8 @@ export const DEFAULT_INVOICE_TEMPLATES: {
   {
     key: InvoiceLayout.MINIMAL,
     name: 'Minimal',
+    description:
+      'Épuré, en police Times, sans logo ni coordonnées bancaires : l’essentiel pour une facture courte.',
     config: {
       layout: InvoiceLayout.MINIMAL,
       primaryColor: '#111827',

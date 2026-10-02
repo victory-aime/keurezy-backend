@@ -1,8 +1,9 @@
 import { HttpError } from '../../config/http.error';
 import { DEFAULT_INVOICE_TEMPLATES } from './invoice-template.config';
-import { InvoiceTemplatesService } from './invoice-templates.service';
+import { InvoiceTemplatesService, isPngOrJpeg } from './invoice-templates.service';
 
 jest.mock('../agency/agency.service', () => ({ AgencyService: class {} }));
+jest.mock('../cloudinary/uploads.service', () => ({ UploadsService: class {} }));
 
 const errorCodeOf = (promise: Promise<unknown>) =>
   promise.then(
@@ -24,7 +25,12 @@ describe('InvoiceTemplatesService', () => {
     $transaction: jest.fn(),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
-  const service = new InvoiceTemplatesService(prisma as never, agencyService as never);
+  const uploads = { uploadFiles: jest.fn() };
+  const service = new InvoiceTemplatesService(
+    prisma as never,
+    agencyService as never,
+    uploads as never,
+  );
   const classic = DEFAULT_INVOICE_TEMPLATES[0];
   const commonTemplate = {
     id: 'classic-id',
@@ -122,5 +128,42 @@ describe('InvoiceTemplatesService', () => {
     });
     const pdf = await service.preview('A', 's1', classic.config);
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  describe('cachet', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+    const file = (buffer: Buffer) =>
+      ({ buffer, originalname: 'cachet.png' }) as Express.Multer.File;
+
+    it('reconnaît PNG et JPEG à leur signature binaire, pas au nom', () => {
+      expect(isPngOrJpeg(png)).toBe(true);
+      expect(isPngOrJpeg(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
+      expect(isPngOrJpeg(Buffer.from('<svg onload=alert(1)>'))).toBe(false);
+      expect(isPngOrJpeg(undefined)).toBe(false);
+    });
+
+    it('refuse un faux PNG sans rien téléverser, et le staff', async () => {
+      await expect(
+        errorCodeOf(service.uploadStamp('A', 'o1', file(Buffer.from('%PDF-1.7')))),
+      ).resolves.toBe('INVALID_STAMP_IMAGE');
+      agencyService.agencyAccessControl.mockResolvedValue({ type: 'STAFF' });
+      await expect(errorCodeOf(service.uploadStamp('A', 's1', file(png)))).resolves.toBe(
+        'OWNER_ONLY',
+      );
+      await expect(errorCodeOf(service.removeStamp('A', 's1'))).resolves.toBe('OWNER_ONLY');
+      expect(uploads.uploadFiles).not.toHaveBeenCalled();
+    });
+
+    it('enregistre l’URL Cloudinary du cachet', async () => {
+      prisma.agency.findUniqueOrThrow.mockResolvedValue({ name: 'Keur Immo' });
+      uploads.uploadFiles.mockResolvedValue({ secure_url: 'https://res.cloudinary.com/x/c.png' });
+      await expect(service.uploadStamp('A', 'o1', file(png))).resolves.toEqual({
+        stampUrl: 'https://res.cloudinary.com/x/c.png',
+      });
+      expect(prisma.agency.update).toHaveBeenCalledWith({
+        where: { id: 'A' },
+        data: { invoiceStampUrl: 'https://res.cloudinary.com/x/c.png' },
+      });
+    });
   });
 });

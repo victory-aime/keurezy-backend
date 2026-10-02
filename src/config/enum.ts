@@ -28,6 +28,7 @@ enum APIS_URL_GLOBAL_PATH {
 enum CLOUDINARY_FOLDER_NAME {
   AGENCY = 'agency',
   LOGO = 'logo',
+  INVOICING = 'invoicing',
   DOC = 'documents',
   PROPERTY = 'properties',
   USERS = 'USERS',

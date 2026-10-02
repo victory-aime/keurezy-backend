@@ -1,12 +1,15 @@
 import { HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { HttpError } from '../../config/http.error';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { AgencyService } from '../agency/agency.service';
-import { loadAgencyLogo } from './agency-logo';
+import { UploadsService } from '../cloudinary/uploads.service';
+import { loadAgencyImage } from './agency-image';
 import { renderInvoicePdf } from './invoice-pdf';
 import {
   DEFAULT_INVOICE_TEMPLATES,
   InvoiceLayout,
+  InvoiceSignatureStyle,
   templateTexts,
   type InvoiceTemplateConfig,
 } from './invoice-template.config';
@@ -24,6 +27,8 @@ export interface InvoiceTemplateView {
   name: string;
   /** Modèle commun : non modifiable en place (le modifier crée une copie) */
   isDefault: boolean;
+  /** Présentation d'un modèle commun ; null pour un modèle de l'agence */
+  description: string | null;
   config: InvoiceTemplateConfig;
   updatedAt: Date;
 }
@@ -48,6 +53,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
+    private readonly uploads: UploadsService,
   ) {}
 
   /** Crée ou met à jour les modèles communs à partir de leur définition dans le code. */
@@ -80,7 +86,12 @@ export class InvoiceTemplatesService implements OnModuleInit {
       }),
       this.prisma.agency.findUniqueOrThrow({
         where: { id: agencyId },
-        select: { vatRate: true, invoicePrefix: true, defaultInvoiceTemplateId: true },
+        select: {
+          vatRate: true,
+          invoicePrefix: true,
+          defaultInvoiceTemplateId: true,
+          invoiceStampUrl: true,
+        },
       }),
     ]);
     const views = templates.map(toView);
@@ -93,6 +104,7 @@ export class InvoiceTemplatesService implements OnModuleInit {
         vatRate: Number(agency.vatRate.toString()),
         invoicePrefix: agency.invoicePrefix,
         defaultTemplateId,
+        stampUrl: agency.invoiceStampUrl,
       },
     };
   }
@@ -192,10 +204,16 @@ export class InvoiceTemplatesService implements OnModuleInit {
         bankAccount: true,
         mobileMoneyNumber: true,
         agencyLogo: true,
+        invoiceStampUrl: true,
         vatRate: true,
       },
     });
-    const logo = config.showLogo ? await loadAgencyLogo(agency.agencyLogo) : null;
+    const withStamp =
+      config.blocks.signature && config.signatureStyle === InvoiceSignatureStyle.IMAGE;
+    const [logo, stamp] = await Promise.all([
+      config.showLogo ? loadAgencyImage(agency.agencyLogo) : null,
+      withStamp ? loadAgencyImage(agency.invoiceStampUrl) : null,
+    ]);
     return renderInvoicePdf(
       config,
       sampleInvoice(
@@ -211,10 +229,50 @@ export class InvoiceTemplatesService implements OnModuleInit {
           bankAccount: agency.bankAccount,
           mobileMoneyNumber: agency.mobileMoneyNumber,
           logo,
+          stamp,
         },
         Number(agency.vatRate.toString()),
       ),
     );
+  }
+
+  /**
+   * Cachet ou signature scanné de l'agence (owner). PNG ou JPEG, contenu vérifié par sa
+   * signature binaire (le type annoncé par le navigateur ne prouve rien). Remplace le précédent.
+   */
+  async uploadStamp(agencyId: string, userId: string, file: Express.Multer.File | undefined) {
+    await this.assertOwner(agencyId, userId);
+    if (!file || !isPngOrJpeg(file.buffer)) {
+      throw new HttpError(
+        'Image PNG ou JPEG attendue',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INVALID_STAMP_IMAGE',
+      );
+    }
+    const agency = await this.prisma.agency.findUniqueOrThrow({
+      where: { id: agencyId },
+      select: { name: true },
+    });
+    const uploaded = await this.uploads.uploadFiles(
+      file,
+      agency.name,
+      CLOUDINARY_FOLDER_NAME.INVOICING,
+    );
+    await this.prisma.agency.update({
+      where: { id: agencyId },
+      data: { invoiceStampUrl: uploaded.secure_url },
+    });
+    return { stampUrl: uploaded.secure_url as string };
+  }
+
+  /** Retire le cachet : les modèles qui l'utilisaient impriment un cadre vide. */
+  async removeStamp(agencyId: string, userId: string) {
+    await this.assertOwner(agencyId, userId);
+    await this.prisma.agency.update({
+      where: { id: agencyId },
+      data: { invoiceStampUrl: null },
+    });
+    return { stampUrl: null };
   }
 
   /** Modèle commun ou de l'agence ; un modèle d'une autre agence est introuvable. */
@@ -252,9 +310,19 @@ function toView(template: {
     id: template.id,
     name: template.name,
     isDefault: template.defaultKey !== null,
+    description:
+      DEFAULT_INVOICE_TEMPLATES.find((t) => t.key === template.defaultKey)?.description ?? null,
     config: template.config as InvoiceTemplateConfig,
     updatedAt: template.updatedAt,
   };
+}
+
+/** Signature binaire PNG ou JPEG : les seuls formats que pdfkit sait imprimer. */
+export function isPngOrJpeg(buffer: Buffer | undefined): boolean {
+  if (!buffer || buffer.length < 4) return false;
+  const png = buffer.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const jpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  return png || jpeg;
 }
 
 /** Refuse un modèle dont un texte contient une variable hors du catalogue. */

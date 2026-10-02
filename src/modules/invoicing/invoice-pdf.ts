@@ -1,6 +1,11 @@
 import PDFDocument from 'pdfkit';
 import { amountInWords } from './amount-in-words';
-import { InvoiceFont, InvoiceLayout, type InvoiceTemplateConfig } from './invoice-template.config';
+import {
+  InvoiceFont,
+  InvoiceLayout,
+  InvoiceSignatureStyle,
+  type InvoiceTemplateConfig,
+} from './invoice-template.config';
 import { fillVariables, type InvoiceVariableValues } from './invoice-variables';
 
 /** Ligne de facture : montant = quantité × prix unitaire (XOF, entiers). */
@@ -33,6 +38,8 @@ export interface InvoiceRenderData {
     mobileMoneyNumber: string | null;
     /** Logo déjà téléchargé (le rendu ne fait aucun appel réseau) */
     logo?: Buffer | null;
+    /** Cachet ou signature scanné, déjà téléchargé */
+    stamp?: Buffer | null;
   };
   client: { name: string; email: string | null; phone: string | null; address: string | null };
   booking?: {
@@ -386,15 +393,27 @@ export function renderInvoicePdf(
   }
 
   if (config.blocks.signature) {
-    const sigTop = Math.min(doc.y + 10, bottomLimit - 60);
-    doc
-      .rect(right - 200, sigTop, 200, 60)
-      .strokeColor(LINE)
-      .stroke();
+    const box = { x: right - 200, y: Math.min(doc.y + 10, bottomLimit - 90), w: 200, h: 90 };
+    doc.rect(box.x, box.y, box.w, box.h).strokeColor(LINE).stroke();
     doc
       .fillColor(MUTED)
+      .font(font.regular)
       .fontSize(8)
-      .text('Signature et cachet', right - 194, sigTop + 6);
+      .text('Signature et cachet', box.x + 6, box.y + 6);
+    const style = config.signatureStyle ?? InvoiceSignatureStyle.BOX;
+    if (style === InvoiceSignatureStyle.IMAGE && data.agency.stamp) {
+      try {
+        doc.image(data.agency.stamp, box.x + 10, box.y + 18, {
+          fit: [box.w - 20, box.h - 24],
+          align: 'center',
+          valign: 'center',
+        });
+      } catch {
+        // Image illisible : cadre vide, à signer à la main
+      }
+    } else if (style === InvoiceSignatureStyle.GENERATED) {
+      drawGeneratedStamp(doc, data, { x: box.x + 25, y: box.y + 20, w: 150, h: 62 }, font);
+    }
   }
 
   const footer = fill(config.texts.footer);
@@ -420,4 +439,45 @@ export function renderInvoicePdf(
 
   doc.end();
   return done;
+}
+
+/**
+ * Cachet dessiné (sans scan) : double cadre légèrement incliné, à la couleur d'un tampon encreur,
+ * avec la raison sociale, l'adresse, le NINEA et le RCCM de l'agence. Un repère visuel, pas une
+ * signature électronique : il n'atteste rien de plus que les mentions déjà imprimées.
+ */
+function drawGeneratedStamp(
+  doc: PDFKit.PDFDocument,
+  data: InvoiceRenderData,
+  area: { x: number; y: number; w: number; h: number },
+  font: { regular: string; bold: string },
+) {
+  const ink = '#1e3a8a';
+  const { agency } = data;
+  doc.save();
+  doc.rotate(-4, { origin: [area.x + area.w / 2, area.y + area.h / 2] });
+  doc.opacity(0.85).strokeColor(ink).lineWidth(1.6);
+  doc.roundedRect(area.x, area.y, area.w, area.h, 6).stroke();
+  doc
+    .lineWidth(0.6)
+    .roundedRect(area.x + 3, area.y + 3, area.w - 6, area.h - 6, 4)
+    .stroke();
+  // Une ligne par mention, coupée par « … » si elle dépasse : le cachet garde sa forme
+  const line = (text: string, y: number, size: number, bold = false) =>
+    doc
+      .fillColor(ink)
+      .font(bold ? font.bold : font.regular)
+      .fontSize(size)
+      .text(text, area.x + 8, area.y + y, {
+        width: area.w - 16,
+        height: size + 2,
+        align: 'center',
+        ellipsis: true,
+      });
+  line((agency.companyName ?? agency.name).toUpperCase(), 8, 8.5, true);
+  line(agency.address, 19, 6.5);
+  if (agency.ninea) line(`NINEA ${agency.ninea}`, 28, 6.5);
+  if (agency.rccm) line(`RCCM ${agency.rccm}`, 37, 6.5);
+  line('LA DIRECTION', 48, 7, true);
+  doc.restore();
 }

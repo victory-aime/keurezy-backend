@@ -9,9 +9,14 @@ import {
   Post,
   Query,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -121,5 +126,38 @@ export class InvoiceTemplatesController {
       type: 'application/pdf',
       disposition: 'inline; filename="apercu-facture.pdf"',
     });
+  }
+
+  @Post(API_URL.INVOICING.STAMP)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Téléverser le cachet ou la signature de l’agence (propriétaire)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { stamp: { type: 'string', format: 'binary', description: 'PNG ou JPEG, 1 Mo' } },
+      required: ['stamp'],
+    },
+  })
+  @ApiUnprocessableEntityResponse({ description: 'INVALID_STAMP_IMAGE' })
+  @UseInterceptors(
+    FileInterceptor('stamp', {
+      limits: { fileSize: 1024 * 1024, files: 1, fields: 0 },
+      fileFilter: (_req, file, callback) =>
+        callback(null, /^image\/(png|jpeg)$/.test(file.mimetype)),
+    }),
+  )
+  uploadStamp(
+    @Query('agencyId') agencyId: string,
+    @AgencyProfileId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.templates.uploadStamp(agencyId, userId, file);
+  }
+
+  @Delete(API_URL.INVOICING.STAMP)
+  @ApiOperation({ summary: 'Retirer le cachet de l’agence (propriétaire)' })
+  removeStamp(@Query('agencyId') agencyId: string, @AgencyProfileId() userId: string) {
+    return this.templates.removeStamp(agencyId, userId);
   }
 }
