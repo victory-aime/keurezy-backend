@@ -256,6 +256,7 @@ model Agency {
   subscriptions            Subscription[]
   exitFeedbacks            ExitFeedback[]
   invoiceTemplates         InvoiceTemplate[]
+  invoices                 Invoice[]
   payments                 PaymentTransaction[]
   tickets                  Ticket[]
   transactions             Transaction[]
@@ -489,6 +490,7 @@ model Booking {
   client   Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   conversations Conversation[]
+  invoices      Invoice[]
 
   @@index([propertyId, startDate, endDate])
   @@index([agencyId, status])
@@ -1406,6 +1408,81 @@ model InvoiceTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  invoices Invoice[]
+
   @@index([agencyId])
   @@map("invoice_template")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
+enum InvoicePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CHECK
+  CARD
+  OTHER
+}
+
+/// Facture de l'agence à un client (libre ou depuis une réservation). Brouillon modifiable ;
+/// à l'émission, numéro attribué et contenu figé dans `snapshot` (le PDF ne change plus).
+model Invoice {
+  id         String           @id @default(uuid())
+  agencyId   String
+  // Restrict : une facture est une pièce comptable, l'agence n'est jamais supprimée avec
+  agency     Agency           @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+  bookingId  String?
+  booking    Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  templateId String?
+  template   InvoiceTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  status     InvoiceStatus    @default(DRAFT)
+  // Attribué à l'émission : {préfixe}-{année}-{rang}
+  number     String?
+
+  clientName    String
+  clientEmail   String?
+  clientPhone   String?
+  clientAddress String?
+  // Lignes : [{ description, period, quantity, unitPrice }] (francs CFA entiers)
+  lines         Json
+  // Totaux en francs CFA, recalculés à chaque enregistrement
+  totalHt       Int
+  totalVat      Int
+  totalTtc      Int
+  dueAt         DateTime  @db.Date
+  issuedAt      DateTime?
+  // Tout ce qu'il faut pour rendre le PDF émis, copié à l'émission
+  snapshot      Json?
+
+  paidAt        DateTime?             @db.Date
+  paymentMethod InvoicePaymentMethod?
+  cancelledAt   DateTime?
+  cancelReason  String?
+
+  // Utilisateur (owner ou staff) qui a créé la facture
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agencyId, number])
+  @@index([agencyId, status, createdAt])
+  @@index([agencyId, issuedAt])
+  @@index([bookingId])
+  @@map("invoice")
+}
+
+/// Dernier rang de facture attribué, par agence et par année civile.
+model InvoiceCounter {
+  agencyId String
+  year     Int
+  last     Int    @default(0)
+
+  @@id([agencyId, year])
+  @@map("invoice_counter")
 }

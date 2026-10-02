@@ -4,12 +4,11 @@ import { HttpError } from '../../config/http.error';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { AgencyService } from '../agency/agency.service';
 import { UploadsService } from '../cloudinary/uploads.service';
-import { loadAgencyImage } from './agency-image';
+import { loadInvoiceImages } from './agency-image';
 import { renderInvoicePdf } from './invoice-pdf';
 import {
   DEFAULT_INVOICE_TEMPLATES,
   InvoiceLayout,
-  InvoiceSignatureStyle,
   templateTexts,
   type InvoiceTemplateConfig,
 } from './invoice-template.config';
@@ -18,6 +17,7 @@ import type {
   InvoiceSettingsDto,
   UpdateInvoiceTemplateDto,
 } from './invoice-templates.dto';
+import { ISSUER_SELECT, issuerOf } from './invoice-data';
 import { INVOICE_VARIABLES, unknownVariables } from './invoice-variables';
 import { sampleInvoice } from './sample-invoice';
 
@@ -188,52 +188,15 @@ export class InvoiceTemplatesService implements OnModuleInit {
   async preview(agencyId: string, userId: string, config: InvoiceTemplateConfig) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
     assertKnownVariables(config);
-    const agency = await this.prisma.agency.findUniqueOrThrow({
-      where: { id: agencyId },
-      select: {
-        name: true,
-        companyName: true,
-        ninea: true,
-        rccm: true,
-        address: true,
-        billingAddress: true,
-        phone: true,
-        email: true,
-        billingEmail: true,
-        bankName: true,
-        bankAccount: true,
-        mobileMoneyNumber: true,
-        agencyLogo: true,
-        invoiceStampUrl: true,
-        vatRate: true,
-      },
-    });
-    const withStamp =
-      config.blocks.signature && config.signatureStyle === InvoiceSignatureStyle.IMAGE;
-    const [logo, stamp] = await Promise.all([
-      config.showLogo ? loadAgencyImage(agency.agencyLogo) : null,
-      withStamp ? loadAgencyImage(agency.invoiceStampUrl) : null,
-    ]);
-    return renderInvoicePdf(
-      config,
-      sampleInvoice(
-        {
-          name: agency.name,
-          companyName: agency.companyName,
-          ninea: agency.ninea,
-          rccm: agency.rccm,
-          address: agency.billingAddress ?? agency.address,
-          phone: agency.phone,
-          email: agency.billingEmail ?? agency.email,
-          bankName: agency.bankName,
-          bankAccount: agency.bankAccount,
-          mobileMoneyNumber: agency.mobileMoneyNumber,
-          logo,
-          stamp,
-        },
-        Number(agency.vatRate.toString()),
-      ),
+    const issuer = issuerOf(
+      await this.prisma.agency.findUniqueOrThrow({
+        where: { id: agencyId },
+        select: ISSUER_SELECT,
+      }),
     );
+    const images = await loadInvoiceImages(config, issuer.agency);
+    const { logoUrl: _logo, stampUrl: _stamp, ...agency } = issuer.agency;
+    return renderInvoicePdf(config, sampleInvoice({ ...agency, ...images }, issuer.vatRate));
   }
 
   /**

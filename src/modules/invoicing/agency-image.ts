@@ -1,3 +1,5 @@
+import { InvoiceSignatureStyle, type InvoiceTemplateConfig } from './invoice-template.config';
+
 /** Hôtes autorisés pour les images d'une agence (téléversées sur Cloudinary par l'application). */
 const IMAGE_HOSTS = new Set(['res.cloudinary.com']);
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -22,4 +24,18 @@ export async function loadAgencyImage(url: string | null | undefined): Promise<B
   } catch {
     return null;
   }
+}
+
+/** Logo et cachet dont un modèle a besoin, téléchargés en parallèle (null si absent ou illisible). */
+export async function loadInvoiceImages(
+  config: InvoiceTemplateConfig,
+  urls: { logoUrl: string | null; stampUrl: string | null },
+): Promise<{ logo: Buffer | null; stamp: Buffer | null }> {
+  const withStamp =
+    config.blocks.signature && config.signatureStyle === InvoiceSignatureStyle.IMAGE;
+  const [logo, stamp] = await Promise.all([
+    config.showLogo ? loadAgencyImage(urls.logoUrl) : null,
+    withStamp ? loadAgencyImage(urls.stampUrl) : null,
+  ]);
+  return { logo, stamp };
 }

@@ -107,7 +107,7 @@ describe('renderInvoicePdf', () => {
     const text = pdfText(
       await renderInvoicePdf(
         config,
-        { ...sampleInvoice(agency, 0), cancelled: true },
+        { ...sampleInvoice(agency, 0), watermark: 'ANNULÉE' },
         { compress: false },
       ),
     );

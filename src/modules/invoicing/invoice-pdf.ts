@@ -17,12 +17,20 @@ export interface InvoiceLine {
   unitPrice: number;
 }
 
+export type InvoiceWatermark = 'BROUILLON' | 'ANNULÉE';
+
+const WATERMARK_COLORS: Record<InvoiceWatermark, string> = {
+  BROUILLON: '#6b7280',
+  ANNULÉE: '#dc2626',
+};
+
 /** Données figées d'une facture (ou données d'exemple pour l'aperçu d'un modèle). */
 export interface InvoiceRenderData {
   number: string;
   issuedAt: Date;
   dueAt: Date;
-  cancelled?: boolean;
+  /** Mention en travers de la page : brouillon (pas encore émise) ou annulée */
+  watermark?: InvoiceWatermark | null;
   /** Taux de TVA en % (0 : non soumis) */
   vatRate: number;
   agency: {
@@ -425,15 +433,16 @@ export function renderInvoicePdf(
       .text(footer, left, doc.page.height - 70, { width, align: 'center' });
   }
 
-  if (data.cancelled) {
+  if (data.watermark) {
     doc.save();
     doc.rotate(-30, { origin: [pageWidth / 2, doc.page.height / 2] });
     doc
-      .fillColor('#dc2626')
+      .fillColor(WATERMARK_COLORS[data.watermark])
       .fillOpacity(0.25)
       .font('Helvetica-Bold')
-      .fontSize(90)
-      .text('ANNULÉE', 0, doc.page.height / 2 - 45, { width: pageWidth, align: 'center' });
+      // Taille réduite pour les mots longs : la mention reste dans la page une fois inclinée
+      .fontSize(data.watermark.length > 7 ? 70 : 90)
+      .text(data.watermark, 0, doc.page.height / 2 - 45, { width: pageWidth, align: 'center' });
     doc.restore();
   }
 
