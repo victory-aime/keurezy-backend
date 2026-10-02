@@ -352,6 +352,49 @@ export class ResendService {
     });
   }
 
+  /** Le modèle de facture est-il créé dans Resend ? Sans lui, l'envoi doit être refusé. */
+  canSendInvoice() {
+    return !!EMAIL_TEMPLATE_RUNTIME_ID[EMAIL_TEMPLATE_ID.INVOICE_SENT];
+  }
+
+  /**
+   * Facture d'une agence à son client, PDF joint. Le client répond directement à l'agence
+   * (`replyTo`). Variables échappées à l'envoi : tout vient de l'agence.
+   */
+  async sendInvoice(p: {
+    sendTo: string;
+    replyTo: string;
+    agencyName: string;
+    clientName: string;
+    invoiceNumber: string;
+    amount: string;
+    dueDate: string;
+    message: string;
+    agencyContact: string;
+    pdf: { filename: string; content: Buffer };
+  }) {
+    const subject = `Facture ${p.invoiceNumber} de ${p.agencyName}`;
+    return this.sendTemplateEmail({
+      to: p.sendTo,
+      replyTo: p.replyTo,
+      subject,
+      attachments: [p.pdf],
+      template: EMAIL_TEMPLATE_ID.INVOICE_SENT,
+      variables: {
+        SUBJECT: subject,
+        PREHEADER: `${p.amount}, à régler avant le ${p.dueDate}`,
+        AGENCY_NAME: p.agencyName,
+        CLIENT_NAME: p.clientName,
+        INVOICE_NUMBER: p.invoiceNumber,
+        AMOUNT: p.amount,
+        DUE_DATE: p.dueDate,
+        MESSAGE: p.message,
+        AGENCY_CONTACT: p.agencyContact,
+        APP_NAME: process.env.APP_NAME,
+      },
+    });
+  }
+
   /** Réservation confirmée, refusée ou annulée. Sans modèle configuré, l'envoi est ignoré. */
   async sendBookingStatus(payload: BookingStatusEmailPayload): Promise<EmailResult | null> {
     if (!EMAIL_TEMPLATE_RUNTIME_ID[EMAIL_TEMPLATE_ID.BOOKING_STATUS]) {

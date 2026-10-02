@@ -1472,11 +1472,29 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  emails InvoiceEmail[]
+
   @@unique([agencyId, number])
   @@index([agencyId, status, createdAt])
   @@index([agencyId, issuedAt])
   @@index([bookingId])
   @@map("invoice")
+}
+
+/// Envoi réussi d'une facture par e-mail (historique, limite de renvois sur 24 h).
+model InvoiceEmail {
+  id         String   @id @default(uuid())
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recipient  String
+  // Utilisateur (owner ou staff) qui a envoyé
+  sentBy     String
+  // Identifiant du message chez Resend
+  providerId String?
+  sentAt     DateTime @default(now())
+
+  @@index([invoiceId, sentAt])
+  @@map("invoice_email")
 }
 
 /// Image (logo, cachet) copiée à l'émission d'une facture, identifiée par son empreinte SHA-256 :

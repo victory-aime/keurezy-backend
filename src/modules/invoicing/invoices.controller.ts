@@ -10,14 +10,18 @@ import {
   Query,
   StreamableFile,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
+  ApiBadGatewayResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
+  ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { API_URL } from '../../config/api';
@@ -29,6 +33,7 @@ import {
   InvoiceDraftDto,
   ListInvoicesDto,
   PayInvoiceDto,
+  SendInvoiceDto,
 } from './invoices.dto';
 import { InvoicesService } from './invoices.service';
 
@@ -154,6 +159,28 @@ export class InvoicesController {
     @Body() data: CancelInvoiceDto,
   ) {
     return this.invoices.cancel(agencyId, userId, id, data);
+  }
+
+  @Post(API_URL.INVOICING.INVOICE_SEND)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ sustained: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({
+    summary: 'Envoyer une facture émise ou payée au client par e-mail, PDF joint',
+    description: '5 envois par facture sur 24 h au plus. Le client répond à l’agence.',
+  })
+  @ApiQuery({ name: 'id', required: true })
+  @ApiConflictResponse({ description: 'INVOICE_WRONG_STATUS' })
+  @ApiUnprocessableEntityResponse({ description: 'RECIPIENT_REQUIRED' })
+  @ApiTooManyRequestsResponse({ description: 'INVOICE_EMAIL_LIMIT' })
+  @ApiServiceUnavailableResponse({ description: 'EMAIL_NOT_CONFIGURED' })
+  @ApiBadGatewayResponse({ description: 'INVOICE_EMAIL_FAILED' })
+  send(
+    @Query('agencyId') agencyId: string,
+    @Query('id') id: string,
+    @AgencyProfileId() userId: string,
+    @Body() data: SendInvoiceDto,
+  ) {
+    return this.invoices.send(agencyId, userId, id, data);
   }
 
   @Get(API_URL.INVOICING.INVOICE_PDF)

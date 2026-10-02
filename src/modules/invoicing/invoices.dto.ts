@@ -141,6 +141,25 @@ export class CancelInvoiceDto {
   reason: string;
 }
 
+export class SendInvoiceDto {
+  @ApiPropertyOptional({
+    example: 'client@exemple.sn',
+    description: 'Destinataire ; par défaut, l’e-mail du client de la facture',
+  })
+  @IsOptional()
+  @Transform(trimOrNull)
+  @IsEmail()
+  @MaxLength(254)
+  to?: string | null;
+
+  @ApiPropertyOptional({ example: 'Merci pour votre séjour.', description: 'Message de l’agence' })
+  @IsOptional()
+  @Transform(trimOrNull)
+  @IsString()
+  @MaxLength(1000)
+  message?: string | null;
+}
+
 export class ListInvoicesDto {
   @ApiPropertyOptional({ enum: InvoiceStatus })
   @IsOptional()

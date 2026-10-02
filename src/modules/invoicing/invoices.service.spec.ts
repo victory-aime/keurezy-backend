@@ -131,6 +131,7 @@ describe('InvoicesService', () => {
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
     },
+    invoiceEmail: { count: jest.fn(), create: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
   const agencyService = { agencyAccessControl: jest.fn() };
@@ -139,7 +140,13 @@ describe('InvoicesService', () => {
     countInvoicesThisMonth: jest.fn(),
     checkCapacity: jest.fn(),
   };
-  const service = new InvoicesService(prisma as never, agencyService as never, policy as never);
+  const mail = { canSendInvoice: jest.fn(), sendInvoice: jest.fn() };
+  const service = new InvoicesService(
+    prisma as never,
+    agencyService as never,
+    policy as never,
+    mail as never,
+  );
   const classic = { name: 'Classique', config: DEFAULT_INVOICE_TEMPLATES[0].config };
 
   beforeEach(() => {
@@ -336,5 +343,105 @@ describe('InvoicesService', () => {
     expect(tx.invoiceAsset.findMany).toHaveBeenCalledWith({ where: { id: { in: ['abc'] } } });
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  describe('envoi par e-mail', () => {
+    const issued = {
+      ...draft,
+      status: 'ISSUED',
+      number: 'FAC-2026-0003',
+      clientEmail: 'a@exemple.sn',
+      totalTtc: 125_000,
+      issuedAt: new Date('2026-10-02'),
+      snapshot: {
+        version: 2,
+        templateName: 'Classique',
+        config: classic.config,
+        vatRate: 0,
+        agency: { ...agencyRow, phone: '+221 77 000 00 00', logoUrl: null, stampUrl: null },
+        booking: null,
+        property: null,
+      },
+    };
+
+    beforeEach(() => {
+      prisma.invoice.findFirst.mockResolvedValue(issued);
+      prisma.invoiceEmail.count.mockResolvedValue(0);
+      prisma.invoiceEmail.findMany.mockResolvedValue([]);
+      tx.invoiceAsset.findMany.mockResolvedValue([]);
+      mail.canSendInvoice.mockReturnValue(true);
+      mail.sendInvoice.mockResolvedValue({ success: true, messageId: 'msg-1' });
+    });
+
+    it('envoie le PDF figé au client, réponse à l’agence, et enregistre l’envoi', async () => {
+      const view = await service.send('A', 'o1', 'inv-1', { message: 'Merci !' });
+      const sent = mail.sendInvoice.mock.calls[0][0];
+      expect(sent).toMatchObject({
+        sendTo: 'a@exemple.sn',
+        replyTo: 'contact@keur.sn',
+        invoiceNumber: 'FAC-2026-0003',
+        amount: '125 000 F CFA',
+        dueDate: '17/10/2026',
+        message: 'Merci !',
+        agencyContact: 'contact@keur.sn · +221 77 000 00 00',
+      });
+      expect(sent.pdf.filename).toBe('FAC-2026-0003.pdf');
+      expect(sent.pdf.content.subarray(0, 4).toString()).toBe('%PDF');
+      expect(prisma.invoiceEmail.create).toHaveBeenCalledWith({
+        data: { invoiceId: 'inv-1', recipient: 'a@exemple.sn', sentBy: 'o1', providerId: 'msg-1' },
+      });
+      expect(view.emails).toEqual([]);
+    });
+
+    it('destinataire saisi prioritaire sur l’e-mail du client', async () => {
+      await service.send('A', 'o1', 'inv-1', { to: 'compta@client.sn' });
+      expect(mail.sendInvoice.mock.calls[0][0].sendTo).toBe('compta@client.sn');
+    });
+
+    it.each(['DRAFT', 'CANCELLED'])('refuse une facture %s', async (status) => {
+      prisma.invoice.findFirst.mockResolvedValue({ ...issued, status });
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-1', {}))).resolves.toBe(
+        'INVOICE_WRONG_STATUS',
+      );
+      expect(mail.sendInvoice).not.toHaveBeenCalled();
+    });
+
+    it('sans adresse : destinataire exigé', async () => {
+      prisma.invoice.findFirst.mockResolvedValue({ ...issued, clientEmail: null });
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-1', {}))).resolves.toBe(
+        'RECIPIENT_REQUIRED',
+      );
+    });
+
+    it('limite de renvois sur 24 h', async () => {
+      prisma.invoiceEmail.count.mockResolvedValue(5);
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-1', {}))).resolves.toBe(
+        'INVOICE_EMAIL_LIMIT',
+      );
+      expect(mail.sendInvoice).not.toHaveBeenCalled();
+    });
+
+    it('modèle Resend absent : refus explicite, rien d’envoyé', async () => {
+      mail.canSendInvoice.mockReturnValue(false);
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-1', {}))).resolves.toBe(
+        'EMAIL_NOT_CONFIGURED',
+      );
+      expect(mail.sendInvoice).not.toHaveBeenCalled();
+    });
+
+    it('échec de Resend : erreur, aucun envoi enregistré', async () => {
+      mail.sendInvoice.mockResolvedValue({ success: false, error: { code: 'x', message: 'y' } });
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-1', {}))).resolves.toBe(
+        'INVOICE_EMAIL_FAILED',
+      );
+      expect(prisma.invoiceEmail.create).not.toHaveBeenCalled();
+    });
+
+    it('facture d’une autre agence : introuvable', async () => {
+      prisma.invoice.findFirst.mockResolvedValue(null);
+      await expect(errorCodeOf(service.send('A', 'o1', 'inv-B', {}))).resolves.toBe(
+        'INVOICE_NOT_FOUND',
+      );
+    });
   });
 });

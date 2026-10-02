@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>{{{SUBJECT}}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;">
+<!-- Texte d'aperçu affiché par la boîte de réception -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{{PREHEADER}}}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f5f7;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:12px;">
+      <tr><td style="padding:24px 32px;border-bottom:1px solid #eef0f3;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#111827;">{{{AGENCY_NAME}}}</td></tr>
+      <tr><td style="padding:32px;font-family:Arial,Helvetica,sans-serif;">
+        <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;color:#111827;">Facture {{{INVOICE_NUMBER}}}</h1>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1f2937;">Bonjour {{{CLIENT_NAME}}},</p>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1f2937;">Veuillez trouver ci-joint la facture {{{INVOICE_NUMBER}}} de {{{AGENCY_NAME}}}.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;"><tr><td style="border-left:4px solid #673ab6;background:#f9fafb;padding:12px 16px;border-radius:6px;font-size:14px;line-height:1.6;color:#1f2937;">Montant : <strong>{{{AMOUNT}}}</strong><br>À régler avant le <strong>{{{DUE_DATE}}}</strong></td></tr></table>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1f2937;white-space:pre-line;">{{{MESSAGE}}}</p>
+<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#4b5563;">Pour toute question, répondez directement à cet e-mail ou contactez {{{AGENCY_NAME}}} : {{{AGENCY_CONTACT}}}</p>
+      </td></tr>
+      <tr><td style="padding:20px 32px;border-top:1px solid #eef0f3;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#9ca3af;">
+        Facture envoyée par {{{AGENCY_NAME}}} avec {{{APP_NAME}}}.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

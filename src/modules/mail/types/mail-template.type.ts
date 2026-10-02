@@ -104,6 +104,23 @@ export type TemplateVariables = {
     CTA_LINK: string;
     APP_NAME?: string;
   };
+  [EMAIL_TEMPLATE_ID.INVOICE_SENT]: {
+    SUBJECT: string;
+    PREHEADER: string;
+    AGENCY_NAME: string;
+    CLIENT_NAME: string;
+    /** « FAC-2026-0001 » */
+    INVOICE_NUMBER: string;
+    /** « 125 000 F CFA » */
+    AMOUNT: string;
+    /** « 17/10/2026 » */
+    DUE_DATE: string;
+    /** Message libre de l'agence (vide si aucun) */
+    MESSAGE: string;
+    /** « contact@agence.sn · +221 77 000 00 00 » */
+    AGENCY_CONTACT: string;
+    APP_NAME?: string;
+  };
 };
 
 export interface BookingStatusEmailPayload {

@@ -12,6 +12,7 @@ export const EMAIL_TEMPLATE_ID = {
   TWO_FACTOR_RESET: 'TWO_FACTOR_RESET',
   AGENCY_CLOSE_SCHEDULED: 'AGENCY_CLOSE_SCHEDULED',
   SUBSCRIPTION_NOTICE: 'SUBSCRIPTION_NOTICE',
+  INVOICE_SENT: 'INVOICE_SENT',
 } as const;
 
 export const EMAIL_TEMPLATE_RUNTIME_ID: Record<EMAIL_TEMPLATE_ID, string> = {
@@ -31,6 +32,8 @@ export const EMAIL_TEMPLATE_RUNTIME_ID: Record<EMAIL_TEMPLATE_ID, string> = {
   AGENCY_CLOSE_SCHEDULED: process.env.RESEND_TEMPLATE_AGENCY_CLOSE_SCHEDULED_ID!,
   // Avis d'abonnement (rappel, paiement, passage au Gratuit, downgrade) : un seul modèle générique
   SUBSCRIPTION_NOTICE: process.env.RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID!,
+  // Facture envoyée par une agence à son client, PDF joint
+  INVOICE_SENT: process.env.RESEND_TEMPLATE_INVOICE_SENT_ID!,
 };
 
 export type EMAIL_TEMPLATE_ID = (typeof EMAIL_TEMPLATE_ID)[keyof typeof EMAIL_TEMPLATE_ID];

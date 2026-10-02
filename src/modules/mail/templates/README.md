@@ -6,7 +6,7 @@ Les e-mails transactionnels passent par des **modèles hébergés chez Resend**.
 - Après la création d'un modèle, renseigne son identifiant dans la variable d'environnement indiquée, sur **tous** les environnements (local, UAT, production).
 - Un modèle non configuré n'interrompt pas l'action : l'e-mail est ignoré, avec un avertissement dans les logs.
 
-## Inventaire (au 01/10/2026)
+## Inventaire (au 02/10/2026)
 
 Chaque modèle a un fichier **`.html` prêt à coller** dans Resend (éditeur HTML) : même gabarit pour tous, avec des styles en ligne pour la compatibilité avec les clients mail. Quand il existe, le `.md` associé détaille l'objet et les variables.
 
@@ -23,6 +23,7 @@ Chaque modèle a un fichier **`.html` prêt à coller** dans Resend (éditeur HT
 | 2FA réinitialisée par l'owner | `RESEND_TEMPLATE_TWO_FACTOR_RESET_ID` | **À créer** | [two-factor-reset.html](two-factor-reset.html) | [two-factor-reset.md](two-factor-reset.md) |
 | Fermeture d'agence programmée | `RESEND_TEMPLATE_AGENCY_CLOSE_SCHEDULED_ID` | **À créer** | [agency-close-scheduled.html](agency-close-scheduled.html) | [agency-close-scheduled.md](agency-close-scheduled.md) |
 | Avis d'abonnement (rappel d'échéance, paiement confirmé, passage au Gratuit, downgrade) | `RESEND_TEMPLATE_SUBSCRIPTION_NOTICE_ID` | **À créer** ; remplace l'ancien rappel `RESEND_TEMPLATE_SUBSCRIPTION_RENEWAL_REMINDER_ID`, plus lu (la notification in-app part quand même) | [subscription-notice.html](subscription-notice.html) | [subscription-notice.md](subscription-notice.md) |
+| Facture envoyée au client (PDF joint) | `RESEND_TEMPLATE_INVOICE_SENT_ID` | **À créer** ; sans lui, l'envoi d'une facture est refusé | [invoice-sent.html](invoice-sent.html) | [invoice-sent.md](invoice-sent.md) |
 | `OTP`, `WELCOME` | `RESEND_TEMPLATE_OTP_ID`, `RESEND_TEMPLATE_WELCOME_ID` | Déclarés mais **jamais envoyés** : rien à créer | — | — |
 
 Plus aucun gabarit n'est compilé côté serveur : `otp.hbs`, son compilateur et la dépendance `handlebars` ont été supprimés. Tous les e-mails passent par Resend.

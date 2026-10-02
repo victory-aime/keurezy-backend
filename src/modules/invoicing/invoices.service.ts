@@ -4,6 +4,7 @@ import { BookingStatus, InvoiceStatus } from '../../../prisma/generated/enums';
 import { HttpError } from '../../config/http.error';
 import { PrismaService } from '../../database/prisma.service';
 import { AgencyService } from '../agency/agency.service';
+import { ResendService } from '../mail/resend.service';
 import { FeatureCommercial } from '../../config/enum';
 import { PlanFeaturePolicyService } from '../packs/plan-feature-policy.service';
 import { invoiceAsset, loadInvoiceImages } from './agency-image';
@@ -16,7 +17,7 @@ import {
   renderDataOf,
   type InvoiceSnapshot,
 } from './invoice-data';
-import { invoiceTotals, renderInvoicePdf, type InvoiceLine } from './invoice-pdf';
+import { formatXof, invoiceTotals, renderInvoicePdf, type InvoiceLine } from './invoice-pdf';
 import { InvoiceLayout, type InvoiceTemplateConfig } from './invoice-template.config';
 import type {
   CancelInvoiceDto,
@@ -24,12 +25,16 @@ import type {
   InvoiceDraftDto,
   ListInvoicesDto,
   PayInvoiceDto,
+  SendInvoiceDto,
 } from './invoices.dto';
 
 /** Échéance proposée : 15 jours après la création. */
 const DEFAULT_DUE_DAYS = 15;
 /** Total d'une facture plafonné (francs CFA) : reste loin des limites des colonnes entières. */
 const MAX_TOTAL = 1_000_000_000;
+/** Envois d'une même facture sur 24 h : l'adresse d'envoi de Keurezy ne sert pas au spam. */
+export const MAX_EMAILS_PER_DAY = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const INVOICEABLE_BOOKINGS = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED];
 
 const BOOKING_SELECT = {
@@ -77,6 +82,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly agencyService: AgencyService,
     private readonly policy: PlanFeaturePolicyService,
+    private readonly mail: ResendService,
   ) {}
 
   async list(agencyId: string, userId: string, query: ListInvoicesDto) {
@@ -129,7 +135,14 @@ export class InvoicesService {
 
   async get(agencyId: string, userId: string, id: string) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
-    return this.toView(await this.find(agencyId, id));
+    const invoice = await this.find(agencyId, id);
+    const emails = await this.prisma.invoiceEmail.findMany({
+      where: { invoiceId: id },
+      orderBy: { sentAt: 'desc' },
+      take: 20,
+      select: { recipient: true, sentAt: true },
+    });
+    return this.toView(invoice, emails);
   }
 
   /** Réservations confirmées ou terminées, à facturer (les plus récentes d'abord). */
@@ -351,7 +364,75 @@ export class InvoicesService {
    */
   async pdf(agencyId: string, userId: string, id: string) {
     await this.agencyService.agencyAccessControl(agencyId, userId);
+    return this.renderPdf(agencyId, await this.find(agencyId, id));
+  }
+
+  /**
+   * Envoie une facture émise ou payée au client (ou à l'adresse saisie), PDF figé joint ; le
+   * client répond à l'agence. Seul un envoi accepté par Resend est enregistré.
+   */
+  async send(agencyId: string, userId: string, id: string, data: SendInvoiceDto) {
+    await this.agencyService.agencyAccessControl(agencyId, userId);
     const invoice = await this.find(agencyId, id);
+    if (invoice.status !== InvoiceStatus.ISSUED && invoice.status !== InvoiceStatus.PAID) {
+      throw wrongStatus('Seule une facture émise ou payée peut être envoyée');
+    }
+    const to = data.to || invoice.clientEmail;
+    if (!to) {
+      throw new HttpError(
+        'Aucune adresse e-mail pour ce client : saisissez un destinataire',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'RECIPIENT_REQUIRED',
+      );
+    }
+    if (!this.mail.canSendInvoice()) {
+      throw new HttpError(
+        'L’envoi des factures par e-mail n’est pas encore disponible',
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'EMAIL_NOT_CONFIGURED',
+      );
+    }
+    // ponytail: compter puis envoyer laisse passer un envoi de trop en cas de clics simultanés ;
+    // le throttle de la route borne le reste
+    const recent = await this.prisma.invoiceEmail.count({
+      where: { invoiceId: id, sentAt: { gte: new Date(Date.now() - DAY_MS) } },
+    });
+    if (recent >= MAX_EMAILS_PER_DAY) {
+      throw new HttpError(
+        `Cette facture a déjà été envoyée ${MAX_EMAILS_PER_DAY} fois en 24 h`,
+        HttpStatus.TOO_MANY_REQUESTS,
+        'INVOICE_EMAIL_LIMIT',
+      );
+    }
+
+    const { filename, pdf } = await this.renderPdf(agencyId, invoice);
+    const { agency } = invoice.snapshot as unknown as InvoiceSnapshot;
+    const result = await this.mail.sendInvoice({
+      sendTo: to,
+      replyTo: agency.email,
+      agencyName: agency.name,
+      clientName: invoice.clientName,
+      invoiceNumber: invoice.number!,
+      amount: formatXof(invoice.totalTtc),
+      dueDate: invoice.dueAt.toLocaleDateString('fr-FR', { timeZone: 'UTC' }),
+      message: data.message ?? '',
+      agencyContact: [agency.email, agency.phone].filter(Boolean).join(' · '),
+      pdf: { filename, content: pdf },
+    });
+    if (!result?.success) {
+      throw new HttpError(
+        'L’e-mail n’a pas pu être envoyé, réessayez plus tard',
+        HttpStatus.BAD_GATEWAY,
+        'INVOICE_EMAIL_FAILED',
+      );
+    }
+    await this.prisma.invoiceEmail.create({
+      data: { invoiceId: id, recipient: to, sentBy: userId, providerId: result.messageId ?? null },
+    });
+    return this.get(agencyId, userId, id);
+  }
+
+  private async renderPdf(agencyId: string, invoice: InvoiceRecord) {
     const snapshot =
       invoice.status === InvoiceStatus.DRAFT
         ? (await this.assemble(this.prisma, agencyId, invoice)).snapshot
@@ -437,7 +518,7 @@ export class InvoicesService {
     return { snapshot, prefix: agency.invoicePrefix };
   }
 
-  private toView(invoice: InvoiceRecord) {
+  private toView(invoice: InvoiceRecord, emails: { recipient: string; sentAt: Date }[] = []) {
     const snapshot = invoice.snapshot as unknown as InvoiceSnapshot | null;
     return {
       id: invoice.id,
@@ -463,6 +544,8 @@ export class InvoicesService {
       cancelledAt: invoice.cancelledAt,
       cancelReason: invoice.cancelReason,
       createdAt: invoice.createdAt,
+      /** Envois par e-mail, du plus récent au plus ancien */
+      emails,
     };
   }
 }
