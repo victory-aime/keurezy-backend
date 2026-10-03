@@ -233,6 +233,10 @@ model Agency {
   rccm                     String?
   billingAddress           String?
   billingEmail             String?
+  // Pièces justificatives (PNG, JPEG ou PDF sur Cloudinary) : requises pour la vérification
+  legalFormProofUrl        String?
+  nineaProofUrl            String?
+  rccmProofUrl             String?
   // Coordonnées bancaires (bloc « coordonnées bancaires » des factures)
   bankName                 String?
   bankAccount              String?

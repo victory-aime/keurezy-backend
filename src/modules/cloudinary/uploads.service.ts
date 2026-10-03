@@ -85,6 +85,28 @@ export class UploadsService {
     return this.cloudinary.uploadFile(file.buffer, filename, folderPath, resourceType);
   }
 
+  /**
+   * Supprime un fichier public d'après son URL Cloudinary (image ou PDF). Un échec est journalisé,
+   * jamais bloquant : le fichier remplacé n'est plus référencé.
+   */
+  async deleteByUrl(url: string | null | undefined): Promise<void> {
+    const match =
+      /^https:\/\/res\.cloudinary\.com\/[^/]+\/(image|raw)\/upload\/(?:v\d+\/)?(.+)$/.exec(
+        url ?? '',
+      );
+    if (!match) return;
+    const [, type, path] = match;
+    // L'identifiant d'une image n'a pas d'extension ; celui d'un fichier brut la garde
+    const publicId = decodeURIComponent(
+      type === 'image' ? path.replace(/\.[a-z0-9]+$/i, '') : path,
+    );
+    try {
+      await this.cloudinary.deleteFile(publicId, type as 'image' | 'raw');
+    } catch (error) {
+      this.logger.warn(`Fichier non supprimé de Cloudinary (${publicId}) : ${String(error)}`);
+    }
+  }
+
   async uploadUserImage(file: Express.Multer.File, userId: string) {
     if (!file?.originalname) {
       throw new BadRequestException('Aucun fichier reçu ou fichier invalide');

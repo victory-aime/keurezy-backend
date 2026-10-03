@@ -1,4 +1,11 @@
-import { changesIdentity, LEGAL_FIELDS, legalMissing } from './agency-legal';
+import {
+  changesIdentity,
+  LEGAL_FIELDS,
+  LEGAL_PROOFS,
+  legalMissing,
+  proofFileType,
+  type LegalProofKind,
+} from './agency-legal';
 import { UpdateAgencyLegalDto } from './dto/update-agency-legal.dto';
 import { ExitFeedbackDto } from './dto/exit-feedback.dto';
 import { recordExitFeedback } from './exit-feedback';
@@ -11,6 +18,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '../../../prisma/generated/client';
+import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import {
   AgencyStatus,
@@ -46,6 +55,14 @@ const LEGAL_SELECT = Object.fromEntries(LEGAL_FIELDS.map((field) => [field, true
   true
 >;
 
+/** Colonnes des pièces justificatives. */
+const PROOF_SELECT = Object.fromEntries(
+  Object.values(LEGAL_PROOFS).map((field) => [field, true]),
+) as Record<(typeof LEGAL_PROOFS)[LegalProofKind], true>;
+
+/** Taille maximale d'une pièce justificative (aussi imposée par l'intercepteur). */
+export const LEGAL_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
 @Injectable()
 export class AgencyService {
   private readonly logger = new Logger(AgencyService.name);
@@ -80,6 +97,58 @@ export class AgencyService {
    * d'une agence vérifiée retire la vérification : le SUPER_ADMIN doit la refaire.
    */
   async updateLegal(agencyId: string, userId: string, data: UpdateAgencyLegalDto) {
+    const current = await this.findLegalForOwner(agencyId, userId);
+    const unverify = current.isVerified && changesIdentity(current, data);
+    return this.saveLegal(agencyId, { ...data, ...(unverify ? { isVerified: false } : {}) });
+  }
+
+  /**
+   * Pièce justificative d'une information légale (owner) : PNG, JPEG ou PDF, contenu vérifié par
+   * sa signature binaire. Remplace la précédente ; sur une agence vérifiée, retire la vérification.
+   */
+  async uploadLegalProof(
+    agencyId: string,
+    userId: string,
+    kind: LegalProofKind,
+    file: Express.Multer.File | undefined,
+  ) {
+    if (!file || file.size > LEGAL_PROOF_MAX_BYTES || !proofFileType(file.buffer)) {
+      throw new HttpError(
+        'Fichier PNG, JPEG ou PDF de 5 Mo au plus attendu',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INVALID_LEGAL_PROOF',
+      );
+    }
+    const field = LEGAL_PROOFS[kind];
+    const current = await this.findLegalForOwner(agencyId, userId);
+    const uploaded = await this.uploadsService.uploadFiles(
+      file,
+      current.name,
+      CLOUDINARY_FOLDER_NAME.LEGAL,
+    );
+    const result = await this.saveLegal(agencyId, {
+      [field]: uploaded.secure_url,
+      ...(current.isVerified ? { isVerified: false } : {}),
+    });
+    await this.uploadsService.deleteByUrl(current[field]);
+    return result;
+  }
+
+  /** Retire une pièce justificative (owner) ; sur une agence vérifiée, retire la vérification. */
+  async removeLegalProof(agencyId: string, userId: string, kind: LegalProofKind) {
+    const field = LEGAL_PROOFS[kind];
+    const current = await this.findLegalForOwner(agencyId, userId);
+    if (!current[field]) return this.saveLegal(agencyId, {});
+    const result = await this.saveLegal(agencyId, {
+      [field]: null,
+      ...(current.isVerified ? { isVerified: false } : {}),
+    });
+    await this.uploadsService.deleteByUrl(current[field]);
+    return result;
+  }
+
+  /** Informations légales actuelles ; seul l'owner les modifie. */
+  private async findLegalForOwner(agencyId: string, userId: string) {
     const actor = await this.agencyAccessControl(agencyId, userId);
     if (actor.type !== 'OWNER') {
       throw new HttpError(
@@ -90,15 +159,18 @@ export class AgencyService {
     }
     const current = await this.prismaService.agency.findUnique({
       where: { id: agencyId },
-      select: { isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT },
+      select: { name: true, isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT, ...PROOF_SELECT },
     });
     if (!current) throw new NotFoundException('Agency not found');
+    return current;
+  }
 
-    const unverify = current.isVerified && changesIdentity(current, data);
+  /** Enregistre et renvoie `{ legal, legalMissing, isVerified }`. */
+  private async saveLegal(agencyId: string, data: Prisma.AgencyUpdateInput) {
     const updated = await this.prismaService.agency.update({
       where: { id: agencyId },
-      data: { ...data, ...(unverify ? { isVerified: false } : {}) },
-      select: { isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT },
+      data,
+      select: { isVerified: true, ...LEGAL_SELECT, ...BANK_SELECT, ...PROOF_SELECT },
     });
     const { isVerified, ...legal } = updated;
     return { legal, legalMissing: legalMissing(legal), isVerified };

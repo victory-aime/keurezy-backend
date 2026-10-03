@@ -506,3 +506,13 @@ Contrôles : catalogue à 4 plans ; aucune agence `INACTIVE` après le premier p
   - `PATCH settings` (owner) : TVA (0 à 100 %), préfixe (1 à 8 lettres ou chiffres), modèle par défaut ;
   - `POST templates/preview` : PDF d'aperçu d'une configuration, même non enregistrée, avec les vraies informations de l'agence et des données d'exemple.
 - Logo de l'agence sur la facture : téléchargé seulement en HTTPS depuis Cloudinary (pas d'URL arbitraire), PNG ou JPEG, 2 Mo et 5 s au plus ; sinon la facture s'imprime sans logo.
+
+## 62. Pièces justificatives des informations légales
+
+- Migration `26_agency_legal_proofs` (additive) : colonnes `legalFormProofUrl`, `nineaProofUrl`, `rccmProofUrl` sur `agency`. Les agences vérifiées repassent non vérifiées (aucune n'a encore de pièce).
+- `legalMissing` compte les pièces manquantes : sans statuts, attestation NINEA et extrait RCCM, une agence ne peut pas être vérifiée.
+- Routes (owner uniquement, `OWNER_ONLY` sinon) :
+  - `POST secured/agency/legal/proof?agencyId&kind=LEGAL_FORM|NINEA|RCCM`, multipart `file` : PNG, JPEG ou PDF de 5 Mo au plus. Le contenu est contrôlé par sa signature binaire (`422 INVALID_LEGAL_PROOF`). La pièce précédente est remplacée puis supprimée de Cloudinary.
+  - `DELETE secured/agency/legal/proof?agencyId&kind=…` : retire la pièce.
+  - Réponse `{ legal, legalMissing, isVerified }`. Remplacer ou retirer une pièce d'une agence vérifiée retire la vérification.
+- `UploadsService.deleteByUrl` supprime une image ou un PDF d'après son URL Cloudinary ; un échec est journalisé, jamais bloquant.

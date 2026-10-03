@@ -167,6 +167,11 @@ export class CloudinaryService {
     }
   }
 
+  /** Supprime un fichier public (`upload`) : image ou fichier brut (PDF). */
+  async deleteFile(publicId: string, resourceType: 'image' | 'raw'): Promise<void> {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  }
+
   async deleteImage(publicId: string): Promise<void> {
     try {
       await cloudinary.uploader.destroy(publicId);

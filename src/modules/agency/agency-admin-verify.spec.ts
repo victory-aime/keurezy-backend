@@ -10,6 +10,9 @@ describe('AgencyAdminService.updateAgencyStatus : vérification', () => {
     rccm: 'SN-DKR-2020-B-12345',
     billingAddress: 'Rue 10, Dakar',
     billingEmail: 'compta@keur.sn',
+    legalFormProofUrl: 'https://res.cloudinary.com/k/raw/upload/statuts.pdf',
+    nineaProofUrl: 'https://res.cloudinary.com/k/image/upload/ninea.png',
+    rccmProofUrl: 'https://res.cloudinary.com/k/raw/upload/rccm.pdf',
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -35,6 +38,14 @@ describe('AgencyAdminService.updateAgencyStatus : vérification', () => {
     expect(prisma.agency.update.mock.calls[0][0].data).toEqual({
       status: 'OPEN',
       isVerified: false,
+    });
+  });
+
+  it('sans pièce justificative, l’agence n’est pas vérifiée', async () => {
+    prisma.agency.findUnique.mockResolvedValue({ id: 'A', ...complete, rccmProofUrl: null });
+    await expect(service.updateAgencyStatus('A', 'OPEN')).resolves.toMatchObject({
+      isVerified: false,
+      legalMissing: ['rccmProofUrl'],
     });
   });
 });

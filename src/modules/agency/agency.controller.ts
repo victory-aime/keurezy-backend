@@ -11,6 +11,11 @@ import {
   UploadedFiles,
   UseInterceptors,
   Patch,
+  Delete,
+  HttpCode,
+  HttpStatus,
+  ParseEnumPipe,
+  UploadedFile,
 } from '@nestjs/common';
 import { API_URL } from '../../config/api';
 import {
@@ -23,10 +28,13 @@ import {
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { CreateAgencyOwnerDto, UpdateAgencyDto } from './agency.dto';
 import { AgencyService } from './agency.service';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { LEGAL_PROOF_KINDS, type LegalProofKind } from './agency-legal';
+import { LEGAL_PROOF_MAX_BYTES } from './agency.service';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { UploadsService } from '../cloudinary/uploads.service';
 import { CLOUDINARY_FOLDER_NAME } from '../../config/enum';
@@ -124,6 +132,57 @@ export class AgencyController {
     @Body() data: UpdateAgencyLegalDto,
   ) {
     return this.agencyService.updateLegal(agencyId, userId, data);
+  }
+
+  @Post(API_URL.AGENCY.LEGAL_PROOF)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Pièce justificative d’une information légale (propriétaire uniquement)',
+    description:
+      'LEGAL_FORM : statuts ; NINEA : attestation NINEA ; RCCM : extrait du registre. Remplace la pièce précédente ; retire la vérification d’une agence vérifiée.',
+  })
+  @ApiQuery({ name: 'agencyId', required: true })
+  @ApiQuery({ name: 'kind', enum: Object.keys(LEGAL_PROOF_KINDS) })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'PNG, JPEG ou PDF, 5 Mo' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({ description: '{ legal, legalMissing, isVerified }' })
+  @ApiUnprocessableEntityResponse({ description: 'INVALID_LEGAL_PROOF' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // Au-delà de la limite, multer refuse ; le contenu est revérifié par le service
+      limits: { fileSize: LEGAL_PROOF_MAX_BYTES, files: 1, fields: 0 },
+      fileFilter: (_req, file, callback) =>
+        callback(null, /^(image\/(png|jpeg)|application\/pdf)$/.test(file.mimetype)),
+    }),
+  )
+  uploadLegalProof(
+    @Query('agencyId') agencyId: string,
+    @Query('kind', new ParseEnumPipe(LEGAL_PROOF_KINDS)) kind: LegalProofKind,
+    @AgencyProfileId() userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.agencyService.uploadLegalProof(agencyId, userId, kind, file);
+  }
+
+  @Delete(API_URL.AGENCY.LEGAL_PROOF)
+  @ApiOperation({ summary: 'Retirer une pièce justificative (propriétaire uniquement)' })
+  @ApiQuery({ name: 'agencyId', required: true })
+  @ApiQuery({ name: 'kind', enum: Object.keys(LEGAL_PROOF_KINDS) })
+  @ApiOkResponse({ description: '{ legal, legalMissing, isVerified }' })
+  removeLegalProof(
+    @Query('agencyId') agencyId: string,
+    @Query('kind', new ParseEnumPipe(LEGAL_PROOF_KINDS)) kind: LegalProofKind,
+    @AgencyProfileId() userId: string,
+  ) {
+    return this.agencyService.removeLegalProof(agencyId, userId, kind);
   }
 
   @Post(API_URL.AGENCY.UPDATE_AGENCY)

@@ -30,6 +30,7 @@ enum CLOUDINARY_FOLDER_NAME {
   LOGO = 'logo',
   INVOICING = 'invoicing',
   DOC = 'documents',
+  LEGAL = 'legal',
   PROPERTY = 'properties',
   USERS = 'USERS',
   ANNONCE = 'annonces',

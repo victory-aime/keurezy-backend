@@ -232,6 +232,9 @@ describe('AgencyService.updateLegal', () => {
     rccm: 'SN-DKR-2020-B-12345',
     billingAddress: 'Rue 10, Dakar',
     billingEmail: 'compta@keur.sn',
+    legalFormProofUrl: 'https://res.cloudinary.com/k/raw/upload/v1/agency/a/legal/statuts.pdf',
+    nineaProofUrl: 'https://res.cloudinary.com/k/image/upload/v1/agency/a/legal/ninea.png',
+    rccmProofUrl: 'https://res.cloudinary.com/k/raw/upload/v1/agency/a/legal/rccm.pdf',
   };
 
   beforeEach(() => {
@@ -264,5 +267,80 @@ describe('AgencyService.updateLegal', () => {
     const result = await service.updateLegal('A', 'o1', { billingAddress: 'Rue 12, Dakar' });
     expect(prisma.agency.update.mock.calls[0][0].data).toEqual({ billingAddress: 'Rue 12, Dakar' });
     expect(result).toMatchObject({ isVerified: true, legalMissing: [] });
+  });
+});
+
+describe('AgencyService — pièces justificatives', () => {
+  const prisma = { agency: { findUnique: jest.fn(), update: jest.fn() } };
+  const uploads = { uploadFiles: jest.fn(), deleteByUrl: jest.fn() };
+  const service = new AgencyService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    uploads as never,
+    resend as never,
+  );
+  const access = jest.spyOn(service, 'agencyAccessControl');
+  const oldProof = 'https://res.cloudinary.com/k/raw/upload/v1/agency/a/legal/ninea-old.pdf';
+  const agency = {
+    name: 'Keur Immo',
+    isVerified: true,
+    companyName: 'Keur Immo SARL',
+    legalForm: 'SARL',
+    ninea: '00123452G3',
+    rccm: 'SN-DKR-2020-B-12345',
+    billingAddress: 'Rue 10, Dakar',
+    billingEmail: 'compta@keur.sn',
+    legalFormProofUrl: 'https://res.cloudinary.com/k/raw/upload/v1/agency/a/legal/statuts.pdf',
+    nineaProofUrl: oldProof,
+    rccmProofUrl: null,
+  };
+  const pdf = { size: 1000, buffer: Buffer.from('%PDF-1.7 ...') } as Express.Multer.File;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    access.mockResolvedValue({ type: 'OWNER' } as never);
+    prisma.agency.findUnique.mockResolvedValue(agency);
+    prisma.agency.update.mockImplementation(({ data }) => Promise.resolve({ ...agency, ...data }));
+    uploads.uploadFiles.mockResolvedValue({ secure_url: 'https://res.cloudinary.com/k/new.pdf' });
+  });
+
+  it('refuse le staff, sans rien envoyer à Cloudinary', async () => {
+    access.mockResolvedValue({ type: 'STAFF' } as never);
+    await expect(errorCodeOf(service.uploadLegalProof('A', 's1', 'NINEA', pdf))).resolves.toBe(
+      'OWNER_ONLY',
+    );
+    expect(uploads.uploadFiles).not.toHaveBeenCalled();
+  });
+
+  it('refuse un fichier qui n’est ni PNG, ni JPEG, ni PDF (quel que soit son nom)', async () => {
+    const html = { size: 10, buffer: Buffer.from('<html>') } as Express.Multer.File;
+    for (const file of [html, undefined]) {
+      await expect(errorCodeOf(service.uploadLegalProof('A', 'o1', 'NINEA', file))).resolves.toBe(
+        'INVALID_LEGAL_PROOF',
+      );
+    }
+    expect(uploads.uploadFiles).not.toHaveBeenCalled();
+  });
+
+  it('remplace la pièce, retire la vérification et supprime l’ancienne', async () => {
+    const result = await service.uploadLegalProof('A', 'o1', 'NINEA', pdf);
+    expect(prisma.agency.update.mock.calls[0][0].data).toEqual({
+      nineaProofUrl: 'https://res.cloudinary.com/k/new.pdf',
+      isVerified: false,
+    });
+    expect(uploads.deleteByUrl).toHaveBeenCalledWith(oldProof);
+    // Pièce RCCM toujours manquante
+    expect(result).toMatchObject({ isVerified: false, legalMissing: ['rccmProofUrl'] });
+  });
+
+  it('retire une pièce et la supprime de Cloudinary', async () => {
+    const result = await service.removeLegalProof('A', 'o1', 'NINEA');
+    expect(prisma.agency.update.mock.calls[0][0].data).toEqual({
+      nineaProofUrl: null,
+      isVerified: false,
+    });
+    expect(uploads.deleteByUrl).toHaveBeenCalledWith(oldProof);
+    expect(result.legalMissing).toEqual(['nineaProofUrl', 'rccmProofUrl']);
   });
 });
